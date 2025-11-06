@@ -2,20 +2,18 @@
 
 namespace App\Console\Commands;
 
-use App\Services\SocketServerService;
 use Illuminate\Console\Command;
+use App\Services\SocketServerService;
 
 class StartDeviceServer extends Command
 {
-    protected $signature = 'device:start-server {port=18887}';
-    protected $description = 'Start the device communication socket server';
+    protected $signature = 'device:start-server';
+    protected $description = 'Start persistent TCP socket server for device communication';
 
     public function handle()
     {
-        $port = $this->argument('port');
-        $this->info("Starting device socket server on port {$port}...");
-
-        $socketService = app(SocketServerService::class);
-        $socketService->startServer($port);
+        $this->info('🔌 Starting device TCP server... Press Ctrl+C to stop.');
+        $server = new SocketServerService();
+        $server->startServer();
     }
 }

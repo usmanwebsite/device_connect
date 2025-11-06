@@ -18,18 +18,17 @@ use Illuminate\Support\Facades\Route;
 */
 
     Route::prefix('qr')->group(function () {
-        Route::post('/validate', [QRCodeController::class, 'validateQR']);
-        Route::get('/history', [QRCodeController::class, 'getScanHistory']);
+        Route::get('/generate-encrypted', [QRCodeController::class, 'generateEncryptedString']);
     });
 
     // Device control endpoints
     Route::prefix('device')->group(function () {
-        Route::get('/status', [DeviceController::class, 'getStatus']);
-        Route::post('/command', [DeviceController::class, 'sendCommand']);
-        Route::post('/open-door', [DeviceController::class, 'openDoor']);
-        Route::post('/clear-cards', [DeviceController::class, 'clearCards']);
+        Route::post('/send-command', [DeviceController::class, 'sendCommand']);
+        Route::get('/open-door', [DeviceController::class, 'openDoor']);
+        Route::post('/close-door', [DeviceController::class, 'closeDoor']);
     });
 
+    
 
 Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
     return $request->user();

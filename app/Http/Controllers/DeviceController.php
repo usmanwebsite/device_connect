@@ -2,73 +2,38 @@
 
 namespace App\Http\Controllers;
 
-use App\Http\Requests\DeviceCommandRequest;
-use App\Services\DeviceCommunicationService;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+use App\Services\SocketServerService;
 
 class DeviceController extends Controller
 {
-    protected $deviceService;
-
-    public function __construct(DeviceCommunicationService $deviceService)
+    public function sendCommand(Request $request): JsonResponse
     {
-        $this->deviceService = $deviceService;
+        $deviceId = $request->get('deviceId');
+        $command = $request->get('command', 'open_door');
+
+        $server = app(\App\Services\SocketServerService::class);
+        $result = $server->sendCommandToDevice($deviceId, $command);
+
+        return response()->json($result);
     }
 
-    /**
-     * Get device status
-     */
-    public function getStatus(): JsonResponse
-    {
-        $status = $this->deviceService->getDeviceStatus();
-        
-        return response()->json([
-            'success' => true,
-            'status' => $status,
-        ]);
-    }
-
-    /**
-     * Send command to device
-     */
-    public function sendCommand(DeviceCommandRequest $request): JsonResponse
-    {
-        $validated = $request->validated();
-
-        $result = $this->deviceService->sendDeviceCommand(
-            $validated['command'],
-            $validated['data'] ?? []
-        );
-
-        return response()->json([
-            'success' => (bool)$result,
-            'result' => $result,
-        ]);
-    }
-
-    /**
-     * Open door remotely
-     */
     public function openDoor(): JsonResponse
     {
-        $result = $this->deviceService->openDoor('remote', 'manual_override');
-
-        return response()->json([
-            'success' => $result,
-            'message' => $result ? 'Door open command sent' : 'Failed to open door',
-        ]);
+        $result = SocketServerService::sendToDevice('OPEN_DOOR');
+        return response()->json($result);
     }
 
-    /**
-     * Clear all cards from device
-     */
-    public function clearCards(): JsonResponse
+    public function closeDoor(): JsonResponse
     {
-        $result = $this->deviceService->clearAllCards();
+        $result = SocketServerService::sendToDevice('CLOSE_DOOR');
+        return response()->json($result);
+    }
 
-        return response()->json([
-            'success' => $result,
-            'message' => $result ? 'Cards cleared successfully' : 'Failed to clear cards',
-        ]);
+    public function disconnect(): JsonResponse
+    {
+        SocketServerService::disconnect();
+        return response()->json(['success' => true, 'message' => 'Socket disconnected']);
     }
 }

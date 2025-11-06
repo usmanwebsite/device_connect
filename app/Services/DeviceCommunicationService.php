@@ -3,106 +3,73 @@
 namespace App\Services;
 
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Cache;
-use App\Events\DoorAccessEvent;
 
 class DeviceCommunicationService
 {
-    protected $javaAPIService;
+    private static $socket = null;
+    private string $deviceIp;
+    private int $port;
 
-    public function __construct(JavaAPIService $javaAPIService)
+    public function __construct(string $deviceIp = '192.168.100.15', int $port = 9998)
     {
-        $this->javaAPIService = $javaAPIService;
+        $this->deviceIp = $deviceIp;
+        $this->port = $port;
+
+        // create connection once if not already
+        if (self::$socket === null) {
+            $this->connectToDevice();
+        }
     }
 
-    /**
-     * Open door via Java backend
-     */
-    public function openDoor(string $readerId, string $passId = null)
+    private function connectToDevice(): void
     {
-        Log::info("Opening door for reader: {$readerId}, pass: {$passId}");
-
-        $result = $this->javaAPIService->sendDeviceCommand('open_door', [
-            'reader_id' => $readerId,
-            'pass_id' => $passId,
-        ]);
-
-        if ($result && $result['success']) {
-            event(new DoorAccessEvent('open', $readerId, $passId, true));
-            return true;
+        self::$socket = socket_create(AF_INET, SOCK_STREAM, SOL_TCP);
+        if (self::$socket === false) {
+            throw new \Exception("Socket creation failed: " . socket_strerror(socket_last_error()));
         }
 
-        event(new \App\Events\DoorAccessEvent('open', $readerId, $passId, false));
-        return false;
+        $connected = @socket_connect(self::$socket, $this->deviceIp, $this->port);
+        if ($connected === false) {
+            $error = socket_strerror(socket_last_error(self::$socket));
+            self::$socket = null;
+            throw new \Exception("Connection failed: " . $error);
+        }
+
+        Log::info("✅ Connected to device {$this->deviceIp}:{$this->port}");
     }
 
-    /**
-     * Trigger alarm via Java backend
-     */
-    public function triggerAlarm(string $readerId)
+    public function sendDeviceCommand(string $command, array $data = []): array
     {
-        Log::warning("Triggering alarm for reader: {$readerId}");
+        try {
+            if (self::$socket === null) {
+                $this->connectToDevice();
+            }
 
-        $result = $this->javaAPIService->sendDeviceCommand('trigger_alarm', [
-            'reader_id' => $readerId,
-        ]);
+            $payload = strtoupper($command);
 
-        event(new DoorAccessEvent('alarm', $readerId, null, (bool)$result));
-        return $result;
-    }
+            socket_write(self::$socket, $payload, strlen($payload));
+            $response = socket_read(self::$socket, 2048);
 
-    /**
-     * Clear all cards from device
-     */
-    public function clearAllCards()
-    {
-        Log::info("Clearing all cards from device");
-
-        $result = $this->javaAPIService->sendDeviceCommand('clear_cards');
-
-        return $result && $result['success'];
-    }
-
-    /**
-     * Get device status
-     */
-    public function getDeviceStatus(string $deviceMac = null)
-    {
-        return $this->javaAPIService->getDeviceStatus($deviceMac);
-    }
-
-    /**
-     * Process QR code scan - Main entry point for QR validation
-     */
-    public function processQRCodeScan(string $qrData, string $readerId)
-    {
-        Log::info("Processing QR scan - Data: {$qrData}, Reader: {$readerId}");
-
-        // Validate QR code through Java backend
-        $validationResult = $this->javaAPIService->validateQRCode($qrData, $readerId);
-
-        if ($validationResult && $validationResult['valid']) {
-            // Open door
-            $openResult = $this->openDoor($readerId, $validationResult['pass_id'] ?? null);
-            
-            event(new \App\Events\QRCodeScanned($qrData, $readerId, true, $validationResult));
             return [
                 'success' => true,
-                'access_granted' => $openResult,
-                'message' => 'Access granted',
-                'data' => $validationResult,
+                'command' => $payload,
+                'response' => trim($response),
+            ];
+        } catch (\Exception $e) {
+            Log::error("Device command error: " . $e->getMessage());
+            return [
+                'success' => false,
+                'error' => $e->getMessage(),
             ];
         }
+    }
 
-        // Trigger alarm for invalid QR
-        $this->triggerAlarm($readerId);
-        
-        event(new \App\Events\QRCodeScanned($qrData, $readerId, false, $validationResult));
-        return [
-            'success' => false,
-            'access_granted' => false,
-            'message' => 'Invalid QR code or access denied',
-            'data' => $validationResult,
-        ];
+    public function closeConnection(): void
+    {
+        if (self::$socket !== null) {
+            socket_close(self::$socket);
+            self::$socket = null;
+            Log::info("🔒 Device connection closed.");
+        }
     }
 }

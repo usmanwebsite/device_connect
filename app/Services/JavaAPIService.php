@@ -9,92 +9,107 @@ class JavaAPIService
 {
     protected $baseUrl;
     protected $timeout;
+    protected $retryAttempts;
 
     public function __construct()
     {
-        $this->baseUrl = config('device.java_api.base_url');
-        $this->timeout = config('device.java_api.timeout');
-    }
-
-    /**
-     * Validate QR Code with Java backend
-     */
-    public function validateQRCode(string $qrData, string $readerId)
-    {
-        try {
-            $response = Http::timeout($this->timeout)
-                ->post("{$this->baseUrl}/api/qr/validate", [
-                    'qr_data' => $qrData,
-                    'reader_id' => $readerId,
-                    'timestamp' => now()->toISOString(),
-                ]);
-
-            return $response->successful() ? $response->json() : null;
-            
-        } catch (\Exception $e) {
-            Log::error('Java API QR validation failed: ' . $e->getMessage());
-            return null;
-        }
-    }
-
-    /**
-     * Send command to device via Java backend
-     */
-    public function sendDeviceCommand(string $command, array $data = [])
-    {
-        try {
-            $response = Http::timeout($this->timeout)
-                ->post("{$this->baseUrl}/api/device/command", [
-                    'command' => $command,
-                    'data' => $data,
-                    'timestamp' => now()->toISOString(),
-                ]);
-
-            return $response->successful() ? $response->json() : null;
-            
-        } catch (\Exception $e) {
-            Log::error('Java API device command failed: ' . $e->getMessage());
-            return null;
-        }
+        $config = config('device.java_api');
+        $this->baseUrl = rtrim($config['base_url'], '/'); 
+        $this->timeout = $config['timeout'];
+        $this->retryAttempts = $config['retry_attempts'];
     }
 
     /**
      * Get device status from Java backend
      */
-    public function getDeviceStatus(string $deviceMac = null)
+    public function getDeviceStatus($deviceMac = null)
     {
-        try {
-            $response = Http::timeout($this->timeout)
-                ->post("{$this->baseUrl}/api/device/status", [
-                    'device_mac' => $deviceMac,
-                ]);
+        $endpoint = "{$this->baseUrl}/device/status";
+        $params = $deviceMac ? ['deviceMac' => $deviceMac] : [];
 
-            return $response->successful() ? $response->json() : null;
-            
+        try {
+            Log::info("Calling Java API → {$endpoint}", $params);
+
+            $response = Http::timeout($this->timeout)
+                ->retry($this->retryAttempts, 1000)
+                ->get($endpoint, $params);
+
+            if ($response->successful()) {
+                return $response->json();
+            }
+
+            Log::error("Java API error: {$response->status()} → " . $response->body());
+            return ['success' => false, 'status_code' => $response->status()];
         } catch (\Exception $e) {
-            Log::error('Java API status check failed: ' . $e->getMessage());
-            return null;
+            Log::error("Java API connection failed: " . $e->getMessage());
+            return ['success' => false, 'error' => $e->getMessage()];
         }
     }
 
-    /**
-     * Upload cards to device via Java backend
-     */
-    public function uploadCardsToDevice(array $cardsData)
+    public function sendDeviceCommand(string $command, array $data = [], string $deviceIp = '192.168.100.15', int $port = 9998)
     {
         try {
-            $response = Http::timeout($this->timeout)
-                ->post("{$this->baseUrl}/api/device/upload-cards", [
-                    'cards' => $cardsData,
-                    'batch_size' => 16, // As per your Java code
-                    'timestamp' => now()->toISOString(),
-                ]);
+            // create TCP socket
+            $socket = socket_create(AF_INET, SOCK_STREAM, SOL_TCP);
+            if ($socket === false) {
+                throw new \Exception("Socket creation failed: " . socket_strerror(socket_last_error()));
+            }
 
-            return $response->successful() ? $response->json() : null;
-            
+            // connect
+            $connected = @socket_connect($socket, $deviceIp, $port);
+            if ($connected === false) {
+                throw new \Exception("Connection failed: " . socket_strerror(socket_last_error($socket)));
+            }
+
+            // create payload (depends on your device command protocol)
+            // For now let's just send command name in plain text
+            $payload = strtoupper($command);
+
+            // send
+            socket_write($socket, $payload, strlen($payload));
+
+            // read response
+            $response = socket_read($socket, 2048);
+
+            socket_close($socket);
+
+            return [
+                'success' => true,
+                'sent' => $payload,
+                'response' => trim($response)
+            ];
         } catch (\Exception $e) {
-            Log::error('Java API card upload failed: ' . $e->getMessage());
-            return null;
+            Log::error("Device command error: " . $e->getMessage());
+            return [
+                'success' => false,
+                'error' => $e->getMessage(),
+            ];
+        }
+    }
+
+
+    /**
+     * Validate QR Code
+     */
+    public function validateQRCode(string $qrData, string $readerId)
+    {
+        $endpoint = "{$this->baseUrl}/qr/validate";
+        $payload = [
+            'qr_data' => $qrData,
+            'reader_id' => $readerId,
+        ];
+
+        try {
+            Log::info("Validating QR with Java API → {$endpoint}", $payload);
+
+            $response = Http::timeout($this->timeout)
+                ->retry($this->retryAttempts, 1000)
+                ->post($endpoint, $payload);
+
+            return $response->json();
+        } catch (\Exception $e) {
+            Log::error("QR validation failed: " . $e->getMessage());
+            return ['valid' => false, 'error' => $e->getMessage()];
         }
     }
 }
