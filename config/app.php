@@ -43,6 +43,8 @@ return [
     */
 
     'debug' => (bool) env('APP_DEBUG', false),
+    'angular_url' => env('ANGULAR_APP_URL', 'http://localhost:8080'),
+
 
     /*
     |--------------------------------------------------------------------------
