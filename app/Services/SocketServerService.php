@@ -119,90 +119,157 @@ class SocketServerService
     }
 
     private function handleOpenDoorRequest($sock, $data, $ip)
-    {
-        echo "[" . date('H:i:s') . "] 🚪 OpenDoor Request Received\n";
-        
-        // Extract SCode and DeviceID
-        $scode = $this->extractValue($data, 'SCode');
-        $deviceId = $this->extractValue($data, 'DeviceID');
-        
-        echo "[" . date('H:i:s') . "] 🔍 SCode: $scode, DeviceID: $deviceId\n";
-        
-        if (empty($scode) || empty($deviceId)) {
-            echo "[" . date('H:i:s') . "] ❌ Missing SCode or DeviceID\n";
-            $this->sendAlarm($sock, $deviceId);
-            return;
-        }
-        
-        // Step 1: Call Java API to check staff validity
-        $javaResponse = $this->callJavaStaffValidityAPI($scode);
-        
-        if (!$javaResponse || !isset($javaResponse['status'])) {
-            echo "[" . date('H:i:s') . "] ❌ Java API call failed or invalid response\n";
-            $this->sendAlarm($sock, $deviceId);
-            return;
-        }
-        
-        echo "[" . date('H:i:s') . "] 📋 Java API Response: " . json_encode($javaResponse) . "\n";
-        
-        // Step 2: Check if status is true and get location name
-        if ($javaResponse['status'] !== true) {
-            echo "[" . date('H:i:s') . "] ❌ Staff visit not valid: " . ($javaResponse['message'] ?? 'Unknown error') . "\n";
-            $this->sendAlarm($sock, $deviceId);
-            return;
-        }
-        
-        $locationName = $javaResponse['locationName'] ?? '';
-        if (empty($locationName)) {
-            echo "[" . date('H:i:s') . "] ❌ No location name in Java response\n";
-            $this->sendAlarm($sock, $deviceId);
-            return;
-        }
-        
-        // Step 3: Get location ID from vendor_locations table
-        $location = DB::table('vendor_locations')->where('name', $locationName)->first();
-        if (!$location) {
-            echo "[" . date('H:i:s') . "] ❌ Location '$locationName' not found in vendor_locations\n";
-            $this->sendAlarm($sock, $deviceId);
-            return;
-        }
-        
-        $locationId = $location->id;
-        echo "[" . date('H:i:s') . "] 📍 Location ID: $locationId\n";
-        
-        // Step 4: Check if location is assigned to this device
-        $assignment = DB::table('device_location_assigns')
-                        ->where('device_id', $deviceId)
-                        ->where('location_id', $locationId)
-                        ->first();
-        
-        if (!$assignment) {
-            echo "[" . date('H:i:s') . "] ❌ Location $locationName not assigned to device $deviceId\n";
-            $this->sendAlarm($sock, $deviceId);
-            return;
-        }
-        
-        // Step 5: All conditions met - Open the door
-        echo "[" . date('H:i:s') . "] ✅ All conditions met - Opening door for device $deviceId\n";
-        $this->sendOpenDoorCommand($sock, $deviceId);
-        
-        // Log the successful access
-        // DB::table('access_logs')->insert([
-        //     'device_id' => $deviceId,
-        //     'staff_no' => $scode,
-        //     'location_name' => $locationName,
-        //     'access_granted' => true,
-        //     'created_at' => now()
-        // ]);
+{
+    echo "[" . date('H:i:s') . "] 🚪 OpenDoor Request Received\n";
 
-        DB::table('device_access_logs')->insert([
-            'device_id' => $deviceId,
-            'staff_no' => $javaResponse['staffNo'] ?? $scode, // ✅ use real staff number from Java
-            'location_name' => $locationName,
-            'access_granted' => true,
-            'created_at' => now(),
-        ]);
+    // Extract SCode (card scanned) and DeviceID
+    $scode = $this->extractValue($data, 'SCode'); // card_no
+    $deviceId = $this->extractValue($data, 'DeviceID');
+
+    echo "[" . date('H:i:s') . "] 🔍 SCode: $scode, DeviceID: $deviceId\n";
+
+    if (empty($scode) || empty($deviceId)) {
+        echo "[" . date('H:i:s') . "] ❌ Missing SCode or DeviceID\n";
+        $this->sendAlarm($sock, $deviceId, $scode); // pass SCode to save
+        return;
     }
+
+    // ✅ Step 1: Call Java API to get real staff_no
+    $javaResponse = $this->callJavaStaffValidityAPI($scode);
+
+    if (!$javaResponse || !isset($javaResponse['status']) || $javaResponse['status'] !== true) {
+        echo "[" . date('H:i:s') . "] ❌ Staff visit not valid\n";
+        $this->sendAlarm($sock, $deviceId, $scode);
+        return;
+    }
+
+    $staffNo = $javaResponse['staffNo'] ?? $scode; // real staff_no from Java or fallback
+    $locationName = $javaResponse['locationName'] ?? '';
+
+    if (empty($locationName)) {
+        echo "[" . date('H:i:s') . "] ❌ No location in Java response\n";
+        $this->sendAlarm($sock, $deviceId, $scode);
+        return;
+    }
+
+    // ✅ Step 2: Validate location assignment
+    $location = DB::table('vendor_locations')->where('name', $locationName)->first();
+    if (!$location) {
+        echo "[" . date('H:i:s') . "] ❌ Location not found\n";
+        $this->sendAlarm($sock, $deviceId, $scode);
+        return;
+    }
+
+    $assignment = DB::table('device_location_assigns')
+        ->where('device_id', $deviceId)
+        ->where('location_id', $location->id)
+        ->first();
+
+    if (!$assignment) {
+        echo "[" . date('H:i:s') . "] ❌ Location not assigned to device\n";
+        $this->sendAlarm($sock, $deviceId, $scode);
+        return;
+    }
+
+    // ✅ Step 3: Open door & log success
+    echo "[" . date('H:i:s') . "] ✅ Access granted\n";
+    $this->sendOpenDoorCommand($sock, $deviceId);
+
+    DB::table('device_access_logs')->insert([
+        'device_id' => $deviceId,
+        'card_no' => $scode,      // scanned code from device
+        'staff_no' => $staffNo,   // actual staff number from Java
+        'location_name' => $locationName,
+        'access_granted' => true,
+        'created_at' => now(),
+    ]);
+}
+
+    // private function handleOpenDoorRequest($sock, $data, $ip)
+    // {
+    //     echo "[" . date('H:i:s') . "] 🚪 OpenDoor Request Received\n";
+        
+    //     // Extract SCode and DeviceID
+    //     $scode = $this->extractValue($data, 'SCode');
+    //     $deviceId = $this->extractValue($data, 'DeviceID');
+        
+    //     echo "[" . date('H:i:s') . "] 🔍 SCode: $scode, DeviceID: $deviceId\n";
+        
+    //     if (empty($scode) || empty($deviceId)) {
+    //         echo "[" . date('H:i:s') . "] ❌ Missing SCode or DeviceID\n";
+    //         $this->sendAlarm($sock, $deviceId);
+    //         return;
+    //     }
+        
+    //     // Step 1: Call Java API to check staff validity
+    //     $javaResponse = $this->callJavaStaffValidityAPI($scode);
+        
+    //     if (!$javaResponse || !isset($javaResponse['status'])) {
+    //         echo "[" . date('H:i:s') . "] ❌ Java API call failed or invalid response\n";
+    //         $this->sendAlarm($sock, $deviceId);
+    //         return;
+    //     }
+        
+    //     echo "[" . date('H:i:s') . "] 📋 Java API Response: " . json_encode($javaResponse) . "\n";
+        
+    //     // Step 2: Check if status is true and get location name
+    //     if ($javaResponse['status'] !== true) {
+    //         echo "[" . date('H:i:s') . "] ❌ Staff visit not valid: " . ($javaResponse['message'] ?? 'Unknown error') . "\n";
+    //         $this->sendAlarm($sock, $deviceId);
+    //         return;
+    //     }
+        
+    //     $locationName = $javaResponse['locationName'] ?? '';
+    //     if (empty($locationName)) {
+    //         echo "[" . date('H:i:s') . "] ❌ No location name in Java response\n";
+    //         $this->sendAlarm($sock, $deviceId);
+    //         return;
+    //     }
+        
+    //     // Step 3: Get location ID from vendor_locations table
+    //     $location = DB::table('vendor_locations')->where('name', $locationName)->first();
+    //     if (!$location) {
+    //         echo "[" . date('H:i:s') . "] ❌ Location '$locationName' not found in vendor_locations\n";
+    //         $this->sendAlarm($sock, $deviceId);
+    //         return;
+    //     }
+        
+    //     $locationId = $location->id;
+    //     echo "[" . date('H:i:s') . "] 📍 Location ID: $locationId\n";
+        
+    //     // Step 4: Check if location is assigned to this device
+    //     $assignment = DB::table('device_location_assigns')
+    //     ->where('device_id', $deviceId)
+    //     ->where('location_id', $locationId)
+    //     ->first();
+        
+    //     if (!$assignment) {
+    //         echo "[" . date('H:i:s') . "] ❌ Location $locationName not assigned to device $deviceId\n";
+    //         $this->sendAlarm($sock, $deviceId);
+    //         return;
+    //     }
+        
+    //     // Step 5: All conditions met - Open the door
+    //     echo "[" . date('H:i:s') . "] ✅ All conditions met - Opening door for device $deviceId\n";
+    //     $this->sendOpenDoorCommand($sock, $deviceId);
+        
+    //     // Log the successful access
+    //     // DB::table('access_logs')->insert([
+    //     //     'device_id' => $deviceId,
+    //     //     'staff_no' => $scode,
+    //     //     'location_name' => $locationName,
+    //     //     'access_granted' => true,
+    //     //     'created_at' => now()
+    //     // ]);
+
+    //     DB::table('device_access_logs')->insert([
+    //         'device_id' => $deviceId,
+    //         'staff_no' => $javaResponse['staffNo'] ?? $scode, // ✅ use real staff number from Java
+    //         'location_name' => $locationName,
+    //         'access_granted' => true,
+    //         'created_at' => now(),
+    //     ]);
+    // }
 
     private function callJavaStaffValidityAPI($staffNo)
     {
@@ -234,21 +301,16 @@ class SocketServerService
         }
     }
 
-    private function sendAlarm($sock, $deviceId)
+    private function sendAlarm($sock, $deviceId, $scode = null)
     {
         echo "[" . date('H:i:s') . "] 🚨 Triggering alarm for device $deviceId\n";
         
-        // Log the denied access
-        // DB::table('access_logs')->insert([
-        //     'device_id' => $deviceId,
-        //     'access_granted' => false,
-        //     'reason' => 'Access denied - validation failed',
-        //     'created_at' => now()
-        // ]);
+        $this->triggerDeviceAlarm($sock, $deviceId);
 
         DB::table('device_access_logs')->insert([
             'device_id' => $deviceId,
-            'staff_no' => null, // ❌ access denied, no valid staff number
+            'card_no' => $scode,       // store scanned code even if denied
+            'staff_no' => null,        // invalid/no staff
             'access_granted' => false,
             'reason' => 'Access denied - validation failed',
             'created_at' => now(),
@@ -346,6 +408,17 @@ class SocketServerService
         echo "[" . date('H:i:s') . "] 🚀 Sent raw command to $deviceId ($command)\n";
         return true;
     }
+
+    private function triggerDeviceAlarm($sock, $deviceId)
+    {
+        // Device protocol: Send Alarm Command
+        $alarmCommand = "ALARM;DeviceID=$deviceId;TRIGGER=1;#";
+
+        echo "[" . date('H:i:s') . "] 🚨 Sending Alarm Command: $alarmCommand\n";
+
+        socket_write($sock, $alarmCommand, strlen($alarmCommand));
+    }
+
 }
 
 

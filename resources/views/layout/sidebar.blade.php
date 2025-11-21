@@ -1,4 +1,4 @@
-<aside class="sidebar">
+<aside class="sidebar" id="sidebar">
     <div class="sidebar-header">
         <img src="{{ asset('logo_image/safegLogo2.svg')}}" alt="SafeG Logo" class="img-style">
     </div>

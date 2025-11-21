@@ -35,7 +35,8 @@ class MenuService
     private function fetchUserAccessFromJavaBackend()
     {
         try {
-            $token = $this->getJavaAuthToken();
+            // $token = $this->getJavaAuthToken();
+$token ='eyJhbGciOiJIUzUxMiJ9.eyJzdWIiOiJzdXBlcmFkbWluIiwiYXV0aEtleSI6IjZ3bDFtdUQ3IiwiY29tcGFueUlkIjoic3VwZXJhZG1pbiIsImFjY2VzcyI6WyJQUEFIVENEIiwiUFBBSFRDRSIsIlZQUmVxTCIsIlJUeXBlIiwiQnJyQ29uZiIsIlZQQ2xvTERlbCIsIlBQQUwiLCJDcG5JbmYiLCJSUEJSRXgiLCJDUENMVkEiLCJQUEFIVENNIiwiVlBQTCIsIlBQUkwiLCJDVENvbmYiLCJCQ1JMIiwiQk5hbWUiLCJXSExDb25mIiwiUFBHSUV4IiwiUkNQIiwiUlBQTUciLCJCSUNMUmVsIiwiUFBDTCIsIkJDQ0xSZWwiLCJWUEFMIiwiY1ZBIiwiUFBFVENNIiwiUFBVIiwiUFBFVENFIiwiUFBFVENEIiwiVlBSTCIsIkNpdHlJbmYiLCJNR0lPIiwiQ1BSTEUiLCJzVlAiLCJWUFJlakxEZWwiLCJCQ0NMIiwiUFBTTCIsIkNJbmYiLCJWUENMIiwiUlBQTSIsIm15UFAiLCJDTkNWUFJMIiwiTENJbmYiLCJNTE9HSU4iLCJDUFJMZWciLCJDTkNWUEFMIiwiUm9sZSIsIkNQUkxEQSIsIlBQR0kiLCJDcG5QIiwiTlNDUiIsIkJSQ29uZiIsIkNQUkxEUiIsIkNQUkxEVSIsIkRJbmYiLCJCSVJMIiwiUlBQUyIsIkNOQ1ZQQ0wiLCJCSUNMIiwiUFBJTCIsIlBQT1dJRXgiLCJDUEFMREEiLCJSUkNvbmYiLCJWUEludkwiLCJMQ2xhc3MiLCJWUFJlakwiLCJCSVJMQXBwciIsIlJQQlIiLCJQUFN1c0wiLCJDUFJEQXBwIiwiQ1BBTERVIiwiQ05DVlBSZWpMRGVsIiwiQ1BBTERSIiwiQVBQQ29uZiIsIkNQQUwiLCJteVZQIiwiQlR5cGUiLCJDaENvbSIsIlZpblR5cGUiLCJkYXNoMSIsIkRFU0luZiIsIkNQUlNPIiwiQ1BSTCIsIkNQUkgiLCJDTkNWUENsb0xEZWwiLCJSVlNTIiwiU0xDSW5mIiwiQ1BDTCIsIm15Q05DVlAiLCJTUFAiLCJDUFJMRURSIiwiTFZDSW5mIiwiQ1BSTEVEVSIsIlBQUmVqTCIsIkNhdGVJbmYiLCJDTkNWUFJlakwiLCJVc2VyIiwiQkNSTEFwcHIiLCJTUFBEVCIsIkxJbmYiLCJDUFJMRURBIiwiUFBQTCIsIlN0YXRlSW5mIiwiUFBBSFRDIiwiUFBPV0kiLCJSQ1AyIiwiUFBFVEMiLCJDVFAiXSwicm9sZSI6WyJTVVBFUiBBRE1JTiJdLCJjcmVhdGVkIjoxNzYzNzIxMjAyMjMyLCJkaXNwbGF5TmFtZSI6IlN1cGVyIEFkbWluIiwiZXhwIjoxNzYzODA3NjAyfQ.tM-AlDjgt3WIggA_ERJr1vFq3lzIK-7Wq2H2xa5abPBL3ioBKJul33Yf3aprM2IqYyTyrG6ClZKthhFR031fBw';
             Log::info('token',['token'=>$token]);
             
             if (!$token) {
@@ -91,16 +92,15 @@ class MenuService
     private function getJavaAuthToken()
     {
         // ✅ FIRST: Try to get token from session
-        $sessionToken = Session::get('java_backend_token');
-        if ($sessionToken) {
-            Log::info('Using token from session');
-            return $sessionToken;
-        }
+        // $sessionToken = Session::get('java_backend_token');
+        // if ($sessionToken) {
+        //     Log::info('Using token from session');
+        //     return $sessionToken;
+        // }
 
         // ✅ SECOND: If no session token, use hardcoded token and save to session
-        $hardcodedToken = 'eyJhbGciOiJIUzUxMiJ9.eyJzdWIiOiJzdXBlcmFkbWluIiwiYXV0aEtleSI6IlBFeVNWa29vIiwiY29tcGFueUlkIjoic3VwZXJhZG1pbiIsImFjY2VzcyI6WyJQUEFIVENEIiwiUFBBSFRDRSIsIlZQUmVxTCIsIlJUeXBlIiwiQnJyQ29uZiIsIlZQQ2xvTERlbCIsIlBQQUwiLCJDcG5JbmYiLCJSUEJSRXgiLCJDUENMVkEiLCJQUEFIVENNIiwiVlBQTCIsIlBQUkwiLCJDVENvbmYiLCJCQ1JMIiwiQk5hbWUiLCJXSExDb25mIiwiUFBHSUV4IiwiUkNQIiwiUlBQTUciLCJCSUNMUmVsIiwiUFBDTCIsIkJDQ0xSZWwiLCJWUEFMIiwiY1ZBIiwiUFBFVENNIiwiUFBVIiwiUFBFVENFIiwiUFBFVENEIiwiVlBSTCIsIkNpdHlJbmYiLCJNR0lPIiwiQ1BSTEUiLCJzVlAiLCJWUFJlakxEZWwiLCJCQ0NMIiwiUFBTTCIsIkNJbmYiLCJWUENMIiwiUlBQTSIsIm15UFAiLCJDTkNWUFJMIiwiTENJbmYiLCJNTE9HSU4iLCJDUFJMZWciLCJDTkNWUEFMIiwiUm9sZSIsIkNQUkxEQSIsIlBQR0kiLCJDcG5QIiwiTlNDUiIsIkJSQ29uZiIsIkNQUkxEUiIsIkNQUkxEVSIsIkRJbmYiLCJCSVJMIiwiUlBQUyIsIkNOQ1ZQQ0wiLCJCSUNMIiwiUFBJTCIsIlBQT1dJRXgiLCJDUEFMREEiLCJSUkNvbmYiLCJWUEludkwiLCJMQ2xhc3MiLCJWUFJlakwiLCJCSVJMQXBwciIsIlJQQlIiLCJQUFN1c0wiLCJDUFJEQXBwIiwiQ1BBTERVIiwiQ05DVlBSZWpMRGVsIiwiQ1BBTERSIiwiQVBQQ29uZiIsIkNQQUwiLCJteVZQIiwiQlR5cGUiLCJDaENvbSIsIlZpblR5cGUiLCJkYXNoMSIsIkRFU0luZiIsIkNQUlNPIiwiQ1BSTCIsIkNQUkgiLCJDTkNWUENsb0xEZWwiLCJSVlNTIiwiU0xDSW5mIiwiQ1BDTCIsIm15Q05DVlAiLCJTUFAiLCJDUFJMRURSIiwiTFZDSW5mIiwiQ1BSTEVEVSIsIlBQUmVqTCIsIkNhdGVJbmYiLCJDTkNWUFJlakwiLCJVc2VyIiwiQkNSTEFwcHIiLCJTUFBEVCIsIkxJbmYiLCJDUFJMRURBIiwiUFBQTCIsIlN0YXRlSW5mIiwiUFBBSFRDIiwiUFBPV0kiLCJSQ1AyIiwiUFBFVEMiLCJDVFAiXSwicm9sZSI6WyJTVVBFUiBBRE1JTiJdLCJjcmVhdGVkIjoxNzYzNTM3MTE3NjY1LCJkaXNwbGF5TmFtZSI6IlN1cGVyIEFkbWluIiwiZXhwIjoxNzYzNjIzNTE3fQ._5JiHT8vhwVfr1Ws6CLIxQRlYwOrPH1mkCTU508J5VZicMCvBppbGKRJNW62UO-00gvjtV0ze75vBOIWojjQ1g';
+        $hardcodedToken = 'eyJhbGciOiJIUzUxMiJ9.eyJzdWIiOiJzdXBlcmFkbWluIiwiYXV0aEtleSI6IjZ3bDFtdUQ3IiwiY29tcGFueUlkIjoic3VwZXJhZG1pbiIsImFjY2VzcyI6WyJQUEFIVENEIiwiUFBBSFRDRSIsIlZQUmVxTCIsIlJUeXBlIiwiQnJyQ29uZiIsIlZQQ2xvTERlbCIsIlBQQUwiLCJDcG5JbmYiLCJSUEJSRXgiLCJDUENMVkEiLCJQUEFIVENNIiwiVlBQTCIsIlBQUkwiLCJDVENvbmYiLCJCQ1JMIiwiQk5hbWUiLCJXSExDb25mIiwiUFBHSUV4IiwiUkNQIiwiUlBQTUciLCJCSUNMUmVsIiwiUFBDTCIsIkJDQ0xSZWwiLCJWUEFMIiwiY1ZBIiwiUFBFVENNIiwiUFBVIiwiUFBFVENFIiwiUFBFVENEIiwiVlBSTCIsIkNpdHlJbmYiLCJNR0lPIiwiQ1BSTEUiLCJzVlAiLCJWUFJlakxEZWwiLCJCQ0NMIiwiUFBTTCIsIkNJbmYiLCJWUENMIiwiUlBQTSIsIm15UFAiLCJDTkNWUFJMIiwiTENJbmYiLCJNTE9HSU4iLCJDUFJMZWciLCJDTkNWUEFMIiwiUm9sZSIsIkNQUkxEQSIsIlBQR0kiLCJDcG5QIiwiTlNDUiIsIkJSQ29uZiIsIkNQUkxEUiIsIkNQUkxEVSIsIkRJbmYiLCJCSVJMIiwiUlBQUyIsIkNOQ1ZQQ0wiLCJCSUNMIiwiUFBJTCIsIlBQT1dJRXgiLCJDUEFMREEiLCJSUkNvbmYiLCJWUEludkwiLCJMQ2xhc3MiLCJWUFJlakwiLCJCSVJMQXBwciIsIlJQQlIiLCJQUFN1c0wiLCJDUFJEQXBwIiwiQ1BBTERVIiwiQ05DVlBSZWpMRGVsIiwiQ1BBTERSIiwiQVBQQ29uZiIsIkNQQUwiLCJteVZQIiwiQlR5cGUiLCJDaENvbSIsIlZpblR5cGUiLCJkYXNoMSIsIkRFU0luZiIsIkNQUlNPIiwiQ1BSTCIsIkNQUkgiLCJDTkNWUENsb0xEZWwiLCJSVlNTIiwiU0xDSW5mIiwiQ1BDTCIsIm15Q05DVlAiLCJTUFAiLCJDUFJMRURSIiwiTFZDSW5mIiwiQ1BSTEVEVSIsIlBQUmVqTCIsIkNhdGVJbmYiLCJDTkNWUFJlakwiLCJVc2VyIiwiQkNSTEFwcHIiLCJTUFBEVCIsIkxJbmYiLCJDUFJMRURBIiwiUFBQTCIsIlN0YXRlSW5mIiwiUFBBSFRDIiwiUFBPV0kiLCJSQ1AyIiwiUFBFVEMiLCJDVFAiXSwicm9sZSI6WyJTVVBFUiBBRE1JTiJdLCJjcmVhdGVkIjoxNzYzNzIxMjAyMjMyLCJkaXNwbGF5TmFtZSI6IlN1cGVyIEFkbWluIiwiZXhwIjoxNzYzODA3NjAyfQ.tM-AlDjgt3WIggA_ERJr1vFq3lzIK-7Wq2H2xa5abPBL3ioBKJul33Yf3aprM2IqYyTyrG6ClZKthhFR031fBw';
         
-        // Save hardcoded token to session for future use
         $this->saveJavaTokenToSession($hardcodedToken);
         Log::info('Hardcoded token saved to session');
         
@@ -110,7 +110,7 @@ class MenuService
     private function saveJavaTokenToSession($token)
     {
         Session::put('java_backend_token', $token);
-        Session::save(); // Ensure session is saved immediately
+        Session::save(); 
     }
 
     private function clearJavaTokenFromSession()
@@ -215,6 +215,46 @@ private function filterMenuByPermissions($menu, $userPermissions)
 
         return false; // ❌ Menu item hide hoga
     }
+
+    public function getUserAccessData()
+    {
+        try {
+            $token = $this->getJavaAuthToken();
+            
+            if (!$token) {
+                Log::error('Java auth token not available for user access data');
+                return null;
+            }
+
+            $response = Http::withHeaders([
+                'x-auth-token' => $token,
+                'Accept' => 'application/json',
+            ])->timeout(30)
+            ->get($this->javaBaseUrl . '/api/admin/user_access');
+
+            if ($response->successful()) {
+                $data = $response->json();
+                
+                Log::info('User Access Data from Java API: ', $data);
+                
+                if (isset($data['status']) && $data['status'] === 'success') {
+                    return $data;
+                } else {
+                    Log::error('Java API Error in user access: ' . ($data['message'] ?? 'Unknown error'));
+                    return null;
+                }
+            } else {
+                Log::error('Java API HTTP Error in user access: ' . $response->status() . ' - ' . $response->body());
+                return null;
+            }
+            
+        } catch (\Exception $e) {
+            Log::error('Java API Exception in user access: ' . $e->getMessage());
+            return null;
+        }
+    }
+
+
 
     public function getAngularMenu()
     {
@@ -1152,6 +1192,28 @@ private function filterMenuByPermissions($menu, $userPermissions)
                     ],
                 ],
             ],
+
+            // Reports
+
+            [
+                'id' => 7.0,
+                'label' => "REPORT",
+                'icon' => "bx-cog",
+                'isAuth' => 'Role,User,CpnInf,CInf,StateInf,CityInf,DInf,DESInf,LCInf,LInf,RType,BType,RRConf,VinType,LClass,BName,CTEB,LVCInf,ANNInf,DUInf,BRConf,CTConf,WHLConf,APPConf,VCConf,BrrConf,MeSesC,ITempConf,MCConf,OHConf,AWPConf,EVConf,WGConf,GSConf,WAConf,VQR,VIDEO_QUESTION',
+                'subItems' => [
+                    [
+                        'id' => 7.1,
+                        'label' => "MAIN REPORT",
+                        'link' => "config/app-self-config",
+                        'isAuth' => 'APPConf',
+                        'parentId' => 7.0,
+                    ],
+
+                ],
+            ],
+
+
+
         ];
     }
 }
