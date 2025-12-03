@@ -9,19 +9,49 @@ use Illuminate\Support\Facades\Session;
 class MenuService
 {
     protected $javaBaseUrl;
+    protected $APP_URL;
 
     public function __construct()
     {
+        $this->APP_URL  = env('APP_URL','http://localhost');
         $this->javaBaseUrl = env('JAVA_BACKEND_URL', 'http://localhost:8080');
     }
 
+    // public function getFilteredAngularMenu()
+    // {
+    //     $userAccessData = $this->fetchUserAccessFromJavaBackend();
+        
+    //     $userPermissions = $userAccessData['business_functions'] ?? [];
+        
+    //     Log::info('Java Backend se User Access Data: ', $userAccessData);
+    //     Log::info('User Permissions: ', $userPermissions);
+        
+    //     $fullMenu = $this->getAngularMenu();
+    //     $filteredMenu = $this->filterMenuByPermissions($fullMenu, $userPermissions);
+        
+    //     Log::info('Filtered Menu Count: ' . count($filteredMenu));
+        
+    //     return $filteredMenu;
+    // }
+
     public function getFilteredAngularMenu()
     {
-        $userAccessData = $this->fetchUserAccessFromJavaBackend();
+        // ✅ FIRST: Session se business functions check karo
+        $userPermissions = $this->getUserPermissionsFromSession();
         
-        $userPermissions = $userAccessData['business_functions'] ?? [];
+        // ✅ Agar session mein nahi hai toh Java API se fetch karo
+        if (empty($userPermissions)) {
+            $userAccessData = $this->fetchUserAccessFromJavaBackend();
+            $userPermissions = $userAccessData['business_functions'] ?? [];
+            
+            // ✅ Session mein save karo for future use
+            $this->saveUserPermissionsToSession($userPermissions);
+            
+            Log::info('Java Backend se fresh User Access Data fetch kiya');
+        } else {
+            Log::info('Session se User Permissions use kiye');
+        }
         
-        Log::info('Java Backend se User Access Data: ', $userAccessData);
         Log::info('User Permissions: ', $userPermissions);
         
         $fullMenu = $this->getAngularMenu();
@@ -32,12 +62,30 @@ class MenuService
         return $filteredMenu;
     }
 
+    private function getUserPermissionsFromSession()
+    {
+        return Session::get('user_business_functions', []);
+    }
+
+    // ✅ NEW: Session mein user permissions save karo
+    private function saveUserPermissionsToSession($permissions)
+    {
+        Session::put('user_business_functions', $permissions);
+        Session::save();
+        Log::info('User permissions session mein save kiye: ' . count($permissions) . ' permissions');
+    }
+
+    public function clearUserPermissionsFromSession()
+    {
+        Session::forget('user_business_functions');
+        Session::save();
+        Log::info('User permissions session se clear kiye');
+    }
+
     private function fetchUserAccessFromJavaBackend()
     {
         try {
-            // $token = $this->getJavaAuthToken();
-$token ='eyJhbGciOiJIUzUxMiJ9.eyJzdWIiOiJzdXBlcmFkbWluIiwiYXV0aEtleSI6IjZ3bDFtdUQ3IiwiY29tcGFueUlkIjoic3VwZXJhZG1pbiIsImFjY2VzcyI6WyJQUEFIVENEIiwiUFBBSFRDRSIsIlZQUmVxTCIsIlJUeXBlIiwiQnJyQ29uZiIsIlZQQ2xvTERlbCIsIlBQQUwiLCJDcG5JbmYiLCJSUEJSRXgiLCJDUENMVkEiLCJQUEFIVENNIiwiVlBQTCIsIlBQUkwiLCJDVENvbmYiLCJCQ1JMIiwiQk5hbWUiLCJXSExDb25mIiwiUFBHSUV4IiwiUkNQIiwiUlBQTUciLCJCSUNMUmVsIiwiUFBDTCIsIkJDQ0xSZWwiLCJWUEFMIiwiY1ZBIiwiUFBFVENNIiwiUFBVIiwiUFBFVENFIiwiUFBFVENEIiwiVlBSTCIsIkNpdHlJbmYiLCJNR0lPIiwiQ1BSTEUiLCJzVlAiLCJWUFJlakxEZWwiLCJCQ0NMIiwiUFBTTCIsIkNJbmYiLCJWUENMIiwiUlBQTSIsIm15UFAiLCJDTkNWUFJMIiwiTENJbmYiLCJNTE9HSU4iLCJDUFJMZWciLCJDTkNWUEFMIiwiUm9sZSIsIkNQUkxEQSIsIlBQR0kiLCJDcG5QIiwiTlNDUiIsIkJSQ29uZiIsIkNQUkxEUiIsIkNQUkxEVSIsIkRJbmYiLCJCSVJMIiwiUlBQUyIsIkNOQ1ZQQ0wiLCJCSUNMIiwiUFBJTCIsIlBQT1dJRXgiLCJDUEFMREEiLCJSUkNvbmYiLCJWUEludkwiLCJMQ2xhc3MiLCJWUFJlakwiLCJCSVJMQXBwciIsIlJQQlIiLCJQUFN1c0wiLCJDUFJEQXBwIiwiQ1BBTERVIiwiQ05DVlBSZWpMRGVsIiwiQ1BBTERSIiwiQVBQQ29uZiIsIkNQQUwiLCJteVZQIiwiQlR5cGUiLCJDaENvbSIsIlZpblR5cGUiLCJkYXNoMSIsIkRFU0luZiIsIkNQUlNPIiwiQ1BSTCIsIkNQUkgiLCJDTkNWUENsb0xEZWwiLCJSVlNTIiwiU0xDSW5mIiwiQ1BDTCIsIm15Q05DVlAiLCJTUFAiLCJDUFJMRURSIiwiTFZDSW5mIiwiQ1BSTEVEVSIsIlBQUmVqTCIsIkNhdGVJbmYiLCJDTkNWUFJlakwiLCJVc2VyIiwiQkNSTEFwcHIiLCJTUFBEVCIsIkxJbmYiLCJDUFJMRURBIiwiUFBQTCIsIlN0YXRlSW5mIiwiUFBBSFRDIiwiUFBPV0kiLCJSQ1AyIiwiUFBFVEMiLCJDVFAiXSwicm9sZSI6WyJTVVBFUiBBRE1JTiJdLCJjcmVhdGVkIjoxNzYzNzIxMjAyMjMyLCJkaXNwbGF5TmFtZSI6IlN1cGVyIEFkbWluIiwiZXhwIjoxNzYzODA3NjAyfQ.tM-AlDjgt3WIggA_ERJr1vFq3lzIK-7Wq2H2xa5abPBL3ioBKJul33Yf3aprM2IqYyTyrG6ClZKthhFR031fBw';
-            Log::info('token',['token'=>$token]);
+            $token ='eyJhbGciOiJIUzUxMiJ9.eyJzdWIiOiJzdXBlcmFkbWluIiwiYXV0aEtleSI6IjI1bkp1UzFPIiwiY29tcGFueUlkIjoic3VwZXJhZG1pbiIsImFjY2VzcyI6WyJQUEFIVENEIiwiUFBBSFRDRSIsIlZQUmVxTCIsIlJUeXBlIiwiQnJyQ29uZiIsIlZQQ2xvTERlbCIsIlBQQUwiLCJDcG5JbmYiLCJSUEJSRXgiLCJDUENMVkEiLCJQUEFIVENNIiwiVlBQTCIsIlBQUkwiLCJDVENvbmYiLCJCQ1JMIiwiQk5hbWUiLCJXSExDb25mIiwiUFBHSUV4IiwiUkNQIiwiUlBQTUciLCJCSUNMUmVsIiwiUFBDTCIsIkJDQ0xSZWwiLCJWUEFMIiwiY1ZBIiwiUFBFVENNIiwiUFBVIiwiUFBFVENFIiwiUFBFVENEIiwiVlBSTCIsIkNpdHlJbmYiLCJNR0lPIiwiQ1BSTEUiLCJzVlAiLCJWUFJlakxEZWwiLCJCQ0NMIiwiUFBTTCIsIkNJbmYiLCJNYXN0ZXJQYXRoIiwiVlBDTCIsIlJQUE0iLCJteVBQIiwiQ05DVlBSTCIsIkxDSW5mIiwiTUxPR0lOIiwiQ1BSTGVnIiwiQ05DVlBBTCIsIlJvbGUiLCJWUiIsIkNQUkxEQSIsIlBQR0kiLCJDcG5QIiwiTlNDUiIsIkJSQ29uZiIsIkNQUkxEUiIsIkNQUkxEVSIsIkRJbmYiLCJCSVJMIiwiUlBQUyIsIkNOQ1ZQQ0wiLCJCSUNMIiwiUFBJTCIsIlBQT1dJRXgiLCJDUEFMREEiLCJSUkNvbmYiLCJWUEludkwiLCJMQ2xhc3MiLCJWUFJlakwiLCJCSVJMQXBwciIsIlJQQlIiLCJQUFN1c0wiLCJDUFJEQXBwIiwiQ1BBTERVIiwiQ05DVlBSZWpMRGVsIiwiQ1BBTERSIiwiQVBQQ29uZiIsIkNQQUwiLCJteVZQIiwiQlR5cGUiLCJDaENvbSIsIlZpblR5cGUiLCJkYXNoMSIsIkRFU0luZiIsIkNQUlNPIiwiQ1BSTCIsIkNQUkgiLCJDTkNWUENsb0xEZWwiLCJSVlNTIiwiU0xDSW5mIiwiQ1BDTCIsIm15Q05DVlAiLCJTUFAiLCJDUFJMRURSIiwiTFZDSW5mIiwiQ1BSTEVEVSIsIlBQUmVqTCIsIkNhdGVJbmYiLCJDTkNWUFJlakwiLCJtVlJQIiwiVXNlciIsIkJDUkxBcHByIiwiU1BQRFQiLCJMSW5mIiwiQ1BSTEVEQSIsIlBQUEwiLCJTdGF0ZUluZiIsIlBQQUhUQyIsIlBQT1dJIiwiUkNQMiIsIlBQRVRDIiwiQ1RQIl0sInJvbGUiOlsiU1VQRVIgQURNSU4iXSwiY3JlYXRlZCI6MTc2NDc1MDk4Njc0MiwiZGlzcGxheU5hbWUiOiJTdXBlciBBZG1pbiIsImV4cCI6MTc2NDgzNzM4Nn0.AuU4FU6iXRWGAV2adt-aXlD4xbJnRd_EWVtqFikvf-SXCvXyrCqdL4n4t6w9imuZEFuqpK51YbWFY2fzYKJH7A';
             
             if (!$token) {
                 Log::error('Java auth token not available');
@@ -74,10 +122,11 @@ $token ='eyJhbGciOiJIUzUxMiJ9.eyJzdWIiOiJzdXBlcmFkbWluIiwiYXV0aEtleSI6IjZ3bDFtdU
             } else {
                 Log::error('Java API HTTP Error: ' . $response->status() . ' - ' . $response->body());
                 
-                // ✅ NEW: If token expired, clear it from session
+                // ✅ NEW: If token expired, clear permissions from session
                 if ($response->status() === 401) {
                     $this->clearJavaTokenFromSession();
-                    Log::info('Cleared expired token from session');
+                    $this->clearUserPermissionsFromSession();
+                    Log::info('Cleared expired token and permissions from session');
                 }
                 
                 return $this->getDefaultAccessData();
@@ -99,7 +148,7 @@ $token ='eyJhbGciOiJIUzUxMiJ9.eyJzdWIiOiJzdXBlcmFkbWluIiwiYXV0aEtleSI6IjZ3bDFtdU
         // }
 
         // ✅ SECOND: If no session token, use hardcoded token and save to session
-        $hardcodedToken = 'eyJhbGciOiJIUzUxMiJ9.eyJzdWIiOiJzdXBlcmFkbWluIiwiYXV0aEtleSI6IjZ3bDFtdUQ3IiwiY29tcGFueUlkIjoic3VwZXJhZG1pbiIsImFjY2VzcyI6WyJQUEFIVENEIiwiUFBBSFRDRSIsIlZQUmVxTCIsIlJUeXBlIiwiQnJyQ29uZiIsIlZQQ2xvTERlbCIsIlBQQUwiLCJDcG5JbmYiLCJSUEJSRXgiLCJDUENMVkEiLCJQUEFIVENNIiwiVlBQTCIsIlBQUkwiLCJDVENvbmYiLCJCQ1JMIiwiQk5hbWUiLCJXSExDb25mIiwiUFBHSUV4IiwiUkNQIiwiUlBQTUciLCJCSUNMUmVsIiwiUFBDTCIsIkJDQ0xSZWwiLCJWUEFMIiwiY1ZBIiwiUFBFVENNIiwiUFBVIiwiUFBFVENFIiwiUFBFVENEIiwiVlBSTCIsIkNpdHlJbmYiLCJNR0lPIiwiQ1BSTEUiLCJzVlAiLCJWUFJlakxEZWwiLCJCQ0NMIiwiUFBTTCIsIkNJbmYiLCJWUENMIiwiUlBQTSIsIm15UFAiLCJDTkNWUFJMIiwiTENJbmYiLCJNTE9HSU4iLCJDUFJMZWciLCJDTkNWUEFMIiwiUm9sZSIsIkNQUkxEQSIsIlBQR0kiLCJDcG5QIiwiTlNDUiIsIkJSQ29uZiIsIkNQUkxEUiIsIkNQUkxEVSIsIkRJbmYiLCJCSVJMIiwiUlBQUyIsIkNOQ1ZQQ0wiLCJCSUNMIiwiUFBJTCIsIlBQT1dJRXgiLCJDUEFMREEiLCJSUkNvbmYiLCJWUEludkwiLCJMQ2xhc3MiLCJWUFJlakwiLCJCSVJMQXBwciIsIlJQQlIiLCJQUFN1c0wiLCJDUFJEQXBwIiwiQ1BBTERVIiwiQ05DVlBSZWpMRGVsIiwiQ1BBTERSIiwiQVBQQ29uZiIsIkNQQUwiLCJteVZQIiwiQlR5cGUiLCJDaENvbSIsIlZpblR5cGUiLCJkYXNoMSIsIkRFU0luZiIsIkNQUlNPIiwiQ1BSTCIsIkNQUkgiLCJDTkNWUENsb0xEZWwiLCJSVlNTIiwiU0xDSW5mIiwiQ1BDTCIsIm15Q05DVlAiLCJTUFAiLCJDUFJMRURSIiwiTFZDSW5mIiwiQ1BSTEVEVSIsIlBQUmVqTCIsIkNhdGVJbmYiLCJDTkNWUFJlakwiLCJVc2VyIiwiQkNSTEFwcHIiLCJTUFBEVCIsIkxJbmYiLCJDUFJMRURBIiwiUFBQTCIsIlN0YXRlSW5mIiwiUFBBSFRDIiwiUFBPV0kiLCJSQ1AyIiwiUFBFVEMiLCJDVFAiXSwicm9sZSI6WyJTVVBFUiBBRE1JTiJdLCJjcmVhdGVkIjoxNzYzNzIxMjAyMjMyLCJkaXNwbGF5TmFtZSI6IlN1cGVyIEFkbWluIiwiZXhwIjoxNzYzODA3NjAyfQ.tM-AlDjgt3WIggA_ERJr1vFq3lzIK-7Wq2H2xa5abPBL3ioBKJul33Yf3aprM2IqYyTyrG6ClZKthhFR031fBw';
+        $hardcodedToken = 'eyJhbGciOiJIUzUxMiJ9.eyJzdWIiOiJzdXBlcmFkbWluIiwiYXV0aEtleSI6IjI1bkp1UzFPIiwiY29tcGFueUlkIjoic3VwZXJhZG1pbiIsImFjY2VzcyI6WyJQUEFIVENEIiwiUFBBSFRDRSIsIlZQUmVxTCIsIlJUeXBlIiwiQnJyQ29uZiIsIlZQQ2xvTERlbCIsIlBQQUwiLCJDcG5JbmYiLCJSUEJSRXgiLCJDUENMVkEiLCJQUEFIVENNIiwiVlBQTCIsIlBQUkwiLCJDVENvbmYiLCJCQ1JMIiwiQk5hbWUiLCJXSExDb25mIiwiUFBHSUV4IiwiUkNQIiwiUlBQTUciLCJCSUNMUmVsIiwiUFBDTCIsIkJDQ0xSZWwiLCJWUEFMIiwiY1ZBIiwiUFBFVENNIiwiUFBVIiwiUFBFVENFIiwiUFBFVENEIiwiVlBSTCIsIkNpdHlJbmYiLCJNR0lPIiwiQ1BSTEUiLCJzVlAiLCJWUFJlakxEZWwiLCJCQ0NMIiwiUFBTTCIsIkNJbmYiLCJNYXN0ZXJQYXRoIiwiVlBDTCIsIlJQUE0iLCJteVBQIiwiQ05DVlBSTCIsIkxDSW5mIiwiTUxPR0lOIiwiQ1BSTGVnIiwiQ05DVlBBTCIsIlJvbGUiLCJWUiIsIkNQUkxEQSIsIlBQR0kiLCJDcG5QIiwiTlNDUiIsIkJSQ29uZiIsIkNQUkxEUiIsIkNQUkxEVSIsIkRJbmYiLCJCSVJMIiwiUlBQUyIsIkNOQ1ZQQ0wiLCJCSUNMIiwiUFBJTCIsIlBQT1dJRXgiLCJDUEFMREEiLCJSUkNvbmYiLCJWUEludkwiLCJMQ2xhc3MiLCJWUFJlakwiLCJCSVJMQXBwciIsIlJQQlIiLCJQUFN1c0wiLCJDUFJEQXBwIiwiQ1BBTERVIiwiQ05DVlBSZWpMRGVsIiwiQ1BBTERSIiwiQVBQQ29uZiIsIkNQQUwiLCJteVZQIiwiQlR5cGUiLCJDaENvbSIsIlZpblR5cGUiLCJkYXNoMSIsIkRFU0luZiIsIkNQUlNPIiwiQ1BSTCIsIkNQUkgiLCJDTkNWUENsb0xEZWwiLCJSVlNTIiwiU0xDSW5mIiwiQ1BDTCIsIm15Q05DVlAiLCJTUFAiLCJDUFJMRURSIiwiTFZDSW5mIiwiQ1BSTEVEVSIsIlBQUmVqTCIsIkNhdGVJbmYiLCJDTkNWUFJlakwiLCJtVlJQIiwiVXNlciIsIkJDUkxBcHByIiwiU1BQRFQiLCJMSW5mIiwiQ1BSTEVEQSIsIlBQUEwiLCJTdGF0ZUluZiIsIlBQQUhUQyIsIlBQT1dJIiwiUkNQMiIsIlBQRVRDIiwiQ1RQIl0sInJvbGUiOlsiU1VQRVIgQURNSU4iXSwiY3JlYXRlZCI6MTc2NDc1MDk4Njc0MiwiZGlzcGxheU5hbWUiOiJTdXBlciBBZG1pbiIsImV4cCI6MTc2NDgzNzM4Nn0.AuU4FU6iXRWGAV2adt-aXlD4xbJnRd_EWVtqFikvf-SXCvXyrCqdL4n4t6w9imuZEFuqpK51YbWFY2fzYKJH7A';
         
         $this->saveJavaTokenToSession($hardcodedToken);
         Log::info('Hardcoded token saved to session');
@@ -253,8 +302,6 @@ private function filterMenuByPermissions($menu, $userPermissions)
             return null;
         }
     }
-
-
 
     public function getAngularMenu()
     {
@@ -1199,20 +1246,56 @@ private function filterMenuByPermissions($menu, $userPermissions)
                 'id' => 7.0,
                 'label' => "REPORT",
                 'icon' => "bx-cog",
-                'isAuth' => 'Role,User,CpnInf,CInf,StateInf,CityInf,DInf,DESInf,LCInf,LInf,RType,BType,RRConf,VinType,LClass,BName,CTEB,LVCInf,ANNInf,DUInf,BRConf,CTConf,WHLConf,APPConf,VCConf,BrrConf,MeSesC,ITempConf,MCConf,OHConf,AWPConf,EVConf,WGConf,GSConf,WAConf,VQR,VIDEO_QUESTION',
+                'isAuth' => 'mVRP',
                 'subItems' => [
                     [
                         'id' => 7.1,
                         'label' => "MAIN REPORT",
-                        'link' => "config/app-self-config",
-                        'isAuth' => 'APPConf',
+                        'link' => "/reports/access-logs", 
+                        'isAuth' => 'mVRP',
                         'parentId' => 7.0,
+                        'isLaravelRoute' => true 
+                    ],
+                    [
+                        'id' => 7.2,
+                        'label' => "VISITOR REPORT",
+                        'link' => "/visitor-report", 
+                        'isAuth' => 'VR',
+                        'parentId' => 7.0,
+                        'isLaravelRoute' => true 
                     ],
 
                 ],
             ],
 
 
+            // Master
+
+            [
+                'id' => 8.0,
+                'label' => "MASTER",
+                'icon' => "bx-cog",
+                'isAuth' => 'MasterPath',
+                'subItems' => [
+                    [
+                        'id' => 8.1,
+                        'label' => "PathsWay",
+                        'link' => "/paths", 
+                        'isAuth' => 'MasterPath',
+                        'parentId' => 8.0,
+                        'isLaravelRoute' => true 
+                    ],
+                    // [
+                    //     'id' => 7.2,
+                    //     'label' => "VISITOR REPORT",
+                    //     'link' => "/visitor-report", 
+                    //     'isAuth' => 'VR',
+                    //     'parentId' => 7.0,
+                    //     'isLaravelRoute' => true 
+                    // ],
+
+                ],
+            ],
 
         ];
     }
