@@ -14,11 +14,13 @@ class DeviceAccessLog extends Model
         'staff_no',
         'access_granted',
         'location_name',
+        'acknowledge',
         'created_at'
     ];
 
     protected $casts = [
         'access_granted' => 'boolean',
+        'acknowledge' => 'boolean',
         'created_at' => 'datetime'
     ];
 }

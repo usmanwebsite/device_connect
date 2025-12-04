@@ -65,30 +65,59 @@ private function getVisitorsFromDeviceLogs()
                 $latestLog = $logs->first();
                 $earliestLog = $logs->last();
 
-                $timeIn = $earliestLog ? $earliestLog->created_at->format('H:i:s') : 'N/A';
+                // $timeIn = $earliestLog ? $earliestLog->created_at->format('H:i:s') : 'N/A';
+
+                $timeIn = null;
+
+                foreach ($logs as $log) {
+
+                    $logLocationName = $log->location_name;
+
+                    if (!$logLocationName) continue;
+
+                    // 1. vendor_locations match by name
+                    $vendorLocation = \App\Models\VendorLocation::where('name', $logLocationName)->first();
+                    if (!$vendorLocation) continue;
+
+                    // 2. device_location_assigns check_in match
+                    $deviceAssign = \App\Models\DeviceLocationAssign::where('location_id', $vendorLocation->id)
+                        ->where('is_type', 'check_in')
+                        ->first();
+
+                    if (!$deviceAssign) continue;
+
+                    // 3. CHECK-IN TIME mil gaya
+                    $timeIn = $log->created_at->format('H:i:s');
+                    break;
+                }
+
                 $dateOfVisit = $earliestLog ? $earliestLog->created_at->format('Y-m-d') : 'N/A';
 
                 // ✅ TIME OUT logic: Turnstile checkout check
                 $timeOut = null;
 
                 foreach ($logs as $log) {
-                    $deviceConnection = \App\Models\DeviceConnection::where('device_id', $log->device_id)->first();
-                    if (!$deviceConnection) continue;
 
-                    $deviceAssign = \App\Models\DeviceLocationAssign::where('device_id', $deviceConnection->id)
+                    // 1. Get device_access_logs → location_name
+                    $logLocationName = $log->location_name;
+
+                    if (!$logLocationName) continue;
+
+                    // 2. Match location name with vendor_locations table
+                    $vendorLocation = \App\Models\VendorLocation::where('name', $logLocationName)->first();
+
+                    if (!$vendorLocation) continue;
+
+                    // 3. Get device_location_assign using location_id from vendor_locations
+                    $deviceAssign = \App\Models\DeviceLocationAssign::where('location_id', $vendorLocation->id)
                         ->where('is_type', 'check_out')
                         ->first();
 
                     if (!$deviceAssign) continue;
 
-                    $vendorLocation = \App\Models\VendorLocation::where('id', $deviceAssign->location_id)
-                        ->where('name', 'like', '%Turnstile%')
-                        ->first();
-
-                    if ($vendorLocation) {
-                        $timeOut = $log->created_at->format('H:i:s');
-                        break; // sabse pehla Turnstile checkout
-                    }
+                    // 4. This log is the checkout → set time_out
+                    $timeOut = $log->created_at->format('H:i:s');
+                    break;
                 }
 
                 // Current location and accessed locations

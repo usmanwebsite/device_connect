@@ -24,4 +24,9 @@ class Path extends Model
     {
         return $this->attributes['doors'];
     }
+    
+    public function visitorTypes()
+    {
+        return $this->hasMany(VisitorType::class, 'path_id');
+    }
 }

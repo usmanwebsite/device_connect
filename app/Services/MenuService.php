@@ -1279,20 +1279,20 @@ private function filterMenuByPermissions($menu, $userPermissions)
                 'subItems' => [
                     [
                         'id' => 8.1,
-                        'label' => "PathsWay",
+                        'label' => "PATHSWAY",
                         'link' => "/paths", 
                         'isAuth' => 'MasterPath',
                         'parentId' => 8.0,
                         'isLaravelRoute' => true 
                     ],
-                    // [
-                    //     'id' => 7.2,
-                    //     'label' => "VISITOR REPORT",
-                    //     'link' => "/visitor-report", 
-                    //     'isAuth' => 'VR',
-                    //     'parentId' => 7.0,
-                    //     'isLaravelRoute' => true 
-                    // ],
+                    [
+                        'id' => 8.2,
+                        'label' => "VISITOR TYPE",
+                        'link' => "/visitor-type", 
+                        'isAuth' => 'MasterVT',
+                        'parentId' => 8.0,
+                        'isLaravelRoute' => true 
+                    ],
 
                 ],
             ],

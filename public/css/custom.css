@@ -1185,3 +1185,43 @@ table.dataTable thead .sorting_desc_disabled {
 }
 
 
+/* critical section */
+
+/* Add to your existing CSS */
+.critical-alert-box {
+    transition: all 0.3s ease;
+}
+
+.critical-close {
+    background: none;
+    border: none;
+    font-size: 24px;
+    color: #fff;
+    cursor: pointer;
+    opacity: 0.7;
+    transition: opacity 0.2s;
+}
+
+.critical-close:hover {
+    opacity: 1;
+}
+
+
+/* Vistor type index */
+    /* Table styling */
+    #visitorTypesTable th {
+        background-color: #f8f9fa;
+        font-weight: 600;
+    }
+    
+    #visitorTypesTable td {
+        vertical-align: middle;
+    }
+    
+    /* Custom modal z-index fix */
+    .custom-modal {
+        z-index: 99999 !important;
+        position: fixed !important;
+        top: 0 !important;
+        left: 0 !important;
+    }

@@ -7,6 +7,7 @@ use App\Http\Controllers\LoginController;
 use App\Http\Controllers\PathController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\VisitorReportController;
+use App\Http\Controllers\VisitorTypeController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -39,7 +40,25 @@ Route::post('/login', [LoginController::class, 'login'])->name('login');
 Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
 Route::post('/dashboard/graph-data', [DashboardController::class, 'getGraphData'])
     ->name('dashboard.graph.data');
+Route::get('/dashboard/checkouts-today-modal-data', [DashboardController::class, 'getCheckoutsTodayModalDataAjax'])->name('dashboard.checkouts.today.modal.data');
+Route::post('/dashboard/acknowledge-alert', [DashboardController::class, 'acknowledgeAlert']);
+Route::post('/dashboard/hide-critical-alert', [DashboardController::class, 'hideCriticalAlert']);
+Route::post('/dashboard/get-critical-alert-details', [DashboardController::class, 'getCriticalAlertDetails']);
+Route::get('/dashboard/refresh-counts', [DashboardController::class, 'refreshDashboardCounts']);
+
 // Route::get('/redirect-to-angular', [AngularRedirectController::class, 'redirect'])->name('angular.redirect');
+
+
+Route::prefix('visitor-types')->group(function () {
+    Route::get('/', [VisitorTypeController::class, 'index'])->name('visitor-types.index');
+    Route::get('/create', [VisitorTypeController::class, 'create'])->name('visitor-types.create');
+    Route::post('/store', [VisitorTypeController::class, 'store'])->name('visitor-types.store');
+    Route::get('/edit/{id}', [VisitorTypeController::class, 'edit'])->name('visitor-types.edit');
+    Route::put('/update/{id}', [VisitorTypeController::class, 'update'])->name('visitor-types.update');
+    Route::delete('/delete/{id}', [VisitorTypeController::class, 'destroy'])->name('visitor-types.destroy');
+});
+
+
 
 
 Route::prefix('reports')->group(function () {
