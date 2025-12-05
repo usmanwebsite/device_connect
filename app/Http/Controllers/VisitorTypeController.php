@@ -5,14 +5,24 @@ namespace App\Http\Controllers;
 use App\Models\Path;
 use App\Models\VisitorType;
 use Illuminate\Http\Request;
+use App\Services\MenuService;
 
 class VisitorTypeController extends Controller
 {
+    protected $menuService; // ✅ MenuService property
+
+    // ✅ Constructor mein MenuService inject karein
+    public function __construct(MenuService $menuService)
+    {
+        $this->menuService = $menuService;
+    }
+
     // ✅ Simple index method
     public function index()
     {
+        $angularMenu = $this->menuService->getFilteredAngularMenu();
         $visitorTypes = VisitorType::with('path')->orderBy('visitor_type')->get();
-        return view('visitorTypes.index', compact('visitorTypes'));
+        return view('visitorTypes.index', compact('visitorTypes','angularMenu'));
     }
 
     public function create()

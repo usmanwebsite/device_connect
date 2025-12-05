@@ -1208,20 +1208,99 @@ table.dataTable thead .sorting_desc_disabled {
 
 
 /* Vistor type index */
-    /* Table styling */
-    #visitorTypesTable th {
-        background-color: #f8f9fa;
-        font-weight: 600;
-    }
-    
-    #visitorTypesTable td {
-        vertical-align: middle;
-    }
-    
-    /* Custom modal z-index fix */
-    .custom-modal {
-        z-index: 99999 !important;
-        position: fixed !important;
-        top: 0 !important;
-        left: 0 !important;
-    }
+#visitorTypesTable th {
+    background-color: #f8f9fa;
+    font-weight: 600;
+}
+
+#visitorTypesTable td {
+    vertical-align: middle;
+}
+
+/* Custom modal z-index fix */
+.custom-modal {
+    z-index: 99999 !important;
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+}
+
+
+/* Security Alerts & Incident */
+
+.security-wrapper {
+    padding: 20px;
+}
+
+.stat-card {
+    background: #0d1b2a;
+    color: #fff;
+    padding: 20px;
+    border-radius: 12px;
+}
+.stat-card h2 {
+    font-size: 32px;
+    margin: 0;
+}
+.green { color: #2ecc71; }
+.red { color: #e74c3c; }
+.gray { color: #bdc3c7; }
+
+.incidents-list {
+    background: #0d1b2a;
+    padding: 20px;
+    border-radius: 12px;
+    color: #fff;
+    height: 600px;
+    overflow-y: auto;
+}
+.incident-card {
+    padding: 12px;
+    border-radius: 10px;
+    background: #1b263b;
+    margin-bottom: 12px;
+    cursor: pointer;
+    transition: 0.2s;
+}
+.incident-card:hover {
+    background: #233554;
+}
+.incident-card .code {
+    font-size: 13px;
+    color: #7eb8ff;
+}
+.badge {
+    background: #e74c3c;
+    padding: 3px 8px;
+    border-radius: 6px;
+    font-size: 10px;
+}
+
+.details-box {
+    background: #fff;
+    padding: 20px;
+    border-radius: 12px;
+}
+/* Filters */
+.filters input {
+    background: #1b263b;
+    color: #fff;
+    border: none;
+}
+
+.filters button {
+    border-color: #33425b;
+    color: #dbe9ff;
+}
+
+.filters button:hover {
+    background: #233554;
+    border-color: #233554;
+}
+
+/* Datatable styling */
+table.dataTable {
+    background: #ffffff !important;
+    border-radius: 10px;
+}
+

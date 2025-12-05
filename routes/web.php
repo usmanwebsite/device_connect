@@ -6,6 +6,7 @@ use App\Http\Controllers\DeviceLocationAssignController;
 use App\Http\Controllers\LoginController;
 use App\Http\Controllers\PathController;
 use App\Http\Controllers\ReportController;
+use App\Http\Controllers\SecurityAlertController;
 use App\Http\Controllers\VisitorReportController;
 use App\Http\Controllers\VisitorTypeController;
 use Illuminate\Support\Facades\Route;
@@ -58,6 +59,10 @@ Route::prefix('visitor-types')->group(function () {
     Route::delete('/delete/{id}', [VisitorTypeController::class, 'destroy'])->name('visitor-types.destroy');
 });
 
+// Route::get('/clear-session', function() {
+//     session()->flush();
+//     return 'Session cleared!';
+// });
 
 
 
@@ -78,6 +83,14 @@ Route::prefix('reports')->group(function () {
     Route::prefix('visitor-report')->group(function () {
         Route::get('/', [VisitorReportController::class, 'index'])->name('visitor.report');
         Route::get('/export', [VisitorReportController::class, 'export'])->name('visitor.report.export');
+    });
+
+
+    Route::prefix('security-alerts')->group(function () {
+        Route::get('/', [SecurityAlertController::class, 'index'])->name('security.alerts.index');
+        Route::get('/details/{id}', [SecurityAlertController::class, 'getDetails'])->name('security.alerts.details');
+
+        Route::get('/unauthorized-access', [SecurityAlertController::class, 'unauthorizedAccessDetails'])->name('security.unauthorized.access');
     });
 
     Route::get('/redirect-to-angular/{route}', [AngularRedirectController::class, 'redirect'])
