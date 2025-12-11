@@ -24,13 +24,11 @@ class DashboardController extends Controller
     public function index()
     {
         try {
-            // getFilteredAngularMenu() use karen jo Java API call karega
+
             $angularMenu = $this->menuService->getFilteredAngularMenu();
-            
-            // ✅ Java API se user access data le aayein
+
             $userAccessData = $this->menuService->getUserAccessData();
-            
-            // Agar userAccessData milta hai to use karein
+
             $todayAppointmentCount = 0;
             $upcomingAppointments = [];
             $todayAppointments = [];
@@ -41,38 +39,31 @@ class DashboardController extends Controller
                 $upcomingAppointments = $userAccessData['upcoming_appointments'] ?? [];
             }
             
-            // ✅ POINT 1: Currently On-Site - Sirf device_access_logs se data
             $visitorsOnSite = DeviceAccessLog::where('access_granted', 1)->get();
             
-            // ✅ Pehle hi sabhi visitors ke liye Java API data fetch karein
             $visitorsOnSite = $this->getVisitorsOnSiteWithJavaData($visitorsOnSite);
             
             $criticalAlert = $this->getCriticalSecurityAlert();
-            // ✅ Active Security Alerts - COUNT ONLY
+
             $activeSecurityAlertsCount = DeviceAccessLog::where('access_granted', 0)
             ->where('acknowledge', 0)
             ->count();
 
-            // ✅ DYNAMIC GRAPH DATA: Device access logs se hourly data lein
             $hourlyTrafficData = $this->getHourlyTrafficData();
 
-            // ✅ POINT 2: Visitor Overstay Alerts - SABHI device_access_logs users ke liye check karein
             $allDeviceUsers = DeviceAccessLog::where('access_granted', 1)->get();
             $visitorOverstayAlerts = $this->getAllVisitorOverstayAlerts($allDeviceUsers);
             $visitorOverstayCount = count($visitorOverstayAlerts);
 
-            // ✅ Denied Access Logs - ALL TIME - COUNT ONLY
             $deniedAccessCount = DeviceAccessLog::where('access_granted', 0)
             ->where('acknowledge', 0)
             ->count();
 
-            // ✅ For old Recent Alerts section (Collection - for ->take() method)
             $deniedAccessLogs = DeviceAccessLog::where('access_granted', 0)
                 ->where('acknowledge', 0)
                 ->orderBy('created_at', 'desc')
                 ->get();
 
-            // ✅ For new modals (enriched data - array)
             $enrichedDeniedAccessLogs = $this->getEnrichedDeniedAccessLogs($deniedAccessLogs);
 
             $criticalAlertDetails = null;
@@ -82,13 +73,10 @@ class DashboardController extends Controller
                 );
             }
 
-            // ✅ For new modals - enriched overstay alerts
             $enrichedOverstayAlerts = $this->getEnrichedOverstayAlerts($visitorOverstayAlerts);
-            
-            // ✅ ✅ ✅ NEW: Calculate Check-outs Today Count
+
             $checkOutsTodayCount = $this->getCheckoutsTodayCount();
-            
-            // ✅ ✅ ✅ NEW: Get Check-outs Today Data for Modal
+
             $checkoutsTodayModalData = $this->getCheckoutsTodayModalData();
 
             return view('dashboard', compact(
@@ -99,21 +87,20 @@ class DashboardController extends Controller
                 'upcomingAppointments',
                 'activeSecurityAlertsCount',
                 'hourlyTrafficData',
-                'visitorOverstayCount',     // ✅ Count for cards
-                'deniedAccessCount',        // ✅ Count for cards
-                'deniedAccessLogs',         // ✅ For old Recent Alerts section (Collection)
-                'visitorOverstayAlerts',    // ✅ For old Recent Alerts section
-                'enrichedDeniedAccessLogs', // ✅ For new modals (array)
-                'enrichedOverstayAlerts',   // ✅ For new modals
-                'checkOutsTodayCount',       // ✅ NEW: Check-outs Today count
-                'checkoutsTodayModalData',    // ✅ NEW: Check-outs Today modal data
+                'visitorOverstayCount',    
+                'deniedAccessCount',      
+                'deniedAccessLogs',        
+                'visitorOverstayAlerts',    
+                'enrichedDeniedAccessLogs', 
+                'enrichedOverstayAlerts',   
+                'checkOutsTodayCount',       
+                'checkoutsTodayModalData',    
                 'criticalAlert',
                 'criticalAlertDetails'
             ));
         } catch (\Exception $e) {
             Log::error('Dashboard error: ' . $e->getMessage());
             
-            // Default values in case of error
             $angularMenu = [];
             $todayAppointmentCount = 0;
             $visitorsOnSite = [];
@@ -123,9 +110,9 @@ class DashboardController extends Controller
             $hourlyTrafficData = $this->getDefaultHourlyTrafficData();
             $visitorOverstayCount = 0;
             $deniedAccessCount = 0;
-            $checkOutsTodayCount = 0; // ✅ Default value
-            $checkoutsTodayModalData = []; // ✅ Default empty array
-            $deniedAccessLogs = collect(); // ✅ Empty collection
+            $checkOutsTodayCount = 0; 
+            $checkoutsTodayModalData = []; 
+            $deniedAccessLogs = collect(); 
             $visitorOverstayAlerts = [];
             $enrichedDeniedAccessLogs = [];
             $enrichedOverstayAlerts = [];
@@ -142,8 +129,8 @@ class DashboardController extends Controller
                 'hourlyTrafficData',
                 'visitorOverstayCount',
                 'deniedAccessCount',
-                'checkOutsTodayCount', // ✅ Include in error case too
-                'checkoutsTodayModalData', // ✅ Include in error case too
+                'checkOutsTodayCount',
+                'checkoutsTodayModalData', 
                 'deniedAccessLogs',
                 'visitorOverstayAlerts',
                 'enrichedDeniedAccessLogs',
@@ -154,12 +141,10 @@ class DashboardController extends Controller
         }
     }
 
-
-        // ✅ ✅ ✅ NEW METHOD: Get Critical Security Alert
     private function getCriticalSecurityAlert()
     {
         try {
-            // Pehla unacknowledged denied access log lein (latest wala)
+
             $alert = DeviceAccessLog::where('access_granted', 0)
                 ->where('acknowledge', 0)
                 ->orderBy('created_at', 'desc')
@@ -169,10 +154,8 @@ class DashboardController extends Controller
                 return null;
             }
 
-            // Java API se visitor details lein
             $visitorDetails = $this->getVisitorDetailsForAlert($alert->staff_no);
-            
-            // Time ago calculate karein
+
             $createdAt = Carbon::parse($alert->created_at);
             $timeAgo = $createdAt->diffForHumans();
 
@@ -184,7 +167,7 @@ class DashboardController extends Controller
                 'time_ago' => $timeAgo,
                 'reason' => $alert->reason ?? 'Other Reason',
                 'visitor_name' => $visitorDetails['fullName'] ?? 'Unknown Visitor',
-                'incident_type' => 'Unauthorized Access Attempt' // ✅ Static
+                'incident_type' => 'Unauthorized Access Attempt' 
             ];
 
         } catch (\Exception $e) {
@@ -193,7 +176,6 @@ class DashboardController extends Controller
         }
     }
 
-    // ✅ NEW METHOD: Get Visitor Details for Alert
     private function getVisitorDetailsForAlert($staffNo)
     {
         try {
@@ -217,7 +199,6 @@ class DashboardController extends Controller
         }
     }
 
-    // ✅ ✅ ✅ NEW METHOD: Acknowledge Alert (AJAX endpoint ke liye)
     public function acknowledgeAlert(Request $request)
     {
         try {
@@ -231,14 +212,12 @@ class DashboardController extends Controller
                     'message' => 'Alert not found'
                 ], 404);
             }
-            
-            // ✅ Acknowledge update karein (1 set karein)
+
             $alert->acknowledge = 1;
             $alert->save();
             
             Log::info("Alert acknowledged: ID {$alertId}, Staff No: {$alert->staff_no}");
-            
-            // Next available alert check karein
+
             $nextAlert = $this->getCriticalSecurityAlert();
             
             return response()->json([
@@ -267,7 +246,6 @@ class DashboardController extends Controller
             if ($alertId) {
                 $alert = DeviceAccessLog::find($alertId);
                 if ($alert) {
-                    // ✅ Sirf acknowledge column update karein
                     $alert->acknowledge = 1;
                     $alert->save();
                     Log::info("Alert hidden and acknowledged: ID {$alertId}");
@@ -303,7 +281,6 @@ class DashboardController extends Controller
                 ], 404);
             }
             
-            // Enriched data lein
             $enrichedData = $this->getEnrichedDeniedAccessLogs(collect([$alert]));
             
             if (empty($enrichedData)) {
@@ -328,14 +305,11 @@ class DashboardController extends Controller
         }
     }
 
-
-    // ✅ ✅ ✅ NEW METHOD: Get Next Alert (Without Acknowledging)
     public function getNextAlert(Request $request)
     {
         try {
             $currentAlertId = $request->input('current_alert_id');
-            
-            // Mark current alert as acknowledged if provided
+
             if ($currentAlertId) {
                 $currentAlert = DeviceAccessLog::find($currentAlertId);
                 if ($currentAlert) {
@@ -343,8 +317,7 @@ class DashboardController extends Controller
                     $currentAlert->save();
                 }
             }
-            
-            // Next alert get karein
+
             $nextAlert = $this->getCriticalSecurityAlert();
             
             return response()->json([
@@ -398,7 +371,6 @@ class DashboardController extends Controller
         try {
             Log::info('=== Starting getCheckoutsTodayCount (With Location Match) ===');
 
-            // 1. Find Turnstile locations
             $turnstileLocations = VendorLocation::where('name', 'like', '%Turnstile%')
                 ->get(['id', 'name']);
 
@@ -412,7 +384,6 @@ class DashboardController extends Controller
             $turnstileLocationIds = $turnstileLocations->pluck('id');
             $turnstileLocationNames = $turnstileLocations->pluck('name');
 
-            // 2. device_location_assigns → check_out devices
             $deviceLocationAssigns = DeviceLocationAssign::whereIn('location_id', $turnstileLocationIds)
                 ->where('is_type', 'check_out')
                 ->get(['id', 'device_id', 'location_id', 'is_type']);
@@ -424,7 +395,6 @@ class DashboardController extends Controller
                 return 0;
             }
 
-            // 3. Get actual device_ids from device_connections
             $deviceConnectionIds = $deviceLocationAssigns->pluck('device_id');
 
             $deviceConnections = DeviceConnection::whereIn('id', $deviceConnectionIds)
@@ -441,13 +411,12 @@ class DashboardController extends Controller
 
             Log::info('Actual device IDs: ', ['ids' => $actualDeviceIds->implode(', ')]);
 
-            // 4. Count access logs for today with location match
             $today = now()->format('Y-m-d');
 
             Log::info("Checking logs for date: {$today}");
             Log::info('Matching location names: ', ['locations' => $turnstileLocationNames->implode(', ')]);
 
-            // Sample logs with BOTH matches
+
             $sampleLogs = DeviceAccessLog::whereIn('device_id', $actualDeviceIds)
                 ->whereIn('location_name', $turnstileLocationNames)
                 ->whereDate('created_at', $today)
@@ -456,7 +425,6 @@ class DashboardController extends Controller
 
             Log::info('Sample access logs (with location match):', $sampleLogs->toArray());
 
-            // Actual count
             $checkoutsCount = DeviceAccessLog::whereIn('device_id', $actualDeviceIds)
                 ->whereIn('location_name', $turnstileLocationNames)
                 ->whereDate('created_at', $today)
@@ -474,8 +442,6 @@ class DashboardController extends Controller
         }
     }
 
-
-    // ✅ NEW METHOD: Enriched Denied Access Logs with Java API Data
     private function getEnrichedDeniedAccessLogs($deniedAccessLogs)
     {
         $enrichedLogs = [];
@@ -533,7 +499,6 @@ class DashboardController extends Controller
         return $enrichedLogs;
     }
 
-    // ✅ NAYA METHOD: Sabhi visitors ke liye Java API data ek sath fetch karein
     private function getVisitorsOnSiteWithJavaData($visitors)
     {
         foreach ($visitors as &$visitor) {
@@ -543,12 +508,10 @@ class DashboardController extends Controller
                 if ($javaApiResponse && isset($javaApiResponse['data'])) {
                     $data = $javaApiResponse['data'];
 
-                    // fullName fix
                     $visitor['full_name'] = $data['fullName'] 
                     ?? $data['name'] 
                     ?? 'N/A';
 
-                    // host fix
                     $visitor['person_visited'] = $data['personVisited']
                     ?? $data['visitedPerson']
                     ?? 'N/A';
@@ -567,7 +530,6 @@ class DashboardController extends Controller
         return $visitors;
     }
 
-    // ✅ UPDATED METHOD: SABHI device_access_logs users ke liye overstay check karein
 private function getAllVisitorOverstayAlerts($allDeviceUsers)
 {
     $overstayAlerts = [];
@@ -576,7 +538,7 @@ private function getAllVisitorOverstayAlerts($allDeviceUsers)
     foreach ($allDeviceUsers as $user) {
         try {
             if (empty($user['location_name'])) {
-                continue; // Skip if location_name is empty
+                continue; 
             }
 
             $javaApiResponse = $this->callJavaVendorApi($user['staff_no']);
@@ -586,7 +548,6 @@ private function getAllVisitorOverstayAlerts($allDeviceUsers)
                 
                 Log::info('Java API Response for ' . $user['staff_no'] . ': ', $javaApiResponse);
                 
-                // ✅ Check karein ke dateOfVisitTo current time se zyada hai ya nahi
                 if (isset($visitorData['dateOfVisitTo'])) {
                     $dateOfVisitTo = \Carbon\Carbon::parse($visitorData['dateOfVisitTo']);
                     
@@ -599,7 +560,7 @@ private function getAllVisitorOverstayAlerts($allDeviceUsers)
                             'visitor_name' => $visitorData['fullName'] ?? 'N/A',
                             'staff_no' => $user['staff_no'],
                             'expected_end_time' => $dateOfVisitTo->format('d M Y h:i A'), 
-                            'current_time' => $currentTime->format('d M Y h:i A'), // Full date time format
+                            'current_time' => $currentTime->format('d M Y h:i A'), 
                             'check_in_time' => \Carbon\Carbon::parse($user['created_at'])->format('d M Y h:i A'),
                             'location' => $user['location_name'] ?? 'N/A',
                             'overstay_minutes' => $overstayMinutes,
@@ -631,7 +592,6 @@ private function getAllVisitorOverstayAlerts($allDeviceUsers)
     return $overstayAlerts;
 }
 
-    // ✅ NEW METHOD: Enriched Overstay Alerts for modal
     private function getEnrichedOverstayAlerts($overstayAlerts)
     {
         $enrichedAlerts = [];
@@ -667,12 +627,11 @@ private function getAllVisitorOverstayAlerts($allDeviceUsers)
         return $enrichedAlerts;
     }
 
-    // ✅ Naya method: Java Vendor API call ke liye
     private function callJavaVendorApi($staffNo)
     {
         try {
             $javaBaseUrl = env('JAVA_BACKEND_URL', 'http://localhost:8080');
-            $token = 'eyJhbGciOiJIUzUxMiJ9.eyJzdWIiOiJzdXBlcmFkbWluIiwiYXV0aEtleSI6IkE0SnBqekdyIiwiY29tcGFueUlkIjoic3VwZXJhZG1pbiIsImFjY2VzcyI6WyJQUEFIVENEIiwiUFBBSFRDRSIsIlZQUmVxTCIsIlJUeXBlIiwiQnJyQ29uZiIsIlZQQ2xvTERlbCIsIlBQQUwiLCJDcG5JbmYiLCJSUEJSRXgiLCJDUENMVkEiLCJQUEFIVENNIiwiVlBQTCIsIlBQUkwiLCJDVENvbmYiLCJCQ1JMIiwiQk5hbWUiLCJXSExDb25mIiwiUFBHSUV4IiwiUkNQIiwiUlBQTUciLCJCSUNMUmVsIiwiUFBDTCIsIkJDQ0xSZWwiLCJWUEFMIiwiY1ZBIiwiUFBFVENNIiwiUFBVIiwiUFBFVENFIiwiUFBFVENEIiwiVlBSTCIsIkNpdHlJbmYiLCJNR0lPIiwiQ1BSTEUiLCJzVlAiLCJWUFJlakxEZWwiLCJCQ0NMIiwiUFBTTCIsIkNJbmYiLCJNYXN0ZXJQYXRoIiwiVlBDTCIsIlJQUE0iLCJteVBQIiwiQ05DVlBSTCIsIkxDSW5mIiwiTUxPR0lOIiwiQ1BSTGVnIiwiQ05DVlBBTCIsIlJvbGUiLCJWUiIsIkNQUkxEQSIsIlBQR0kiLCJDcG5QIiwiTlNDUiIsIkJSQ29uZiIsIkNQUkxEUiIsIkNQUkxEVSIsIkRJbmYiLCJCSVJMIiwiUlBQUyIsIkNOQ1ZQQ0wiLCJCSUNMIiwiUFBJTCIsIlBQT1dJRXgiLCJDUEFMREEiLCJSUkNvbmYiLCJWUEludkwiLCJMQ2xhc3MiLCJWUFJlakwiLCJCSVJMQXBwciIsIlJQQlIiLCJQUFN1c0wiLCJDUFJEQXBwIiwiQ1BBTERVIiwiQ05DVlBSZWpMRGVsIiwiQ1BBTERSIiwiQVBQQ29uZiIsIkNQQUwiLCJteVZQIiwiQlR5cGUiLCJDaENvbSIsIlZpblR5cGUiLCJkYXNoMSIsIkRFU0luZiIsIkNQUlNPIiwiQ1BSTCIsIkNQUkgiLCJDTkNWUENsb0xEZWwiLCJSVlNTIiwiU0xDSW5mIiwiQ1BDTCIsIm15Q05DVlAiLCJTUFAiLCJDUFJMRURSIiwiTFZDSW5mIiwiQ1BSTEVEVSIsIlBQUmVqTCIsIkNhdGVJbmYiLCJDTkNWUFJlakwiLCJtVlJQIiwiVXNlciIsIkJDUkxBcHByIiwiTVZUIiwiU1BQRFQiLCJMSW5mIiwiQ1BSTEVEQSIsIlBQUEwiLCJTdGF0ZUluZiIsIlBQQUhUQyIsIlBQT1dJIiwiUkNQMiIsIlBQRVRDIiwiQ1RQIl0sInJvbGUiOlsiU1VQRVIgQURNSU4iXSwiY3JlYXRlZCI6MTc2NDkxOTA0OTQzNSwiZGlzcGxheU5hbWUiOiJTdXBlciBBZG1pbiIsImV4cCI6MTc2NTAwNTQ0OX0.rHVS-IvaZdmEfxfjRuB-CpwWP9tNIgZwxQh-Ly10NzAz2RC-73DaDGcHfuCwTNy2VHwY3WHMhjdqSWURBL3d0w'; // Aapka Java token
+            $token = 'eyJhbGciOiJIUzUxMiJ9.eyJzdWIiOiJzdXBlcmFkbWluIiwiYXV0aEtleSI6IjI1M29rRUttIiwiY29tcGFueUlkIjoic3VwZXJhZG1pbiIsImFjY2VzcyI6WyJQUEFIVENEIiwiUFBBSFRDRSIsIlZQUmVxTCIsIlJUeXBlIiwiQnJyQ29uZiIsIlZQQ2xvTERlbCIsIlBQQUwiLCJDcG5JbmYiLCJSUEJSRXgiLCJDUENMVkEiLCJQUEFIVENNIiwiVlBQTCIsIlBQUkwiLCJDVENvbmYiLCJCQ1JMIiwiQk5hbWUiLCJXSExDb25mIiwiUFBHSUV4IiwiUkNQIiwiUlBQTUciLCJCSUNMUmVsIiwiUFBDTCIsIkJDQ0xSZWwiLCJWUEFMIiwiY1ZBIiwiUFBFVENNIiwiUFBVIiwiUFBFVENFIiwiUFBFVENEIiwiVlBSTCIsIkNpdHlJbmYiLCJNR0lPIiwiQ1BSTEUiLCJzVlAiLCJWUFJlakxEZWwiLCJCQ0NMIiwiUFBTTCIsIkNJbmYiLCJNYXN0ZXJQYXRoIiwiVmlzaXRvckQmQyIsIlZQQ0wiLCJSUFBNIiwibXlQUCIsIkNOQ1ZQUkwiLCJMQ0luZiIsIk1MT0dJTiIsIkNQUkxlZyIsIkNOQ1ZQQUwiLCJSb2xlIiwiVlIiLCJDUFJMREEiLCJQUEdJIiwiQ3BuUCIsIk5TQ1IiLCJCUkNvbmYiLCJDUFJMRFIiLCJDUFJMRFUiLCJESW5mIiwiQklSTCIsIlJQUFMiLCJDTkNWUENMIiwiQklDTCIsIlBQSUwiLCJQUE9XSUV4IiwiQ1BBTERBIiwiUlJDb25mIiwiVlBJbnZMIiwiTENsYXNzIiwiVlBSZWpMIiwiQklSTEFwcHIiLCJSUEJSIiwiUFBTdXNMIiwiQ1BSREFwcCIsIkNQQUxEVSIsIkNOQ1ZQUmVqTERlbCIsIkNQQUxEUiIsIkFQUENvbmYiLCJDUEFMIiwibXlWUCIsIkJUeXBlIiwiQ2hDb20iLCJWaW5UeXBlIiwiZGFzaDEiLCJERVNJbmYiLCJDUFJTTyIsIkNQUkwiLCJDUFJIIiwiQ05DVlBDbG9MRGVsIiwiUlZTUyIsIlNMQ0luZiIsIkNQQ0wiLCJteUNOQ1ZQIiwiU1BQIiwiQ1BSTEVEUiIsIkxWQ0luZiIsIkNQUkxFRFUiLCJQUFJlakwiLCJDYXRlSW5mIiwiQ05DVlBSZWpMIiwibVZSUCIsIlVzZXIiLCJCQ1JMQXBwciIsIk1WVCIsIlNQUERUIiwiTEluZiIsIkNQUkxFREEiLCJQUFBMIiwiU3RhdGVJbmYiLCJQUEFIVEMiLCJQUE9XSSIsIlJDUDIiLCJQUEVUQyIsIkNUUCJdLCJyb2xlIjpbIlNVUEVSIEFETUlOIl0sImNyZWF0ZWQiOjE3NjUyNjI2NjkxMzksImRpc3BsYXlOYW1lIjoiU3VwZXIgQWRtaW4iLCJleHAiOjE3NjUzNDkwNjl9.ZHTD6Q5XQsM-8k1Vu9-WIrtvYG2LZs5xIMYs7L8AVpRbRm_p4AkCb69bSOcP65FrN4buo_IMostSb2fg8BuHPg'; 
             
             $response = Http::withHeaders([
                 'x-auth-token' => $token,
@@ -692,20 +651,17 @@ private function getAllVisitorOverstayAlerts($allDeviceUsers)
         }
     }
 
-    // ✅ Naya method: Hourly traffic data ke liye
     private function getHourlyTrafficData()
     {
         try {
-            // Aaj ke din ke liye data lein
+
             $today = now()->format('Y-m-d');
-            
-            // ✅ Pehle aaj ke saare successful access logs lein
+
             $todayAccessLogs = DeviceAccessLog::whereDate('created_at', $today)
                 ->where('access_granted', 1)
                 ->orderBy('created_at')
                 ->get();
-            
-            // ✅ 24 hours ke liye array prepare karein
+
             $cumulativeData = [];
             $labels = [];
             
@@ -714,11 +670,9 @@ private function getAllVisitorOverstayAlerts($allDeviceUsers)
                 $timeLabel = $i < 12 ? "{$hour} AM" : ($i == 12 ? "12 PM" : ($i - 12) . " PM");
                 
                 $labels[] = $timeLabel;
-                
-                // ✅ Current hour tak ke saare active visitors count karein
+
                 $currentHourEnd = Carbon::createFromFormat('Y-m-d H', $today . ' ' . $i);
-                
-                // ✅ Us hour tak jitne bhi visitors check-in kar chuke hain, woh cumulative count
+
                 $cumulativeCount = $todayAccessLogs
                     ->filter(function ($log) use ($currentHourEnd) {
                         return Carbon::parse($log->created_at)->lte($currentHourEnd);
@@ -739,7 +693,6 @@ private function getAllVisitorOverstayAlerts($allDeviceUsers)
         }
     }
 
-    // ✅ Default data agar koi error ho
     private function getDefaultHourlyTrafficData()
     {
         $labels = ['8 AM', '9 AM', '10 AM', '11 AM', '12 PM', '1 PM', '2 PM', '3 PM', '4 PM', '5 PM'];
@@ -757,7 +710,6 @@ private function getAllVisitorOverstayAlerts($allDeviceUsers)
             $fromDate = $request->input('from_date');
             $toDate = $request->input('to_date');
 
-            // Validate dates
             if (!$fromDate || !$toDate) {
                 return response()->json([
                     'success' => false,
@@ -772,7 +724,6 @@ private function getAllVisitorOverstayAlerts($allDeviceUsers)
                 ], 400);
             }
 
-            // Get graph data based on date range
             $graphData = $this->getHourlyTrafficDataByDateRange($fromDate, $toDate);
 
             return response()->json([
@@ -794,12 +745,11 @@ private function getAllVisitorOverstayAlerts($allDeviceUsers)
     private function getHourlyTrafficDataByDateRange($fromDate, $toDate)
     {
         try {
-            // Agar fromDate aur toDate same hai, toh hourly data show karein
+
             if ($fromDate === $toDate) {
                 return $this->getHourlyDataForSingleDay($fromDate);
             }
-            
-            // Agar different dates hain, toh daily data show karein
+
             return $this->getDailyDataForDateRange($fromDate, $toDate);
             
         } catch (\Exception $e) {
@@ -818,14 +768,12 @@ private function getAllVisitorOverstayAlerts($allDeviceUsers)
         $hourlyData = [];
         $labels = [];
         
-        // 24 hours ke liye data prepare karein
         for ($i = 0; $i < 24; $i++) {
             $hour = str_pad($i, 2, '0', STR_PAD_LEFT);
             $timeLabel = $i < 12 ? "{$hour} AM" : ($i == 12 ? "12 PM" : ($i - 12) . " PM");
             
             $labels[] = $timeLabel;
             
-            // Current hour ke liye count karein
             $hourStart = Carbon::createFromFormat('Y-m-d H', $date . ' ' . $i);
             $hourEnd = $hourStart->copy()->addHour();
             
@@ -866,7 +814,6 @@ private function getAllVisitorOverstayAlerts($allDeviceUsers)
             
             $labels[] = $label;
             
-            // Current date ke liye count karein
             $dayCount = $accessLogs
                 ->filter(function ($log) use ($dateString) {
                     return Carbon::parse($log->created_at)->format('Y-m-d') === $dateString;
@@ -918,7 +865,6 @@ private function getAllVisitorOverstayAlerts($allDeviceUsers)
         }
     }
 
-    // ✅ ✅ ✅ NEW METHOD: Get Dynamic Check-outs Today Data for Modal
     private function getCheckoutsTodayModalData()
     {
         try {
@@ -927,7 +873,6 @@ private function getAllVisitorOverstayAlerts($allDeviceUsers)
             $today = now()->format('Y-m-d');
             $checkoutRecords = [];
 
-            // Step 1: Get all Turnstile locations from vendor_locations
             $turnstileLocations = VendorLocation::where('name', 'like', '%Turnstile%')
                 ->get(['id', 'name']);
             
@@ -941,7 +886,6 @@ private function getAllVisitorOverstayAlerts($allDeviceUsers)
             $turnstileLocationIds = $turnstileLocations->pluck('id');
             $turnstileLocationNames = $turnstileLocations->pluck('name');
 
-            // Step 2: Get device_location_assigns records with check_out type for these locations
             $deviceLocationAssigns = DeviceLocationAssign::whereIn('location_id', $turnstileLocationIds)
                 ->where('is_type', 'check_out')
                 ->get(['id', 'device_id', 'location_id', 'is_type']);
@@ -952,8 +896,7 @@ private function getAllVisitorOverstayAlerts($allDeviceUsers)
                 Log::info('No device_location_assigns with check_out type found.');
                 return [];
             }
-            
-            // Step 3: Get device_connections for these device_ids
+
             $deviceConnectionIds = $deviceLocationAssigns->pluck('device_id');
             
             $deviceConnections = DeviceConnection::whereIn('id', $deviceConnectionIds)
@@ -968,7 +911,6 @@ private function getAllVisitorOverstayAlerts($allDeviceUsers)
             
             $actualDeviceIds = $deviceConnections->pluck('device_id');
             
-            // Condition 2: location_name matches Turnstile locations
             $todayCheckoutLogs = DeviceAccessLog::whereIn('device_id', $actualDeviceIds)
                 ->whereIn('location_name', $turnstileLocationNames)
                 ->whereDate('created_at', $today)
@@ -978,15 +920,12 @@ private function getAllVisitorOverstayAlerts($allDeviceUsers)
             
             Log::info('Today checkout logs found (after both checks): ' . $todayCheckoutLogs->count());
             
-            // Step 5: Process each checkout record
             foreach ($todayCheckoutLogs as $checkoutLog) {
                 try {
                     $visitorDetails = $this->getVisitorDetailsForCheckout($checkoutLog);
                     
-                    // ✅ NEW: Use complex logic for check-in time
                     $checkInLog = $this->getCheckinLogForStaffNo($checkoutLog->staff_no, $today);
                     
-                    // Calculate duration
                     $duration = $this->calculateCheckoutDuration($checkInLog, $checkoutLog);
                     
                     $checkoutRecords[] = [
@@ -1014,11 +953,10 @@ private function getAllVisitorOverstayAlerts($allDeviceUsers)
         }
     }
 
-    // ✅ NAYA METHOD: Get check-in log using your complex logic
     private function getCheckinLogForStaffNo($staffNo, $date)
     {
         try {
-            // 1. Get Turnstile locations
+
             $turnstileLocations = VendorLocation::where('name', 'like', '%Turnstile%')
                 ->get(['id', 'name']);
             
@@ -1029,7 +967,6 @@ private function getAllVisitorOverstayAlerts($allDeviceUsers)
             $turnstileLocationIds = $turnstileLocations->pluck('id');
             $turnstileLocationNames = $turnstileLocations->pluck('name');
             
-            // 2. Get device_location_assigns with check_in type
             $deviceLocationAssigns = DeviceLocationAssign::whereIn('location_id', $turnstileLocationIds)
                 ->where('is_type', 'check_in')
                 ->get(['id', 'device_id', 'location_id']);
@@ -1037,7 +974,6 @@ private function getAllVisitorOverstayAlerts($allDeviceUsers)
             if ($deviceLocationAssigns->isEmpty()) {
                 return null;
             }
-            // 3. Get device_connections for these device_ids
             $deviceConnectionIds = $deviceLocationAssigns->pluck('device_id');
             
             $deviceConnections = DeviceConnection::whereIn('id', $deviceConnectionIds)
@@ -1049,13 +985,12 @@ private function getAllVisitorOverstayAlerts($allDeviceUsers)
             
             $actualDeviceIds = $deviceConnections->pluck('device_id');
             
-            // 4. Now get the device_access_logs that match ALL conditions:
             $checkinLog = DeviceAccessLog::where('staff_no', $staffNo)
-                ->whereIn('device_id', $actualDeviceIds)  // ✅ From check_in devices
-                ->whereIn('location_name', $turnstileLocationNames)  // ✅ Turnstile locations
+                ->whereIn('device_id', $actualDeviceIds)  
+                ->whereIn('location_name', $turnstileLocationNames) 
                 ->whereDate('created_at', $date)
                 ->where('access_granted', 1)
-                ->orderBy('created_at', 'asc')  // ✅ Earliest check-in
+                ->orderBy('created_at', 'asc')  
                 ->first();
             
             return $checkinLog;
@@ -1066,7 +1001,6 @@ private function getAllVisitorOverstayAlerts($allDeviceUsers)
         }
     }
 
-    // ✅ HELPER METHOD: Get visitor details for checkout
     private function getVisitorDetailsForCheckout($checkoutLog)
     {
         try {
@@ -1089,7 +1023,7 @@ private function getAllVisitorOverstayAlerts($allDeviceUsers)
             ];
         }
     }
-    // ✅ HELPER METHOD: Calculate checkout duration
+
     private function calculateCheckoutDuration($checkInLog, $checkoutLog)
     {
         if (!$checkInLog) {

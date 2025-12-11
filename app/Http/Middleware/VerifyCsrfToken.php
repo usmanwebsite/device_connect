@@ -12,6 +12,8 @@ class VerifyCsrfToken extends Middleware
      * @var array<int, string>
      */
     protected $except = [
-        //
+        'java-auth/callback',
+        'visitor-info-door/get-visitors',
+        'visitor-info-door'
     ];
 }

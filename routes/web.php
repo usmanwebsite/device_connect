@@ -3,10 +3,13 @@
 use App\Http\Controllers\AngularRedirectController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DeviceLocationAssignController;
+use App\Http\Controllers\JavaAuthController;
 use App\Http\Controllers\LoginController;
 use App\Http\Controllers\PathController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\SecurityAlertController;
+use App\Http\Controllers\VisitorDetailsController;
+use App\Http\Controllers\VisitorInfoByDoorController;
 use App\Http\Controllers\VisitorReportController;
 use App\Http\Controllers\VisitorTypeController;
 use Illuminate\Support\Facades\Route;
@@ -22,12 +25,6 @@ use Illuminate\Support\Facades\Route;
 |
 */
 
-Route::get('/', function () {
-    return view('welcome');
-});
-
-// layout
-
 Route::get('/layout', function () {
     return view('layout.main_layout');
 });
@@ -38,7 +35,19 @@ Route::post('/assign-device', [DeviceLocationAssignController::class, 'store'])-
 
 Route::get('/', [DashboardController::class, 'index'])->name('dashboard');
 Route::post('/login', [LoginController::class, 'login'])->name('login');
-Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
+
+
+// 1) CALLBACK — NO JAVA AUTH MIDDLEWARE HERE!
+Route::get('/java-auth/callback',
+    [JavaAuthController::class, 'handleCallback']
+)->name('java-auth.callback');
+
+
+    Route::get('/dashboard', [DashboardController::class, 'index'])
+        ->name('dashboard');
+
+
+
 Route::post('/dashboard/graph-data', [DashboardController::class, 'getGraphData'])
     ->name('dashboard.graph.data');
 Route::get('/dashboard/checkouts-today-modal-data', [DashboardController::class, 'getCheckoutsTodayModalDataAjax'])->name('dashboard.checkouts.today.modal.data');
@@ -92,6 +101,21 @@ Route::prefix('reports')->group(function () {
 
         Route::get('/unauthorized-access', [SecurityAlertController::class, 'unauthorizedAccessDetails'])->name('security.unauthorized.access');
     });
+
+
+    Route::prefix('visitor-details')->group(function () {
+        Route::get('/', [VisitorDetailsController::class, 'index'])->name('visitor-details.index');
+        Route::post('/search', [VisitorDetailsController::class, 'search'])->name('visitor-details.search');
+        Route::post('/chronology', [VisitorDetailsController::class, 'getVisitorChronology'])->name('visitor-details.chronology');
+    });
+
+        Route::prefix('visitor-info-door')->name('visitor-info-door.')->group(function () {
+        Route::get('/', [VisitorInfoByDoorController::class, 'index'])->name('index');
+        Route::post('/get-visitors', [VisitorInfoByDoorController::class, 'getVisitorsByLocation'])->name('get-visitors');
+        Route::get('/get-visitor-details', [VisitorInfoByDoorController::class, 'getVisitorDetails'])->name('get-visitor-details');
+        Route::get('/export', [VisitorInfoByDoorController::class, 'exportVisitors'])->name('export');
+    });
+
 
     Route::get('/redirect-to-angular/{route}', [AngularRedirectController::class, 'redirect'])
     ->where('route', '.*')
