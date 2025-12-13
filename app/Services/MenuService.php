@@ -1272,6 +1272,14 @@ private function filterMenuByPermissions($menu, $userPermissions)
                         'parentId' => 7.0,
                         'isLaravelRoute' => true 
                     ],
+                    [
+                        'id' => 7.4,
+                        'label' => "VISITOR Info By Door",
+                        'link' => "/visitor-info-door", 
+                        'isAuth' => 'VisitorInfoByDoor',
+                        'parentId' => 7.0,
+                        'isLaravelRoute' => true 
+                    ],
 
                 ],
             ],

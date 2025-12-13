@@ -3,6 +3,7 @@
 use App\Http\Controllers\DeviceCommunicationController;
 use App\Http\Controllers\DeviceController;
 use App\Http\Controllers\QRCodeController;
+use App\Http\Controllers\API\JavaVisitorTypeController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -20,6 +21,8 @@ use Illuminate\Support\Facades\Route;
     Route::prefix('qr')->group(function () {
         Route::get('/generate-encrypted', [QRCodeController::class, 'generateEncryptedString']);
     });
+
+    Route::get('visitor-types', [JavaVisitorTypeController::class, 'index']);
 
     // Device control endpoints
     Route::prefix('device')->group(function () {
