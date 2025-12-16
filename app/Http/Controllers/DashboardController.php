@@ -6,6 +6,7 @@ use Illuminate\Http\Request;
 use App\Services\MenuService;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Session;
 use Illuminate\Support\Carbon;
 use App\Models\DeviceAccessLog;
 use App\Models\DeviceConnection;
@@ -21,12 +22,48 @@ class DashboardController extends Controller
         $this->menuService = $menuService;
     }
 
-    public function index()
+    public function index(Request $request, MenuService $menuService)
     {
         try {
 
-            $angularMenu = $this->menuService->getFilteredAngularMenu();
-
+            Log::info('=== Dashboard Accessed ===');
+    
+            // ✅ Session check करें
+            Log::info('Dashboard Session ID:', ['session_id' => session()->getId()]);
+            Log::info('Dashboard Cookies:', $request->cookie());
+            
+            // ✅ Token check करें
+            $token = session()->get('java_backend_token') ?? session()->get('java_auth_token');
+            Log::info('Token in Dashboard:', [
+                'token_exists' => !empty($token),
+                'session_has_java_backend_token' => session()->has('java_backend_token'),
+                'session_has_java_auth_token' => session()->has('java_auth_token'),
+                'token_length' => $token ? strlen($token) : 0,
+                'token_first_30' => $token ? substr($token, 0, 30) . '...' : 'NULL'
+            ]);
+            
+            // ✅ All session data log करें
+            $allSession = session()->all();
+            Log::info('All Session Keys:', array_keys($allSession));
+            
+            // ✅ MenuService call करने से पहले token pass करें
+            $angularMenu = [];
+            if ($token) {
+                try {
+                    // Direct token pass करें
+                    $angularMenu = $menuService->getFilteredAngularMenuWithToken($token);
+                } catch (\Exception $e) {
+                    Log::error('Menu error: ' . $e->getMessage());
+                    $angularMenu = [];
+                }
+            } else {
+                Log::error('NO TOKEN FOUND IN DASHBOARD!');
+                // Emergency fallback
+                $hardcodedToken = 'eyJhbGciOiJIUzUxMiJ9.eyJzdWIiOiJzdXBlcmF......'; // Your hardcoded token
+                $angularMenu = $menuService->getFilteredAngularMenuWithToken($hardcodedToken);
+            }
+            
+                Log::info('Angular Menu Structure:');
             $userAccessData = $this->menuService->getUserAccessData();
 
             $todayAppointmentCount = 0;
@@ -140,6 +177,7 @@ class DashboardController extends Controller
             ));
         }
     }
+    
 
     private function getCriticalSecurityAlert()
     {
@@ -631,7 +669,7 @@ private function getAllVisitorOverstayAlerts($allDeviceUsers)
     {
         try {
             $javaBaseUrl = env('JAVA_BACKEND_URL', 'http://localhost:8080');
-            $token = 'eyJhbGciOiJIUzUxMiJ9.eyJzdWIiOiJzdXBlcmFkbWluIiwiYXV0aEtleSI6IjI1M29rRUttIiwiY29tcGFueUlkIjoic3VwZXJhZG1pbiIsImFjY2VzcyI6WyJQUEFIVENEIiwiUFBBSFRDRSIsIlZQUmVxTCIsIlJUeXBlIiwiQnJyQ29uZiIsIlZQQ2xvTERlbCIsIlBQQUwiLCJDcG5JbmYiLCJSUEJSRXgiLCJDUENMVkEiLCJQUEFIVENNIiwiVlBQTCIsIlBQUkwiLCJDVENvbmYiLCJCQ1JMIiwiQk5hbWUiLCJXSExDb25mIiwiUFBHSUV4IiwiUkNQIiwiUlBQTUciLCJCSUNMUmVsIiwiUFBDTCIsIkJDQ0xSZWwiLCJWUEFMIiwiY1ZBIiwiUFBFVENNIiwiUFBVIiwiUFBFVENFIiwiUFBFVENEIiwiVlBSTCIsIkNpdHlJbmYiLCJNR0lPIiwiQ1BSTEUiLCJzVlAiLCJWUFJlakxEZWwiLCJCQ0NMIiwiUFBTTCIsIkNJbmYiLCJNYXN0ZXJQYXRoIiwiVmlzaXRvckQmQyIsIlZQQ0wiLCJSUFBNIiwibXlQUCIsIkNOQ1ZQUkwiLCJMQ0luZiIsIk1MT0dJTiIsIkNQUkxlZyIsIkNOQ1ZQQUwiLCJSb2xlIiwiVlIiLCJDUFJMREEiLCJQUEdJIiwiQ3BuUCIsIk5TQ1IiLCJCUkNvbmYiLCJDUFJMRFIiLCJDUFJMRFUiLCJESW5mIiwiQklSTCIsIlJQUFMiLCJDTkNWUENMIiwiQklDTCIsIlBQSUwiLCJQUE9XSUV4IiwiQ1BBTERBIiwiUlJDb25mIiwiVlBJbnZMIiwiTENsYXNzIiwiVlBSZWpMIiwiQklSTEFwcHIiLCJSUEJSIiwiUFBTdXNMIiwiQ1BSREFwcCIsIkNQQUxEVSIsIkNOQ1ZQUmVqTERlbCIsIkNQQUxEUiIsIkFQUENvbmYiLCJDUEFMIiwibXlWUCIsIkJUeXBlIiwiQ2hDb20iLCJWaW5UeXBlIiwiZGFzaDEiLCJERVNJbmYiLCJDUFJTTyIsIkNQUkwiLCJDUFJIIiwiQ05DVlBDbG9MRGVsIiwiUlZTUyIsIlNMQ0luZiIsIkNQQ0wiLCJteUNOQ1ZQIiwiU1BQIiwiQ1BSTEVEUiIsIkxWQ0luZiIsIkNQUkxFRFUiLCJQUFJlakwiLCJDYXRlSW5mIiwiQ05DVlBSZWpMIiwibVZSUCIsIlVzZXIiLCJCQ1JMQXBwciIsIk1WVCIsIlNQUERUIiwiTEluZiIsIkNQUkxFREEiLCJQUFBMIiwiU3RhdGVJbmYiLCJQUEFIVEMiLCJQUE9XSSIsIlJDUDIiLCJQUEVUQyIsIkNUUCJdLCJyb2xlIjpbIlNVUEVSIEFETUlOIl0sImNyZWF0ZWQiOjE3NjUyNjI2NjkxMzksImRpc3BsYXlOYW1lIjoiU3VwZXIgQWRtaW4iLCJleHAiOjE3NjUzNDkwNjl9.ZHTD6Q5XQsM-8k1Vu9-WIrtvYG2LZs5xIMYs7L8AVpRbRm_p4AkCb69bSOcP65FrN4buo_IMostSb2fg8BuHPg'; 
+            $token = session()->get('java_backend_token') ?? session()->get('java_auth_token'); 
             
             $response = Http::withHeaders([
                 'x-auth-token' => $token,

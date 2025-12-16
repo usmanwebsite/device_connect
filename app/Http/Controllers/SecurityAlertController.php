@@ -27,7 +27,8 @@ class SecurityAlertController extends Controller
     private function getJavaToken()
     {
         // First try to get from session
-        $token = Session::get('java_token');
+        // $token = Session::get('java_token');
+        $token = session()->get('java_backend_token') ?? session()->get('java_auth_token');
         
         if ($token) {
             Log::info('Using Java token from session', [
@@ -38,7 +39,8 @@ class SecurityAlertController extends Controller
         }
         
         // Fallback to environment token (for development/backup)
-        $envToken = env('JAVA_API_TOKEN');
+        // $envToken = env('JAVA_API_TOKEN');
+        $envToken = session()->get('java_backend_token') ?? session()->get('java_auth_token');
         
         if ($envToken) {
             Log::warning('Using Java token from environment (session token not found)');

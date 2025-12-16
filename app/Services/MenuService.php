@@ -17,81 +17,47 @@ class MenuService
         $this->javaBaseUrl = env('JAVA_BACKEND_URL', 'http://localhost:8080');
     }
 
-    // public function getFilteredAngularMenu()
-    // {
-    //     $userAccessData = $this->fetchUserAccessFromJavaBackend();
-        
-    //     $userPermissions = $userAccessData['business_functions'] ?? [];
-        
-    //     Log::info('Java Backend se User Access Data: ', $userAccessData);
-    //     Log::info('User Permissions: ', $userPermissions);
-        
-    //     $fullMenu = $this->getAngularMenu();
-    //     $filteredMenu = $this->filterMenuByPermissions($fullMenu, $userPermissions);
-        
-    //     Log::info('Filtered Menu Count: ' . count($filteredMenu));
-        
-    //     return $filteredMenu;
-    // }
+public function getFilteredAngularMenu()
+{
+    Log::info('=== getFilteredAngularMenu Called ===');
 
-    public function getFilteredAngularMenu()
-    {
-        // ✅ FIRST: Session se business functions check karo
-        $userPermissions = $this->getUserPermissionsFromSession();
+    $token = $this->getJavaAuthToken();
+    
+    // ✅ First try session
+    $userPermissions = Session::get('user_business_functions', []);
+    
+    if (empty($userPermissions)) {
+        Log::info('No permissions in session, fetching with hardcoded token...');
         
-        // ✅ Agar session mein nahi hai toh Java API se fetch karo
-        if (empty($userPermissions)) {
-            $userAccessData = $this->fetchUserAccessFromJavaBackend();
-            $userPermissions = $userAccessData['business_functions'] ?? [];
-            
-            // ✅ Session mein save karo for future use
-            $this->saveUserPermissionsToSession($userPermissions);
-            
-            Log::info('Java Backend se fresh User Access Data fetch kiya');
-        } else {
-            Log::info('Session se User Permissions use kiye');
+        $userAccessData = $this->fetchUserAccessFromJavaBackendWithToken($token);
+        $userPermissions = $userAccessData['business_functions'] ?? [];
+        
+        // ✅ Save to session for next time
+        if (!empty($userPermissions)) {
+            Session::put('user_business_functions', $userPermissions);
+            Session::save();
+            Log::info('Permissions saved to session:', ['count' => count($userPermissions)]);
         }
-        
-        Log::info('User Permissions: ', $userPermissions);
-        
-        $fullMenu = $this->getAngularMenu();
-        $filteredMenu = $this->filterMenuByPermissions($fullMenu, $userPermissions);
-        
-        Log::info('Filtered Menu Count: ' . count($filteredMenu));
-        
-        return $filteredMenu;
+    } else {
+        Log::info('Using permissions from session:', ['count' => count($userPermissions)]);
     }
+    
+    $fullMenu = $this->getAngularMenu();
+    Log::info('Full menu items count: ' . count($fullMenu));
+    
+    $filteredMenu = $this->filterMenuByPermissions($fullMenu, $userPermissions);
+    
+    Log::info('Final filtered menu items: ' . count($filteredMenu));
+    // Log.info('=== getFilteredAngularMenu End ===');
+    
+    return $filteredMenu;
+}
 
-    private function getUserPermissionsFromSession()
-    {
-        return Session::get('user_business_functions', []);
-    }
-
-    // ✅ NEW: Session mein user permissions save karo
-    private function saveUserPermissionsToSession($permissions)
-    {
-        Session::put('user_business_functions', $permissions);
-        Session::save();
-        Log::info('User permissions session mein save kiye: ' . count($permissions) . ' permissions');
-    }
-
-    public function clearUserPermissionsFromSession()
-    {
-        Session::forget('user_business_functions');
-        Session::save();
-        Log::info('User permissions session se clear kiye');
-    }
-
-    private function fetchUserAccessFromJavaBackend()
+        public function fetchUserAccessFromJavaBackendWithToken($token)
     {
         try {
-            $token ='eyJhbGciOiJIUzUxMiJ9.eyJzdWIiOiJzdXBlcmFkbWluIiwiYXV0aEtleSI6IjI1M29rRUttIiwiY29tcGFueUlkIjoic3VwZXJhZG1pbiIsImFjY2VzcyI6WyJQUEFIVENEIiwiUFBBSFRDRSIsIlZQUmVxTCIsIlJUeXBlIiwiQnJyQ29uZiIsIlZQQ2xvTERlbCIsIlBQQUwiLCJDcG5JbmYiLCJSUEJSRXgiLCJDUENMVkEiLCJQUEFIVENNIiwiVlBQTCIsIlBQUkwiLCJDVENvbmYiLCJCQ1JMIiwiQk5hbWUiLCJXSExDb25mIiwiUFBHSUV4IiwiUkNQIiwiUlBQTUciLCJCSUNMUmVsIiwiUFBDTCIsIkJDQ0xSZWwiLCJWUEFMIiwiY1ZBIiwiUFBFVENNIiwiUFBVIiwiUFBFVENFIiwiUFBFVENEIiwiVlBSTCIsIkNpdHlJbmYiLCJNR0lPIiwiQ1BSTEUiLCJzVlAiLCJWUFJlakxEZWwiLCJCQ0NMIiwiUFBTTCIsIkNJbmYiLCJNYXN0ZXJQYXRoIiwiVmlzaXRvckQmQyIsIlZQQ0wiLCJSUFBNIiwibXlQUCIsIkNOQ1ZQUkwiLCJMQ0luZiIsIk1MT0dJTiIsIkNQUkxlZyIsIkNOQ1ZQQUwiLCJSb2xlIiwiVlIiLCJDUFJMREEiLCJQUEdJIiwiQ3BuUCIsIk5TQ1IiLCJCUkNvbmYiLCJDUFJMRFIiLCJDUFJMRFUiLCJESW5mIiwiQklSTCIsIlJQUFMiLCJDTkNWUENMIiwiQklDTCIsIlBQSUwiLCJQUE9XSUV4IiwiQ1BBTERBIiwiUlJDb25mIiwiVlBJbnZMIiwiTENsYXNzIiwiVlBSZWpMIiwiQklSTEFwcHIiLCJSUEJSIiwiUFBTdXNMIiwiQ1BSREFwcCIsIkNQQUxEVSIsIkNOQ1ZQUmVqTERlbCIsIkNQQUxEUiIsIkFQUENvbmYiLCJDUEFMIiwibXlWUCIsIkJUeXBlIiwiQ2hDb20iLCJWaW5UeXBlIiwiZGFzaDEiLCJERVNJbmYiLCJDUFJTTyIsIkNQUkwiLCJDUFJIIiwiQ05DVlBDbG9MRGVsIiwiUlZTUyIsIlNMQ0luZiIsIkNQQ0wiLCJteUNOQ1ZQIiwiU1BQIiwiQ1BSTEVEUiIsIkxWQ0luZiIsIkNQUkxFRFUiLCJQUFJlakwiLCJDYXRlSW5mIiwiQ05DVlBSZWpMIiwibVZSUCIsIlVzZXIiLCJCQ1JMQXBwciIsIk1WVCIsIlNQUERUIiwiTEluZiIsIkNQUkxFREEiLCJQUFBMIiwiU3RhdGVJbmYiLCJQUEFIVEMiLCJQUE9XSSIsIlJDUDIiLCJQUEVUQyIsIkNUUCJdLCJyb2xlIjpbIlNVUEVSIEFETUlOIl0sImNyZWF0ZWQiOjE3NjUyNjI2NjkxMzksImRpc3BsYXlOYW1lIjoiU3VwZXIgQWRtaW4iLCJleHAiOjE3NjUzNDkwNjl9.ZHTD6Q5XQsM-8k1Vu9-WIrtvYG2LZs5xIMYs7L8AVpRbRm_p4AkCb69bSOcP65FrN4buo_IMostSb2fg8BuHPg';
+            Log::info('Fetching user access with token:', ['token_start' => substr($token, 0, 30) . '...']);
             
-            if (!$token) {
-                Log::error('Java auth token not available');
-                return $this->getDefaultAccessData();
-            }
-
             $response = Http::withHeaders([
                 'x-auth-token' => $token,
                 'Accept' => 'application/json',
@@ -101,7 +67,7 @@ class MenuService
             if ($response->successful()) {
                 $data = $response->json();
                 
-                Log::info('Java API Raw Response: ', $data);
+                Log::info('Java API Response Status:', ['status' => $data['status'] ?? 'none']);
                 
                 if (isset($data['status']) && $data['status'] === 'success') {
                     // ✅ NEW: Save the new token from response to session
@@ -111,9 +77,9 @@ class MenuService
                     }
                     
                     return [
-                        'user_id' => $data['user_id'],
-                        'roles' => $data['roles'],
-                        'business_functions' => $data['business_functions']
+                        'user_id' => $data['user_id'] ?? null,
+                        'roles' => $data['roles'] ?? [],
+                        'business_functions' => $data['business_functions'] ?? []
                     ];
                 } else {
                     Log::error('Java API Error: ' . ($data['message'] ?? 'Unknown error'));
@@ -122,7 +88,6 @@ class MenuService
             } else {
                 Log::error('Java API HTTP Error: ' . $response->status() . ' - ' . $response->body());
                 
-                // ✅ NEW: If token expired, clear permissions from session
                 if ($response->status() === 401) {
                     $this->clearJavaTokenFromSession();
                     $this->clearUserPermissionsFromSession();
@@ -138,25 +103,71 @@ class MenuService
         }
     }
 
-    private function getJavaAuthToken()
+    public function saveUserPermissionsToSession($permissions)
     {
-        // ✅ FIRST: Try to get token from session
-        // $sessionToken = Session::get('java_backend_token');
-        // if ($sessionToken) {
-        //     Log::info('Using token from session');
-        //     return $sessionToken;
-        // }
-
-        // ✅ SECOND: If no session token, use hardcoded token and save to session
-        $hardcodedToken = 'eyJhbGciOiJIUzUxMiJ9.eyJzdWIiOiJzdXBlcmFkbWluIiwiYXV0aEtleSI6IjI1M29rRUttIiwiY29tcGFueUlkIjoic3VwZXJhZG1pbiIsImFjY2VzcyI6WyJQUEFIVENEIiwiUFBBSFRDRSIsIlZQUmVxTCIsIlJUeXBlIiwiQnJyQ29uZiIsIlZQQ2xvTERlbCIsIlBQQUwiLCJDcG5JbmYiLCJSUEJSRXgiLCJDUENMVkEiLCJQUEFIVENNIiwiVlBQTCIsIlBQUkwiLCJDVENvbmYiLCJCQ1JMIiwiQk5hbWUiLCJXSExDb25mIiwiUFBHSUV4IiwiUkNQIiwiUlBQTUciLCJCSUNMUmVsIiwiUFBDTCIsIkJDQ0xSZWwiLCJWUEFMIiwiY1ZBIiwiUFBFVENNIiwiUFBVIiwiUFBFVENFIiwiUFBFVENEIiwiVlBSTCIsIkNpdHlJbmYiLCJNR0lPIiwiQ1BSTEUiLCJzVlAiLCJWUFJlakxEZWwiLCJCQ0NMIiwiUFBTTCIsIkNJbmYiLCJNYXN0ZXJQYXRoIiwiVmlzaXRvckQmQyIsIlZQQ0wiLCJSUFBNIiwibXlQUCIsIkNOQ1ZQUkwiLCJMQ0luZiIsIk1MT0dJTiIsIkNQUkxlZyIsIkNOQ1ZQQUwiLCJSb2xlIiwiVlIiLCJDUFJMREEiLCJQUEdJIiwiQ3BuUCIsIk5TQ1IiLCJCUkNvbmYiLCJDUFJMRFIiLCJDUFJMRFUiLCJESW5mIiwiQklSTCIsIlJQUFMiLCJDTkNWUENMIiwiQklDTCIsIlBQSUwiLCJQUE9XSUV4IiwiQ1BBTERBIiwiUlJDb25mIiwiVlBJbnZMIiwiTENsYXNzIiwiVlBSZWpMIiwiQklSTEFwcHIiLCJSUEJSIiwiUFBTdXNMIiwiQ1BSREFwcCIsIkNQQUxEVSIsIkNOQ1ZQUmVqTERlbCIsIkNQQUxEUiIsIkFQUENvbmYiLCJDUEFMIiwibXlWUCIsIkJUeXBlIiwiQ2hDb20iLCJWaW5UeXBlIiwiZGFzaDEiLCJERVNJbmYiLCJDUFJTTyIsIkNQUkwiLCJDUFJIIiwiQ05DVlBDbG9MRGVsIiwiUlZTUyIsIlNMQ0luZiIsIkNQQ0wiLCJteUNOQ1ZQIiwiU1BQIiwiQ1BSTEVEUiIsIkxWQ0luZiIsIkNQUkxFRFUiLCJQUFJlakwiLCJDYXRlSW5mIiwiQ05DVlBSZWpMIiwibVZSUCIsIlVzZXIiLCJCQ1JMQXBwciIsIk1WVCIsIlNQUERUIiwiTEluZiIsIkNQUkxFREEiLCJQUFBMIiwiU3RhdGVJbmYiLCJQUEFIVEMiLCJQUE9XSSIsIlJDUDIiLCJQUEVUQyIsIkNUUCJdLCJyb2xlIjpbIlNVUEVSIEFETUlOIl0sImNyZWF0ZWQiOjE3NjUyNjI2NjkxMzksImRpc3BsYXlOYW1lIjoiU3VwZXIgQWRtaW4iLCJleHAiOjE3NjUzNDkwNjl9.ZHTD6Q5XQsM-8k1Vu9-WIrtvYG2LZs5xIMYs7L8AVpRbRm_p4AkCb69bSOcP65FrN4buo_IMostSb2fg8BuHPg';
-        
-        $this->saveJavaTokenToSession($hardcodedToken);
-        Log::info('Hardcoded token saved to session');
-        
-        return $hardcodedToken;
+        Session::put('user_business_functions', $permissions);
+        Session::save();
+        Log::info('User permissions session mein save kiye: ' . count($permissions) . ' permissions');
     }
 
-    private function saveJavaTokenToSession($token)
+    public function clearUserPermissionsFromSession()
+    {
+        Session::forget('user_business_functions');
+        Session::save();
+        Log::info('User permissions session se clear kiye');
+    }
+
+    // private function getJavaAuthToken()
+    // {
+    //     // ✅ FIRST: Try to get token from session
+    //     $sessionToken = Session::get('java_backend_token');
+    //     if ($sessionToken) {
+    //         Log::info('Using token from session - java_backend_token');
+    //         return $sessionToken;
+    //     }        
+    //     // ✅ SECOND: Check for java_auth_token (set by callback)
+    //     $authToken = Session::get('java_auth_token');
+    //     if ($authToken) {
+    //         Log::info('Using token from session - java_auth_token');
+    //         // Also save it as java_backend_token for consistency
+    //         Session::put('java_backend_token', $authToken);
+    //         Session::save();
+    //         return $authToken;
+    //     }
+        
+    //     // ✅ THIRD: If no session token, use hardcoded token and save to session
+
+    //     $hardcodedToken = 'eyJhbGciOiJIUzUxMiJ9.eyJzdWIiOiJzdXBlcmFkbWluIiwiYXV0aEtleSI6IlFhYWZnZk84IiwiY29tcGFueUlkIjoic3VwZXJhZG1pbiIsImFjY2VzcyI6WyJQUEFIVENEIiwiUFBBSFRDRSIsIlZQUmVxTCIsIlJUeXBlIiwiQnJyQ29uZiIsIlZQQ2xvTERlbCIsIlBQQUwiLCJDcG5JbmYiLCJSUEJSRXgiLCJWaXNpdG9ySW5mb0J5RG9vciIsIkNQQ0xWQSIsIlBQQUhUQ00iLCJWUFBMIiwiUFBSTCIsIkNUQ29uZiIsIkJDUkwiLCJCTmFtZSIsIldITENvbmYiLCJQUEdJRXgiLCJSQ1AiLCJSUFBNRyIsIkJJQ0xSZWwiLCJQUENMIiwiQkNDTFJlbCIsIlZQQUwiLCJjVkEiLCJQUEVUQ00iLCJQUFUiLCJQUEVUQ0UiLCJQUEVUQ0QiLCJWUFJMIiwiQ2l0eUluZiIsIk1HSU8iLCJDUFJMRSIsInNWUCIsIlZQUmVqTERlbCIsIkJDQ0wiLCJQUFNMIiwiQ0luZiIsIk1hc3RlclBhdGgiLCJWaXNpdG9yRCZDIiwiVlBDTCIsIlJQUE0iLCJteVBQIiwiQ05DVlBSTCIsIkxDSW5mIiwiTUxPR0lOIiwiQ1BSTGVnIiwiQ05DVlBBTCIsIlJvbGUiLCJWUiIsIkNQUkxEQSIsIlBQR0kiLCJDcG5QIiwiTlNDUiIsIkJSQ29uZiIsIkNQUkxEUiIsIkNQUkxEVSIsIkRJbmYiLCJCSVJMIiwiUlBQUyIsIkNOQ1ZQQ0wiLCJCSUNMIiwiUFBJTCIsIlBQT1dJRXgiLCJDUEFMREEiLCJSUkNvbmYiLCJWUEludkwiLCJMQ2xhc3MiLCJWUFJlakwiLCJCSVJMQXBwciIsIlJQQlIiLCJQUFN1c0wiLCJDUFJEQXBwIiwiQ1BBTERVIiwiQ05DVlBSZWpMRGVsIiwiQ1BBTERSIiwiQVBQQ29uZiIsIkNQQUwiLCJteVZQIiwiQlR5cGUiLCJDaENvbSIsIlZpblR5cGUiLCJkYXNoMSIsIkRFU0luZiIsIkNQUlNPIiwiQ1BSTCIsIkNQUkgiLCJDTkNWUENsb0xEZWwiLCJSVlNTIiwiU0xDSW5mIiwiQ1BDTCIsIm15Q05DVlAiLCJTUFAiLCJDUFJMRURSIiwiTFZDSW5mIiwiQ1BSTEVEVSIsIlBQUmVqTCIsIkNhdGVJbmYiLCJDTkNWUFJlakwiLCJtVlJQIiwiVXNlciIsIkJDUkxBcHByIiwiTVZUIiwiU1BQRFQiLCJMSW5mIiwiQ1BSTEVEQSIsIlBQUEwiLCJTdGF0ZUluZiIsIlBQQUhUQyIsIlBQT1dJIiwiUkNQMiIsIlBQRVRDIiwiQ1RQIl0sInJvbGUiOlsiU1VQRVIgQURNSU4iXSwiY3JlYXRlZCI6MTc2NTg3MDQwMDQ3NywiZGlzcGxheU5hbWUiOiJTdXBlciBBZG1pbiIsImV4cCI6MTc2NTk1NjgwMH0.oQc6QUYF-1V9w75fIl61jn26NKwN98GHMD_Bhh0cDKiWC8BNW4f-2zCT7HNtCZg1lgbGWN9XafPI1v_Hxc6fNg';
+        
+    //     $this->saveJavaTokenToSession($hardcodedToken);
+    //     Log::info('Hardcoded token saved to session');
+        
+    //     return $hardcodedToken;
+    // }
+    private function getJavaAuthToken()
+{
+    // 1️⃣ Try java_backend_token
+    if (Session::has('java_backend_token')) {
+        Log::info('Using java_backend_token from session');
+        return Session::get('java_backend_token');
+    }
+
+    // 2️⃣ Try java_auth_token (callback token)
+    if (Session::has('java_auth_token')) {
+        $token = Session::get('java_auth_token');
+        Session::put('java_backend_token', $token);
+        Session::save();
+
+        Log::info('Using java_auth_token and saved as backend token');
+        return $token;
+    }
+
+    // 3️⃣ No token available
+    Log::error('Java auth token NOT found in session');
+    return null; // ❗ very important
+}
+
+    public function saveJavaTokenToSession($token)
     {
         Session::put('java_backend_token', $token);
         Session::save(); 
@@ -189,80 +200,105 @@ class MenuService
         ];
     }
 
-private function filterMenuByPermissions($menu, $userPermissions)
-{
-    $filteredMenu = [];
+    private function filterMenuByPermissions($menu, $userPermissions)
+    {
+        $filteredMenu = [];
+        Log::info('Total user permissions for filtering:', ['count' => count($userPermissions)]);
 
-    foreach ($menu as $item) {
-        // Check main item permission
-        $hasMainPermission = $this->checkPermission($item['isAuth'] ?? '', $userPermissions);
-        
-        Log::info('Checking menu item: ' . $item['label'] . ' with isAuth: ' . $item['isAuth'] . ' - Result: ' . ($hasMainPermission ? 'true' : 'false'));
-
-        if ($hasMainPermission) {
-            $filteredItem = $item;
+        foreach ($menu as $item) {
+            // Check main item permission
+            $hasMainPermission = $this->checkPermission($item['isAuth'] ?? '', $userPermissions);
             
-            // Filter subItems
-            if (isset($item['subItems']) && is_array($item['subItems'])) {
-                $filteredSubItems = [];
+            Log::info('Menu Item: ' . $item['label'] . 
+                     ' | Required: ' . $item['isAuth'] . 
+                     ' | Has Permission: ' . ($hasMainPermission ? 'YES' : 'NO'));
+
+            if ($hasMainPermission) {
+                $filteredItem = $item;
+                $hasValidSubItems = false;
                 
-                foreach ($item['subItems'] as $subItem) {
-                    $hasSubPermission = $this->checkPermission($subItem['isAuth'] ?? '', $userPermissions);
+                // Filter subItems
+                if (isset($item['subItems']) && is_array($item['subItems'])) {
+                    $filteredSubItems = [];
                     
-                    Log::info('Checking sub item: ' . $subItem['label'] . ' with isAuth: ' . $subItem['isAuth'] . ' - Result: ' . ($hasSubPermission ? 'true' : 'false'));
+                    foreach ($item['subItems'] as $subItem) {
+                        $hasSubPermission = $this->checkPermission($subItem['isAuth'] ?? '', $userPermissions);
+                        
+                        Log::info('  Sub Item: ' . $subItem['label'] . 
+                                 ' | Required: ' . ($subItem['isAuth'] ?? '') . 
+                                 ' | Has Permission: ' . ($hasSubPermission ? 'YES' : 'NO'));
 
-                    if ($hasSubPermission) {
-                        // Filter nested subItems
-                        if (isset($subItem['subItems']) && is_array($subItem['subItems'])) {
-                            $filteredNestedItems = [];
-                            
-                            foreach ($subItem['subItems'] as $nestedItem) {
-                                $hasNestedPermission = $this->checkPermission($nestedItem['isAuth'] ?? '', $userPermissions);
+                        if ($hasSubPermission) {
+                            // Filter nested subItems
+                            if (isset($subItem['subItems']) && is_array($subItem['subItems'])) {
+                                $filteredNestedItems = [];
                                 
-                                Log::info('Checking nested item: ' . $nestedItem['label'] . ' with isAuth: ' . $nestedItem['isAuth'] . ' - Result: ' . ($hasNestedPermission ? 'true' : 'false'));
+                                foreach ($subItem['subItems'] as $nestedItem) {
+                                    $hasNestedPermission = $this->checkPermission($nestedItem['isAuth'] ?? '', $userPermissions);
+                                    
+                                    Log::info('    Nested Item: ' . $nestedItem['label'] . 
+                                             ' | Required: ' . ($nestedItem['isAuth'] ?? '') . 
+                                             ' | Has Permission: ' . ($hasNestedPermission ? 'YES' : 'NO'));
 
-                                if ($hasNestedPermission) {
-                                    $filteredNestedItems[] = $nestedItem;
+                                    if ($hasNestedPermission) {
+                                        $filteredNestedItems[] = $nestedItem;
+                                    }
                                 }
+                                
+                                $subItem['subItems'] = $filteredNestedItems;
                             }
                             
-                            $subItem['subItems'] = $filteredNestedItems;
+                            $filteredSubItems[] = $subItem;
+                            $hasValidSubItems = true;
                         }
-                        
-                        $filteredSubItems[] = $subItem;
                     }
+                    
+                    $filteredItem['subItems'] = $filteredSubItems;
                 }
                 
-                $filteredItem['subItems'] = $filteredSubItems;
-            }
-            
-            // Only add item if it has subItems or is a direct link
-            if (isset($filteredItem['subItems']) && count($filteredItem['subItems']) > 0) {
-                $filteredMenu[] = $filteredItem;
+                // Add item if it has subItems OR if it's a direct link without subItems
+                if ($hasValidSubItems || !isset($item['subItems']) || empty($item['subItems'])) {
+                    $filteredMenu[] = $filteredItem;
+                    Log::info('✓ Added to filtered menu: ' . $item['label']);
+                } else {
+                    Log::info('✗ Skipped (no valid subItems): ' . $item['label']);
+                }
             } else {
-                Log::info('Skipping menu item because no subItems left: ' . $item['label']);
+                Log::info('✗ Skipped (no main permission): ' . $item['label']);
             }
         }
-    }
 
-    Log::info('Final filtered menu count: ' . count($filteredMenu));
-    return $filteredMenu;
-}
+        Log::info('Final filtered menu count: ' . count($filteredMenu));
+        return $filteredMenu;
+    }
 
     private function checkPermission($requiredPermissions, $userPermissions)
     {
-        // BLACKLIST ka isAuth: 'BIRL,BICL,BCRL,BCCL,BVCL'
-        $requiredArray = explode(',', $requiredPermissions); // ['BIRL', 'BICL', 'BCRL', 'BCCL', 'BVCL']
+        // If no permission required, always show
+        if (empty($requiredPermissions)) {
+            return true;
+        }
+        
+        // Convert to array
+        $requiredArray = explode(',', $requiredPermissions);
+        $requiredArray = array_map('trim', $requiredArray);
+        
+        // Debug logging
+        if (count($requiredArray) > 0) {
+            Log::info('Checking permissions - Required: ' . implode(', ', $requiredArray));
+            Log::info('User has ' . count($userPermissions) . ' total permissions');
+        }
         
         // Check if user has at least one required permission
         foreach ($requiredArray as $permission) {
-            $permission = trim($permission);
             if (in_array($permission, $userPermissions)) {
-                return true; // ✅ Menu item show hoga
+                Log::info('✓ Permission matched: ' . $permission);
+                return true;
             }
         }
-
-        return false; // ❌ Menu item hide hoga
+        
+        Log::info('✗ No permission match found');
+        return false;
     }
 
     public function getUserAccessData()
@@ -302,6 +338,41 @@ private function filterMenuByPermissions($menu, $userPermissions)
             return null;
         }
     }
+
+
+    public function getFilteredAngularMenuWithToken($token)
+    {
+        Log::info('=== getFilteredAngularMenuWithToken Called ===');
+        Log::info('Token received:', ['length' => strlen($token), 'first_30' => substr($token, 0, 30) . '...']);
+        
+        // ✅ Token को session में भी save करें
+        if (!session()->has('java_backend_token')) {
+            session()->put('java_backend_token', $token);
+            session()->save();
+            Log::info('Token saved to session from parameter');
+        }
+        
+        // ✅ Permission fetch करें
+        $userAccessData = $this->fetchUserAccessFromJavaBackendWithToken($token);
+        $userPermissions = $userAccessData['business_functions'] ?? [];
+        
+        Log::info('Permissions fetched:', ['count' => count($userPermissions)]);
+        
+        // ✅ Session में save करें
+        if (!empty($userPermissions)) {
+            session()->put('user_business_functions', $userPermissions);
+            session()->save();
+            Log::info('Permissions saved to session');
+        }
+        
+        $fullMenu = $this->getAngularMenu();
+        $filteredMenu = $this->filterMenuByPermissions($fullMenu, $userPermissions);
+        
+        Log::info('Menu filtered successfully');
+        return $filteredMenu;
+    }
+
+
 
     public function getAngularMenu()
     {

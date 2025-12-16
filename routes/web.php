@@ -43,8 +43,7 @@ Route::get('/java-auth/callback',
 )->name('java-auth.callback');
 
 
-    Route::get('/dashboard', [DashboardController::class, 'index'])
-        ->name('dashboard');
+Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
 
 
 
@@ -68,10 +67,10 @@ Route::prefix('visitor-types')->group(function () {
     Route::delete('/delete/{id}', [VisitorTypeController::class, 'destroy'])->name('visitor-types.destroy');
 });
 
-// Route::get('/clear-session', function() {
-//     session()->flush();
-//     return 'Session cleared!';
-// });
+Route::get('/clear-session', function() {
+    session()->flush();
+    return 'Session cleared!';
+});
 
 
 
