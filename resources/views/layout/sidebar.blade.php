@@ -47,9 +47,7 @@
                                                             {{ $doubleNestedItem['label'] }}
                                                         </a>
                                                     @else
-                                                        {{-- ✅ Angular Route - New tab mein open hoga --}}
                                                         <a href="{{ route('angular.redirect', ['route' => $doubleNestedItem['link']]) }}" 
-                                                           target="_blank"
                                                            style="font-size: 10px"
                                                            class="nav-link">
                                                             {{ $doubleNestedItem['label'] }}
@@ -70,9 +68,7 @@
                                                     {{ $nestedItem['label'] }}
                                                 </a>
                                             @else
-                                                {{-- ✅ Angular Route - New tab mein open hoga --}}
                                                 <a href="{{ route('angular.redirect', ['route' => $nestedItem['link']]) }}" 
-                                                   target="_blank"
                                                    class="nav-link">
                                                     {{ $nestedItem['label'] }}
                                                 </a>
@@ -93,9 +89,7 @@
                                     {{ $subItem['label'] }}
                                 </a>
                             @else
-                                {{-- ✅ Angular Route - New tab mein open hoga --}}
                                 <a href="{{ route('angular.redirect', ['route' => $subItem['link']]) }}" 
-                                   target="_blank"
                                    class="nav-link">
                                     {{ $subItem['label'] }}
                                 </a>
