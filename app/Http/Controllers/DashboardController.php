@@ -25,32 +25,13 @@ class DashboardController extends Controller
     public function index(Request $request, MenuService $menuService)
     {
         try {
-
             Log::info('=== Dashboard Accessed ===');
     
-            // ✅ Session check करें
-            Log::info('Dashboard Session ID:', ['session_id' => session()->getId()]);
-            Log::info('Dashboard Cookies:', $request->cookie());
-            
-            // ✅ Token check करें
             $token = session()->get('java_backend_token') ?? session()->get('java_auth_token');
-            Log::info('Token in Dashboard:', [
-                'token_exists' => !empty($token),
-                'session_has_java_backend_token' => session()->has('java_backend_token'),
-                'session_has_java_auth_token' => session()->has('java_auth_token'),
-                'token_length' => $token ? strlen($token) : 0,
-                'token_first_30' => $token ? substr($token, 0, 30) . '...' : 'NULL'
-            ]);
             
-            // ✅ All session data log करें
-            $allSession = session()->all();
-            Log::info('All Session Keys:', array_keys($allSession));
-            
-            // ✅ MenuService call करने से पहले token pass करें
             $angularMenu = [];
             if ($token) {
                 try {
-                    // Direct token pass करें
                     $angularMenu = $menuService->getFilteredAngularMenuWithToken($token);
                 } catch (\Exception $e) {
                     Log::error('Menu error: ' . $e->getMessage());
@@ -58,12 +39,11 @@ class DashboardController extends Controller
                 }
             } else {
                 Log::error('NO TOKEN FOUND IN DASHBOARD!');
-                // Emergency fallback
-                $hardcodedToken = 'eyJhbGciOiJIUzUxMiJ9.eyJzdWIiOiJzdXBlcmF......'; // Your hardcoded token
+                $hardcodedToken = 'eyJhbGciOiJIUzUxMiJ9.eyJzdWIiOiJzdXBlcmFkbWluIiwiYXV0aEtleSI6IlFhYWZnZk84IiwiY29tcGFueUlkIjoic3VwZXJhZG1pbiIsImFjY2VzcyI6WyJQUEFIVENEIiwiUFBBSFRDRSIsIlZQUmVxTCIsIlJUeXBlIiwiQnJyQ29uZiIsIlZQQ2xvTERlbCIsIlBQQUwiLCJDcG5JbmYiLCJSUEJSRXgiLCJWaXNpdG9ySW5mb0J5RG9vciIsIkNQQ0xWQSIsIlBQQUhUQ00iLCJWUFBMIiwiUFBSTCIsIkNUQ29uZiIsIkJDUkwiLCJCTmFtZSIsIldITENvbmYiLCJQUEdJRXgiLCJSQ1AiLCJSUFBNRyIsIkJJQ0xSZWwiLCJQUENMIiwiQkNDTFJlbCIsIlZQQUwiLCJjVkEiLCJQUEVUQ00iLCJQUFUiLCJQUEVUQ0UiLCJQUEVUQ0QiLCJWUFJMIiwiQ2l0eUluZiIsIk1HSU8iLCJDUFJMRSIsInNWUCIsIlZQUmVqTERlbCIsIkJDQ0wiLCJQUFNMIiwiQ0luZiIsIk1hc3RlclBhdGgiLCJWaXNpdG9yRCZDIiwiVlBDTCIsIlJQUE0iLCJteVBQIiwiQ05DVlBSTCIsIkxDSW5mIiwiTUxPR0lOIiwiQ1BSTGVnIiwiQ05DVlBBTCIsIlJvbGUiLCJWUiIsIkNQUkxEQSIsIlBQR0kiLCJDcG5QIiwiTlNDUiIsIkJSQ29uZiIsIkNQUkxEUiIsIkNQUkxEVSIsIkRJbmYiLCJCSVJMIiwiUlBQUyIsIkNOQ1ZQQ0wiLCJCSUNMIiwiUFBJTCIsIlBQT1dJRXgiLCJDUEFMREEiLCJSUkNvbmYiLCJWUEludkwiLCJMQ2xhc3MiLCJWUFJlakwiLCJCSVJMQXBwciIsIlJQQlIiLCJQUFN1c0wiLCJDUFJEQXBwIiwiQ1BBTERVIiwiQ05DVlBSZWpMRGVsIiwiQ1BBTERSIiwiQVBQQ29uZiIsIkNQQUwiLCJteVZQIiwiQlR5cGUiLCJDaENvbSIsIlZpblR5cGUiLCJkYXNoMSIsIkRFU0luZiIsIkNQUlNPIiwiQ1BSTCIsIkNQUkgiLCJDTkNWUENsb0xEZWwiLCJSVlNTIiwiU0xDSW5mIiwiQ1BDTCIsIm15Q05DVlAiLCJTUFAnLCJDUFJMRURSIiwiTFZDSW5mIiwiQ1BSTEVEVSIsIlBQUmVqTCIsIkNhdGVJbmYiLCJDTkNWUFJlakwiLCJtVlJQIiwiVXNlciIsIkJDUkxBcHByIiwiTVZUIiwiU1BQRFQiLCJMSW5mIiwiQ1BSTEVEQSIsIlBQUEwiLCJTdGF0ZUluZiIsIlBQQUhUQyIsIlBQT1dJIiwiUkNQMiIsIlBQRVRDIiwiQ1RQIl0sInJvbGUiOlsiU1VQRVIgQURNSU4iXSwiY3JlYXRlZCI6MTc2NTg3MDQwMDQ3NywiZGlzcGxheU5hbWUiOiJTdXBlciBBZG1pbiIsImV4cCI6MTc2NTk1NjgwMH0.oQc6QUYF-1V9w75fIl61jn26NKwN98GHMD_Bhh0cDKiWC8BNW4f-2zCT7HNtCZg1lgbGWN9XafPI1v_Hxc6fNg';
                 $angularMenu = $menuService->getFilteredAngularMenuWithToken($hardcodedToken);
             }
             
-                Log::info('Angular Menu Structure:');
+            Log::info('Angular Menu Structure:');
             $userAccessData = $this->menuService->getUserAccessData();
 
             $todayAppointmentCount = 0;
@@ -76,9 +56,8 @@ class DashboardController extends Controller
                 $upcomingAppointments = $userAccessData['upcoming_appointments'] ?? [];
             }
             
-            $visitorsOnSite = DeviceAccessLog::where('access_granted', 1)->get();
-            
-            $visitorsOnSite = $this->getVisitorsOnSiteWithJavaData($visitorsOnSite);
+            // ✅ UPDATED: Get visitors on site with new logic
+            $visitorsOnSite = $this->getCurrentVisitorsOnSite();
             
             $criticalAlert = $this->getCriticalSecurityAlert();
 
@@ -177,12 +156,157 @@ class DashboardController extends Controller
             ));
         }
     }
-    
 
+    /**
+     * ✅ NEW: Get current visitors on site with advanced logic
+     * Logic:
+     * 1. Get Turnstile logs from device_access_logs
+     * 2. Match device_id with device_connections
+     * 3. Match location_name with vendor_location
+     * 4. Match with device_location_assigns
+     * 5. Check is_type column
+     * 6. Only show if is_type = 'check_in'
+     * 7. For each visitor, show only if latest check_in is after latest check_out
+     */
+    private function getCurrentVisitorsOnSite()
+{
+    try {
+        Log::info('=== Starting getCurrentVisitorsOnSite ===');
+        
+        // Step 1: Get ALL access logs (not just Turnstile)
+        $allAccessLogs = DeviceAccessLog::where('access_granted', 1)
+            ->orderBy('created_at', 'desc')
+            ->get(['id', 'staff_no', 'device_id', 'location_name', 'created_at']);
+        
+        Log::info('All access logs found: ' . $allAccessLogs->count());
+        
+        // Step 2: Get device connections
+        $deviceIds = $allAccessLogs->pluck('device_id')->unique();  // <-- CHANGE HERE
+        $deviceConnections = DeviceConnection::whereIn('device_id', $deviceIds)
+            ->get(['id', 'device_id']);
+        
+        Log::info('Device connections found: ' . $deviceConnections->count());
+        
+        // Step 3: Get vendor locations
+        $locationNames = $allAccessLogs->pluck('location_name')->unique();  // <-- CHANGE HERE
+        $vendorLocations = VendorLocation::whereIn('name', $locationNames)
+            ->get(['id', 'name']);
+        
+        Log::info('Vendor locations found: ' . $vendorLocations->count());
+        
+        // Step 4: Get device location assigns
+        $deviceConnectionIds = $deviceConnections->pluck('id');
+        $locationIds = $vendorLocations->pluck('id');
+        
+        $deviceLocationAssigns = DeviceLocationAssign::whereIn('device_id', $deviceConnectionIds)
+            ->whereIn('location_id', $locationIds)
+            ->get(['id', 'device_id', 'location_id', 'is_type', 'created_at']);
+        
+        Log::info('Device location assigns found: ' . $deviceLocationAssigns->count());
+        
+        // Step 5: Group logs by staff_no
+        $groupedLogs = $allAccessLogs->groupBy('staff_no');  // <-- CHANGE HERE
+        
+        $currentVisitors = [];
+        
+        foreach ($groupedLogs as $staffNo => $logs) {
+            // Step 6: For each staff_no, get the latest check_in and check_out
+            $latestCheckIn = null;
+            $latestCheckOut = null;
+            
+            foreach ($logs as $log) {
+                // Find device connection
+                $deviceConnection = $deviceConnections->firstWhere('device_id', $log->device_id);
+                if (!$deviceConnection) continue;
+                
+                // Find vendor location
+                $vendorLocation = $vendorLocations->firstWhere('name', $log->location_name);
+                if (!$vendorLocation) continue;
+                
+                // Find device location assign
+                $deviceLocationAssign = $deviceLocationAssigns
+                    ->where('device_id', $deviceConnection->id)
+                    ->where('location_id', $vendorLocation->id)
+                    ->first();
+                
+                if (!$deviceLocationAssign) continue;
+                
+                // Step 7: Check is_type and update latest
+                if ($deviceLocationAssign->is_type === 'check_in') {
+                    if (!$latestCheckIn || $log->created_at > $latestCheckIn->log->created_at) {
+                        $latestCheckIn = (object) [
+                            'log' => $log,
+                            'device_location_assign' => $deviceLocationAssign
+                        ];
+                    }
+                } elseif ($deviceLocationAssign->is_type === 'check_out') {
+                    if (!$latestCheckOut || $log->created_at > $latestCheckOut->log->created_at) {
+                        $latestCheckOut = (object) [
+                            'log' => $log,
+                            'device_location_assign' => $deviceLocationAssign
+                        ];
+                    }
+                }
+            }
+            
+            // Step 8: Determine if visitor is currently on-site
+            $isCurrentlyOnSite = false;
+            $currentLog = null;
+            
+            if ($latestCheckIn && !$latestCheckOut) {
+                // Only check_in exists, no check_out
+                $isCurrentlyOnSite = true;
+                $currentLog = $latestCheckIn->log;
+            } elseif ($latestCheckIn && $latestCheckOut) {
+                // Both check_in and check_out exist
+                if ($latestCheckIn->log->created_at > $latestCheckOut->log->created_at) {
+                    // Latest check_in is after latest check_out
+                    $isCurrentlyOnSite = true;
+                    $currentLog = $latestCheckIn->log;
+                } else {
+                    // Latest check_out is after check_in
+                    $isCurrentlyOnSite = false;
+                }
+            }
+            
+            // Step 9: If currently on-site, add to list
+            if ($isCurrentlyOnSite && $currentLog) {
+                // Get visitor details from Java API
+                $visitorDetails = $this->getVisitorDetailsForAlert($staffNo);
+                
+                $currentVisitors[] = [
+                    'staff_no' => $staffNo,
+                    'full_name' => $visitorDetails['fullName'] ?? 'N/A',
+                    'person_visited' => $visitorDetails['personVisited'] ?? 'N/A',
+                    'location_name' => $currentLog->location_name,
+                    'created_at' => $currentLog->created_at,
+                    'device_id' => $currentLog->device_id,
+                    'log_id' => $currentLog->id
+                ];
+                
+                Log::info("Visitor {$staffNo} is currently on-site at {$currentLog->location_name}");
+            }
+        }
+        
+        // Step 10: Remove duplicates (just in case)
+        $uniqueVisitors = collect($currentVisitors)->unique('staff_no')->values()->all();
+        
+        Log::info('Total unique visitors on-site: ' . count($uniqueVisitors));
+        Log::info('=== End getCurrentVisitorsOnSite ===');
+        
+        return $uniqueVisitors;
+        
+    } catch (\Exception $e) {
+        Log::error('Error in getCurrentVisitorsOnSite: ' . $e->getMessage());
+        Log::error('Stack trace: ' . $e->getTraceAsString());
+        return [];
+    }
+}
+
+    // Rest of the controller methods remain the same...
     private function getCriticalSecurityAlert()
     {
         try {
-
             $alert = DeviceAccessLog::where('access_granted', 0)
                 ->where('acknowledge', 0)
                 ->orderBy('created_at', 'desc')
@@ -274,7 +398,6 @@ class DashboardController extends Controller
             ], 500);
         }
     }
-
 
     public function hideCriticalAlert(Request $request)
     {
@@ -374,7 +497,6 @@ class DashboardController extends Controller
         }
     }
 
-
     public function refreshDashboardCounts()
     {
         try {
@@ -401,8 +523,6 @@ class DashboardController extends Controller
             ], 500);
         }
     }
-
-
 
     private function getCheckoutsTodayCount()
     {
@@ -453,7 +573,6 @@ class DashboardController extends Controller
 
             Log::info("Checking logs for date: {$today}");
             Log::info('Matching location names: ', ['locations' => $turnstileLocationNames->implode(', ')]);
-
 
             $sampleLogs = DeviceAccessLog::whereIn('device_id', $actualDeviceIds)
                 ->whereIn('location_name', $turnstileLocationNames)
@@ -537,98 +656,67 @@ class DashboardController extends Controller
         return $enrichedLogs;
     }
 
-    private function getVisitorsOnSiteWithJavaData($visitors)
+    private function getAllVisitorOverstayAlerts($allDeviceUsers)
     {
-        foreach ($visitors as &$visitor) {
+        $overstayAlerts = [];
+        $currentTime = now();
+
+        foreach ($allDeviceUsers as $user) {
             try {
-                $javaApiResponse = $this->callJavaVendorApi($visitor['staff_no']);
-
-                if ($javaApiResponse && isset($javaApiResponse['data'])) {
-                    $data = $javaApiResponse['data'];
-
-                    $visitor['full_name'] = $data['fullName'] 
-                    ?? $data['name'] 
-                    ?? 'N/A';
-
-                    $visitor['person_visited'] = $data['personVisited']
-                    ?? $data['visitedPerson']
-                    ?? 'N/A';
-
-                } else {
-                    $visitor['full_name'] = 'N/A';
-                    $visitor['person_visited'] = 'N/A';
+                if (empty($user['location_name'])) {
+                    continue; 
                 }
-            } catch (\Exception $e) {
-                Log::error('Java API error for staff_no ' . $visitor['staff_no'] . ': ' . $e->getMessage());
-                $visitor['full_name'] = 'N/A';
-                $visitor['person_visited'] = 'N/A';
-            }
-        }
 
-        return $visitors;
-    }
-
-private function getAllVisitorOverstayAlerts($allDeviceUsers)
-{
-    $overstayAlerts = [];
-    $currentTime = now();
-
-    foreach ($allDeviceUsers as $user) {
-        try {
-            if (empty($user['location_name'])) {
-                continue; 
-            }
-
-            $javaApiResponse = $this->callJavaVendorApi($user['staff_no']);
-            
-            if ($javaApiResponse && isset($javaApiResponse['data'])) {
-                $visitorData = $javaApiResponse['data'];
+                $javaApiResponse = $this->callJavaVendorApi($user['staff_no']);
                 
-                Log::info('Java API Response for ' . $user['staff_no'] . ': ', $javaApiResponse);
-                
-                if (isset($visitorData['dateOfVisitTo'])) {
-                    $dateOfVisitTo = \Carbon\Carbon::parse($visitorData['dateOfVisitTo']);
+                if ($javaApiResponse && isset($javaApiResponse['data'])) {
+                    $visitorData = $javaApiResponse['data'];
                     
-                    if ($currentTime->greaterThan($dateOfVisitTo)) {
-                        $overstayMinutes = $currentTime->diffInMinutes($dateOfVisitTo);
-                        $overstayHours = floor($overstayMinutes / 60);
-                        $remainingMinutes = $overstayMinutes % 60;
+                    Log::info('Java API Response for ' . $user['staff_no'] . ': ', $javaApiResponse);
+                    
+                    if (isset($visitorData['dateOfVisitTo'])) {
+                        $dateOfVisitTo = \Carbon\Carbon::parse($visitorData['dateOfVisitTo']);
                         
-                        $overstayAlerts[] = [
-                            'visitor_name' => $visitorData['fullName'] ?? 'N/A',
-                            'staff_no' => $user['staff_no'],
-                            'expected_end_time' => $dateOfVisitTo->format('d M Y h:i A'), 
-                            'current_time' => $currentTime->format('d M Y h:i A'), 
-                            'check_in_time' => \Carbon\Carbon::parse($user['created_at'])->format('d M Y h:i A'),
-                            'location' => $user['location_name'] ?? 'N/A',
-                            'overstay_minutes' => $overstayMinutes,
-                            'overstay_duration' => $overstayHours . ' hours ' . $remainingMinutes . ' minutes',
-                            'host' => $visitorData['personVisited'] ?? 'N/A',
-                            'contact_no' => $visitorData['contactNo'] ?? 'N/A',
-                            'ic_no' => $visitorData['icNo'] ?? 'N/A',
-                            'date_of_visit_from' => isset($visitorData['dateOfVisitFrom']) ? \Carbon\Carbon::parse($visitorData['dateOfVisitFrom'])->format('d M Y h:i A') : 'N/A',
-                            'date_of_visit_to' => $dateOfVisitTo->format('d M Y h:i A')
-                        ];
-                        
-                        Log::info('Overstay detected for ' . $user['staff_no'] . ': ' . $overstayHours . ' hours ' . $remainingMinutes . ' minutes');
+                        if ($currentTime->greaterThan($dateOfVisitTo)) {
+                            $overstayMinutes = $currentTime->diffInMinutes($dateOfVisitTo);
+                            $overstayHours = floor($overstayMinutes / 60);
+                            $remainingMinutes = $overstayMinutes % 60;
+                            
+                            $overstayAlerts[] = [
+                                'visitor_name' => $visitorData['fullName'] ?? 'N/A',
+                                'staff_no' => $user['staff_no'],
+                                'expected_end_time' => $dateOfVisitTo->format('d M Y h:i A'), 
+                                'current_time' => $currentTime->format('d M Y h:i A'), 
+                                'check_in_time' => \Carbon\Carbon::parse($user['created_at'])->format('d M Y h:i A'),
+                                'location' => $user['location_name'] ?? 'N/A',
+                                'overstay_minutes' => $overstayMinutes,
+                                'overstay_duration' => $overstayHours . ' hours ' . $remainingMinutes . ' minutes',
+                                'host' => $visitorData['personVisited'] ?? 'N/A',
+                                'contact_no' => $visitorData['contactNo'] ?? 'N/A',
+                                'ic_no' => $visitorData['icNo'] ?? 'N/A',
+                                'date_of_visit_from' => isset($visitorData['dateOfVisitFrom']) ? \Carbon\Carbon::parse($visitorData['dateOfVisitFrom'])->format('d M Y h:i A') : 'N/A',
+                                'date_of_visit_to' => $dateOfVisitTo->format('d M Y h:i A')
+                            ];
+                            
+                            Log::info('Overstay detected for ' . $user['staff_no'] . ': ' . $overstayHours . ' hours ' . $remainingMinutes . ' minutes');
+                        } else {
+                            Log::info('No overstay for ' . $user['staff_no'] . ' - Visit ends at: ' . $dateOfVisitTo->format('d M Y h:i A') . ', Current: ' . $currentTime->format('d M Y h:i A'));
+                        }
                     } else {
-                        Log::info('No overstay for ' . $user['staff_no'] . ' - Visit ends at: ' . $dateOfVisitTo->format('d M Y h:i A') . ', Current: ' . $currentTime->format('d M Y h:i A'));
+                        Log::warning('dateOfVisitTo not found for staff_no: ' . $user['staff_no']);
                     }
                 } else {
-                    Log::warning('dateOfVisitTo not found for staff_no: ' . $user['staff_no']);
+                    Log::warning('Java API response failed for staff_no: ' . $user['staff_no']);
                 }
-            } else {
-                Log::warning('Java API response failed for staff_no: ' . $user['staff_no']);
+            } catch (\Exception $e) {
+                Log::error('Error checking overstay for staff_no ' . $user['staff_no'] . ': ' . $e->getMessage());
+                continue;
             }
-        } catch (\Exception $e) {
-            Log::error('Error checking overstay for staff_no ' . $user['staff_no'] . ': ' . $e->getMessage());
-            continue;
         }
-    }
 
-    Log::info('Total overstay alerts found: ' . count($overstayAlerts));
-    return $overstayAlerts;
-}
+        Log::info('Total overstay alerts found: ' . count($overstayAlerts));
+        return $overstayAlerts;
+    }
 
     private function getEnrichedOverstayAlerts($overstayAlerts)
     {
@@ -692,7 +780,6 @@ private function getAllVisitorOverstayAlerts($allDeviceUsers)
     private function getHourlyTrafficData()
     {
         try {
-
             $today = now()->format('Y-m-d');
 
             $todayAccessLogs = DeviceAccessLog::whereDate('created_at', $today)
@@ -783,7 +870,6 @@ private function getAllVisitorOverstayAlerts($allDeviceUsers)
     private function getHourlyTrafficDataByDateRange($fromDate, $toDate)
     {
         try {
-
             if ($fromDate === $toDate) {
                 return $this->getHourlyDataForSingleDay($fromDate);
             }
@@ -830,6 +916,7 @@ private function getAllVisitorOverstayAlerts($allDeviceUsers)
             'data' => $hourlyData
         ];
     }
+    
     private function getDailyDataForDateRange($fromDate, $toDate)
     {
         $accessLogs = DeviceAccessLog::whereBetween('created_at', [
@@ -878,7 +965,6 @@ private function getAllVisitorOverstayAlerts($allDeviceUsers)
             'data' => $data
         ];
     }
-
 
     public function getCheckoutsTodayModalDataAjax(Request $request)
     {
@@ -994,7 +1080,6 @@ private function getAllVisitorOverstayAlerts($allDeviceUsers)
     private function getCheckinLogForStaffNo($staffNo, $date)
     {
         try {
-
             $turnstileLocations = VendorLocation::where('name', 'like', '%Turnstile%')
                 ->get(['id', 'name']);
             
