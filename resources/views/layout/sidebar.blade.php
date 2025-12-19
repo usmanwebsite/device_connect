@@ -8,13 +8,21 @@
         @foreach($angularMenu as $mainItem)
         <li class="menu-item dropdown">
             <div class="menu-main">
-                <label for="menu-{{ $mainItem['id'] }}">
+                <div class="menu-icon-section">
                     <i class='bx {{ $mainItem['icon'] }} menu-icon'></i>
-                    {{ $mainItem['label'] }}
-                </label>
-                @if(isset($mainItem['subItems']) && count($mainItem['subItems']) > 0)
-                <span class="dropdown-arrow">▼</span>
-                @endif
+                </div>
+                <div class="menu-content-section">
+                    <div class="menu-label-container">
+                        <label for="menu-{{ $mainItem['id'] }}" class="menu-label">
+                            {{ $mainItem['label'] }}
+                        </label>
+                        @if(isset($mainItem['subItems']) && count($mainItem['subItems']) > 0)
+                        <span class="dropdown-arrow">
+                            <i class="bx bx-chevron-down" style="font-size: 1rem !important"></i>
+                        </span>
+                        @endif
+                    </div>
+                </div>
             </div>
             
             @if(isset($mainItem['subItems']) && count($mainItem['subItems']) > 0)
@@ -23,8 +31,13 @@
                     @if(isset($subItem['subItems']) && count($subItem['subItems']) > 0)
                         <li class="submenu">
                             <a href="#" class="submenu-header">
-                                {{ $subItem['label'] }}
-                                <span class="submenu-arrow">▼</span>
+                                <div class="menu-icon-section"></div>
+                                <div class="menu-content-section">
+                                    <div class="submenu-label-container">
+                                        <span class="submenu-label">{{ $subItem['label'] }}</span>
+                                        <span class="submenu-arrow">▼</span>
+                                    </div>
+                                </div>
                             </a>
                             <ul class="nested-dropdown">
                                 @foreach($subItem['subItems'] as $nestedItem)
@@ -32,29 +45,32 @@
                                         <!-- Level 3: Double nested submenu -->
                                         <li class="submenu">
                                             <a href="#" class="submenu-header">
-                                                {{ $nestedItem['label'] }}
-                                                <span class="submenu-arrow">▶</span>
+                                                <div class="menu-icon-section"></div>
+                                                <div class="menu-content-section">
+                                                    <div class="submenu-label-container">
+                                                        <span class="submenu-label">{{ $nestedItem['label'] }}</span>
+                                                        <span class="submenu-arrow">▶</span>
+                                                    </div>
+                                                </div>
                                             </a>
                                             <ul class="nested-dropdown level-3">
                                                 @foreach($nestedItem['subItems'] as $doubleNestedItem)
                                                 <li class="menu-link">
-                                                    {{-- ✅ CHECK: Laravel route ya Angular route --}}
-                                                    @if(isset($doubleNestedItem['isLaravelRoute']) && $doubleNestedItem['isLaravelRoute'])
-                                                        {{-- ✅ Laravel Route - Same tab mein open hoga --}}
-                                                        <a href="{{ url($doubleNestedItem['link']) }}" 
-                                                           style="font-size: 10px"
-                                                           class="nav-link">
-                                                            {{ $doubleNestedItem['label'] }}
-                                                        </a>
-                                                    @else
-                                                        {{-- ✅ Angular Route - New tab mein open hoga --}}
-                                                        <a href="{{ route('angular.redirect', ['route' => $doubleNestedItem['link']]) }}" 
-                                                           target="_blank"
-                                                           style="font-size: 10px"
-                                                           class="nav-link">
-                                                            {{ $doubleNestedItem['label'] }}
-                                                        </a>
-                                                    @endif
+                                                    <div class="menu-icon-section"></div>
+                                                    <div class="menu-content-section">
+                                                        @if(isset($doubleNestedItem['isLaravelRoute']) && $doubleNestedItem['isLaravelRoute'])
+                                                            <a href="{{ url($doubleNestedItem['link']) }}" 
+                                                               class="nav-link">
+                                                                {{ $doubleNestedItem['label'] }}
+                                                            </a>
+                                                        @else
+                                                            <a href="{{ route('angular.redirect', ['route' => $doubleNestedItem['link']]) }}" 
+                                                               target="_blank"
+                                                               class="nav-link">
+                                                                {{ $doubleNestedItem['label'] }}
+                                                            </a>
+                                                        @endif
+                                                    </div>
                                                 </li>
                                                 @endforeach
                                             </ul>
@@ -62,21 +78,21 @@
                                     @else
                                         <!-- Level 3: Direct nested link -->
                                         <li class="menu-link">
-                                            {{-- ✅ CHECK: Laravel route ya Angular route --}}
-                                            @if(isset($nestedItem['isLaravelRoute']) && $nestedItem['isLaravelRoute'])
-                                                {{-- ✅ Laravel Route - Same tab mein open hoga --}}
-                                                <a href="{{ url($nestedItem['link']) }}" 
-                                                   class="nav-link">
-                                                    {{ $nestedItem['label'] }}
-                                                </a>
-                                            @else
-                                                {{-- ✅ Angular Route - New tab mein open hoga --}}
-                                                <a href="{{ route('angular.redirect', ['route' => $nestedItem['link']]) }}" 
-                                                   target="_blank"
-                                                   class="nav-link">
-                                                    {{ $nestedItem['label'] }}
-                                                </a>
-                                            @endif
+                                            <div class="menu-icon-section"></div>
+                                            <div class="menu-content-section">
+                                                @if(isset($nestedItem['isLaravelRoute']) && $nestedItem['isLaravelRoute'])
+                                                    <a href="{{ url($nestedItem['link']) }}" 
+                                                       class="nav-link">
+                                                        {{ $nestedItem['label'] }}
+                                                    </a>
+                                                @else
+                                                    <a href="{{ route('angular.redirect', ['route' => $nestedItem['link']]) }}" 
+                                                       target="_blank"
+                                                       class="nav-link">
+                                                        {{ $nestedItem['label'] }}
+                                                    </a>
+                                                @endif
+                                            </div>
                                         </li>
                                     @endif
                                 @endforeach
@@ -85,21 +101,21 @@
                     @else
                         <!-- Level 2: Direct link (no nested dropdown) -->
                         <li class="menu-link">
-                            {{-- ✅ CHECK: Laravel route ya Angular route --}}
-                            @if(isset($subItem['isLaravelRoute']) && $subItem['isLaravelRoute'])
-                                {{-- ✅ Laravel Route - Same tab mein open hoga --}}
-                                <a href="{{ url($subItem['link']) }}" 
-                                   class="nav-link">
-                                    {{ $subItem['label'] }}
-                                </a>
-                            @else
-                                {{-- ✅ Angular Route - New tab mein open hoga --}}
-                                <a href="{{ route('angular.redirect', ['route' => $subItem['link']]) }}" 
-                                   target="_blank"
-                                   class="nav-link">
-                                    {{ $subItem['label'] }}
-                                </a>
-                            @endif
+                            <div class="menu-icon-section"></div>
+                            <div class="menu-content-section">
+                                @if(isset($subItem['isLaravelRoute']) && $subItem['isLaravelRoute'])
+                                    <a href="{{ url($subItem['link']) }}" 
+                                       class="nav-link">
+                                        {{ $subItem['label'] }}
+                                    </a>
+                                @else
+                                    <a href="{{ route('angular.redirect', ['route' => $subItem['link']]) }}" 
+                                       target="_blank"
+                                       class="nav-link">
+                                        {{ $subItem['label'] }}
+                                    </a>
+                                @endif
+                            </div>
                         </li>
                     @endif
                 @endforeach
@@ -115,4 +131,3 @@
     </div>
     @endif
 </aside>
-

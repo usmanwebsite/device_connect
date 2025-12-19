@@ -647,72 +647,72 @@ public function getFilteredAngularMenu()
                 ]
             ],
 
-            [
-                'id' => 3.0,
-                'label' => "VEHICLE MANAGEMENT",
-                'icon' => "bxs-truck",
-                'isAuth' => '',
-                'subItems' => [
-                    [
-                        'id' => 3.1,
-                        'label' => "VEP",
-                        'link' => "vehicle-management/new-vehicle-entry-pass",
-                        'isAuth' => '',
-                        'parentId' => 3.0,
-                    ],
-                    [
-                        'id' => 3.2,
-                        'label' => "VEHICLE REQUEST LIST",
-                        'link' => "vehicle-management/new-vehicle-request-pass",
-                        'isAuth' => '',
-                        'parentId' => 3.0,
-                    ],
-                    [
-                        'id' => 3.3,
-                        'label' => "VEHICLE REJECT LIST",
-                        'link' => "vehicle-management/new-vehicle-reject-pass",
-                        'isAuth' => '',
-                        'parentId' => 3.0,
-                    ],
-                    [
-                        'id' => 3.4,
-                        'label' => "VEHICLE APPROVED LIST",
-                        'link' => "vehicle-management/approve-list",
-                        'isAuth' => '',
-                        'parentId' => 3.0,
-                    ],
-                ],
-            ],
+            // [
+            //     'id' => 3.0,
+            //     'label' => "VEHICLE MANAGEMENT",
+            //     'icon' => "bxs-truck",
+            //     'isAuth' => '',
+            //     'subItems' => [
+            //         [
+            //             'id' => 3.1,
+            //             'label' => "VEP",
+            //             'link' => "vehicle-management/new-vehicle-entry-pass",
+            //             'isAuth' => '',
+            //             'parentId' => 3.0,
+            //         ],
+            //         [
+            //             'id' => 3.2,
+            //             'label' => "VEHICLE REQUEST LIST",
+            //             'link' => "vehicle-management/new-vehicle-request-pass",
+            //             'isAuth' => '',
+            //             'parentId' => 3.0,
+            //         ],
+            //         [
+            //             'id' => 3.3,
+            //             'label' => "VEHICLE REJECT LIST",
+            //             'link' => "vehicle-management/new-vehicle-reject-pass",
+            //             'isAuth' => '',
+            //             'parentId' => 3.0,
+            //         ],
+            //         [
+            //             'id' => 3.4,
+            //             'label' => "VEHICLE APPROVED LIST",
+            //             'link' => "vehicle-management/approve-list",
+            //             'isAuth' => '',
+            //             'parentId' => 3.0,
+            //         ],
+            //     ],
+            // ],
 
-            [
-                'id' => 4.0,
-                'label' => "WEIGHBRIDGE",
-                'icon' => "bx-carousel",
-                'isAuth' => '',
-                'subItems' => [
-                    [
-                        'id' => 4.1,
-                        'label' => "VESSEL SCHEDULE",
-                        'link' => "weigh-bridge/vessel-schedule-new",
-                        'isAuth' => '',
-                        'parentId' => 4.0,
-                    ],
-                    [
-                        'id' => 4.2,
-                        'label' => "CARGO INFORMATION",
-                        'link' => "weigh-bridge/cargo-information",
-                        'isAuth' => '',
-                        'parentId' => 4.0,
-                    ],
-                    [
-                        'id' => 4.3,
-                        'label' => "WB MONITOR",
-                        'link' => "weigh-bridge/wb-monitor",
-                        'isAuth' => '',
-                        'parentId' => 4.0,
-                    ],
-                ],
-            ],
+            // [
+            //     'id' => 4.0,
+            //     'label' => "WEIGHBRIDGE",
+            //     'icon' => "bx-carousel",
+            //     'isAuth' => '',
+            //     'subItems' => [
+            //         [
+            //             'id' => 4.1,
+            //             'label' => "VESSEL SCHEDULE",
+            //             'link' => "weigh-bridge/vessel-schedule-new",
+            //             'isAuth' => '',
+            //             'parentId' => 4.0,
+            //         ],
+            //         [
+            //             'id' => 4.2,
+            //             'label' => "CARGO INFORMATION",
+            //             'link' => "weigh-bridge/cargo-information",
+            //             'isAuth' => '',
+            //             'parentId' => 4.0,
+            //         ],
+            //         [
+            //             'id' => 4.3,
+            //             'label' => "WB MONITOR",
+            //             'link' => "weigh-bridge/wb-monitor",
+            //             'isAuth' => '',
+            //             'parentId' => 4.0,
+            //         ],
+            //     ],
+            // ],
 
             [
                 'id' => 5.0,
@@ -1310,7 +1310,6 @@ public function getFilteredAngularMenu()
                     ],
                 ],
             ],
-
             // Reports
 
             [
@@ -1337,7 +1336,7 @@ public function getFilteredAngularMenu()
                     ],
                     [
                         'id' => 7.3,
-                        'label' => "VISITOR Detail & Chronology",
+                        'label' => "VISITOR CHRONOLOGY",
                         'link' => "/visitor-details", 
                         'isAuth' => 'VisitorD&C',
                         'parentId' => 7.0,
@@ -1345,7 +1344,7 @@ public function getFilteredAngularMenu()
                     ],
                     [
                         'id' => 7.4,
-                        'label' => "VISITOR Info By Door",
+                        'label' => "VISITOR INFO BY DOOR",
                         'link' => "/visitor-info-door", 
                         'isAuth' => 'VisitorInfoByDoor',
                         'parentId' => 7.0,
@@ -1383,6 +1382,24 @@ public function getFilteredAngularMenu()
 
                 ],
             ],
+
+            [
+                'id' => 9.0,
+                'label' => "VISITOR DASHBAORD",
+                'icon' => "bx-cog",
+                'isAuth' => 'VisitorDashboard',
+                'subItems' => [
+                    [
+                        'id' => 9.1,
+                        'label' => "DASHBAORD",
+                        'link' => "/", 
+                        'isAuth' => 'VisitorDashboard',
+                        'parentId' => 9.0,
+                        'isLaravelRoute' => true 
+                    ],
+                ],
+            ],
+
 
         ];
     }
