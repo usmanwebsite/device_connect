@@ -39,9 +39,9 @@ body {
 }
 
 .img-style{
-    width: 85px !important;
+    width: 90px !important;
+    margin-top: 15px !important;
     display: block;
-    margin-top: 12px;
     margin-left: auto;
     margin-right: auto;
 }
@@ -146,13 +146,23 @@ body {
     position: relative;
 }
 
+.dropdown-content .menu-link,
+.dropdown-content .nav-link {
+    /* justify-content: center; */
+    margin-left: 30px !important;
+    text-align: center;
+}
+
+
+
+
 /* ✅ FIXED: Submenu header with proper spacing */
 .submenu-header {
     display: flex;
     align-items: center;
     color: #79829c;
     text-decoration: none;
-    padding: 8px 8px 8px 20px; /* Increased left padding for indentation */
+    padding: 8px 8px 8px 9px; /* Increased left padding for indentation */
     width: 100%;
     min-height: 35px;
     position: relative;
@@ -161,7 +171,7 @@ body {
 /* ✅ NEW: Submenu label container */
 .submenu-label-container {
     display: flex;
-    justify-content: space-between;
+    justify-content: center;
     align-items: center;
     width: 100%;
 }
@@ -170,7 +180,6 @@ body {
     font-family: 'Poppins', sans-serif;
     font-weight: 400;
     font-size: 12px !important;
-    text-align: left;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -192,7 +201,6 @@ body {
     transition: max-height 0.3s ease;
     padding: 0;
     margin: 0;
-    background-color: #151a28;
     position: relative;
 }
 
@@ -428,7 +436,6 @@ body {
     max-height: 0;
     overflow: hidden;
     transition: max-height 0.3s ease;
-    background-color: #1a2030;
     margin: 0;
     padding-left: 0;
 }
@@ -444,10 +451,10 @@ body {
 
 .nav-link {
     display: block;
-    padding: 8px 0px !important;
+    padding: 8px 10px !important;
     color: #aaa;
     text-decoration: none;
-    font-size: 12px;
+    font-size: 14px;
     transition: all 0.3s;
     border-left: 3px solid transparent;
 }
