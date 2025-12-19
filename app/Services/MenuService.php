@@ -1404,3 +1404,4 @@ public function getFilteredAngularMenu()
         ];
     }
 }
+
