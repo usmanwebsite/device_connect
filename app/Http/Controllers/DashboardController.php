@@ -33,14 +33,25 @@ class DashboardController extends Controller
             if ($token) {
                 try {
                     $angularMenu = $menuService->getFilteredAngularMenuWithToken($token);
+                    Log::info('angularmeniu',['angularMenu' => $angularMenu]);
+                    if (empty($angularMenu) || (is_array($angularMenu) && count($angularMenu) === 0)) {
+                        Log::warning('Empty angularMenu returned. Redirecting user.');
+
+                        return redirect()->away(config('app.angular_url'))
+                            ->with('error', 'Session expired. Please login again.');
+                    }
                 } catch (\Exception $e) {
                     Log::error('Menu error: ' . $e->getMessage());
                     $angularMenu = [];
+                    return redirect()->away(config('app.angular_url'))
+    ->with('error', 'Session expired. Please login again.');
                 }
             } else {
                 Log::error('NO TOKEN FOUND IN DASHBOARD!');
-                $hardcodedToken = 'eyJhbGciOiJIUzUxMiJ9.eyJzdWIiOiJzdXBlcmFkbWluIiwiYXV0aEtleSI6IlFhYWZnZk84IiwiY29tcGFueUlkIjoic3VwZXJhZG1pbiIsImFjY2VzcyI6WyJQUEFIVENEIiwiUFBBSFRDRSIsIlZQUmVxTCIsIlJUeXBlIiwiQnJyQ29uZiIsIlZQQ2xvTERlbCIsIlBQQUwiLCJDcG5JbmYiLCJSUEJSRXgiLCJWaXNpdG9ySW5mb0J5RG9vciIsIkNQQ0xWQSIsIlBQQUhUQ00iLCJWUFBMIiwiUFBSTCIsIkNUQ29uZiIsIkJDUkwiLCJCTmFtZSIsIldITENvbmYiLCJQUEdJRXgiLCJSQ1AiLCJSUFBNRyIsIkJJQ0xSZWwiLCJQUENMIiwiQkNDTFJlbCIsIlZQQUwiLCJjVkEiLCJQUEVUQ00iLCJQUFUiLCJQUEVUQ0UiLCJQUEVUQ0QiLCJWUFJMIiwiQ2l0eUluZiIsIk1HSU8iLCJDUFJMRSIsInNWUCIsIlZQUmVqTERlbCIsIkJDQ0wiLCJQUFNMIiwiQ0luZiIsIk1hc3RlclBhdGgiLCJWaXNpdG9yRCZDIiwiVlBDTCIsIlJQUE0iLCJteVBQIiwiQ05DVlBSTCIsIkxDSW5mIiwiTUxPR0lOIiwiQ1BSTGVnIiwiQ05DVlBBTCIsIlJvbGUiLCJWUiIsIkNQUkxEQSIsIlBQR0kiLCJDcG5QIiwiTlNDUiIsIkJSQ29uZiIsIkNQUkxEUiIsIkNQUkxEVSIsIkRJbmYiLCJCSVJMIiwiUlBQUyIsIkNOQ1ZQQ0wiLCJCSUNMIiwiUFBJTCIsIlBQT1dJRXgiLCJDUEFMREEiLCJSUkNvbmYiLCJWUEludkwiLCJMQ2xhc3MiLCJWUFJlakwiLCJCSVJMQXBwciIsIlJQQlIiLCJQUFN1c0wiLCJDUFJEQXBwIiwiQ1BBTERVIiwiQ05DVlBSZWpMRGVsIiwiQ1BBTERSIiwiQVBQQ29uZiIsIkNQQUwiLCJteVZQIiwiQlR5cGUiLCJDaENvbSIsIlZpblR5cGUiLCJkYXNoMSIsIkRFU0luZiIsIkNQUlNPIiwiQ1BSTCIsIkNQUkgiLCJDTkNWUENsb0xEZWwiLCJSVlNTIiwiU0xDSW5mIiwiQ1BDTCIsIm15Q05DVlAiLCJTUFAnLCJDUFJMRURSIiwiTFZDSW5mIiwiQ1BSTEVEVSIsIlBQUmVqTCIsIkNhdGVJbmYiLCJDTkNWUFJlakwiLCJtVlJQIiwiVXNlciIsIkJDUkxBcHByIiwiTVZUIiwiU1BQRFQiLCJMSW5mIiwiQ1BSTEVEQSIsIlBQUEwiLCJTdGF0ZUluZiIsIlBQQUhUQyIsIlBQT1dJIiwiUkNQMiIsIlBQRVRDIiwiQ1RQIl0sInJvbGUiOlsiU1VQRVIgQURNSU4iXSwiY3JlYXRlZCI6MTc2NTg3MDQwMDQ3NywiZGlzcGxheU5hbWUiOiJTdXBlciBBZG1pbiIsImV4cCI6MTc2NTk1NjgwMH0.oQc6QUYF-1V9w75fIl61jn26NKwN98GHMD_Bhh0cDKiWC8BNW4f-2zCT7HNtCZg1lgbGWN9XafPI1v_Hxc6fNg';
-                $angularMenu = $menuService->getFilteredAngularMenuWithToken($hardcodedToken);
+                return redirect()->away(config('app.angular_url'))
+                ->with('error', 'Session expired. Please login again.');
+                // $hardcodedToken = 'eyJhbGciOiJIUzUxMiJ9.eyJzdWIiOiJzdXBlcmFkbWluIiwiYXV0aEtleSI6IlFhYWZnZk84IiwiY29tcGFueUlkIjoic3VwZXJhZG1pbiIsImFjY2VzcyI6WyJQUEFIVENEIiwiUFBBSFRDRSIsIlZQUmVxTCIsIlJUeXBlIiwiQnJyQ29uZiIsIlZQQ2xvTERlbCIsIlBQQUwiLCJDcG5JbmYiLCJSUEJSRXgiLCJWaXNpdG9ySW5mb0J5RG9vciIsIkNQQ0xWQSIsIlBQQUhUQ00iLCJWUFBMIiwiUFBSTCIsIkNUQ29uZiIsIkJDUkwiLCJCTmFtZSIsIldITENvbmYiLCJQUEdJRXgiLCJSQ1AiLCJSUFBNRyIsIkJJQ0xSZWwiLCJQUENMIiwiQkNDTFJlbCIsIlZQQUwiLCJjVkEiLCJQUEVUQ00iLCJQUFUiLCJQUEVUQ0UiLCJQUEVUQ0QiLCJWUFJMIiwiQ2l0eUluZiIsIk1HSU8iLCJDUFJMRSIsInNWUCIsIlZQUmVqTERlbCIsIkJDQ0wiLCJQUFNMIiwiQ0luZiIsIk1hc3RlclBhdGgiLCJWaXNpdG9yRCZDIiwiVlBDTCIsIlJQUE0iLCJteVBQIiwiQ05DVlBSTCIsIkxDSW5mIiwiTUxPR0lOIiwiQ1BSTGVnIiwiQ05DVlBBTCIsIlJvbGUiLCJWUiIsIkNQUkxEQSIsIlBQR0kiLCJDcG5QIiwiTlNDUiIsIkJSQ29uZiIsIkNQUkxEUiIsIkNQUkxEVSIsIkRJbmYiLCJCSVJMIiwiUlBQUyIsIkNOQ1ZQQ0wiLCJCSUNMIiwiUFBJTCIsIlBQT1dJRXgiLCJDUEFMREEiLCJSUkNvbmYiLCJWUEludkwiLCJMQ2xhc3MiLCJWUFJlakwiLCJCSVJMQXBwciIsIlJQQlIiLCJQUFN1c0wiLCJDUFJEQXBwIiwiQ1BBTERVIiwiQ05DVlBSZWpMRGVsIiwiQ1BBTERSIiwiQVBQQ29uZiIsIkNQQUwiLCJteVZQIiwiQlR5cGUiLCJDaENvbSIsIlZpblR5cGUiLCJkYXNoMSIsIkRFU0luZiIsIkNQUlNPIiwiQ1BSTCIsIkNQUkgiLCJDTkNWUENsb0xEZWwiLCJSVlNTIiwiU0xDSW5mIiwiQ1BDTCIsIm15Q05DVlAiLCJTUFAnLCJDUFJMRURSIiwiTFZDSW5mIiwiQ1BSTEVEVSIsIlBQUmVqTCIsIkNhdGVJbmYiLCJDTkNWUFJlakwiLCJtVlJQIiwiVXNlciIsIkJDUkxBcHByIiwiTVZUIiwiU1BQRFQiLCJMSW5mIiwiQ1BSTEVEQSIsIlBQUEwiLCJTdGF0ZUluZiIsIlBQQUhUQyIsIlBQT1dJIiwiUkNQMiIsIlBQRVRDIiwiQ1RQIl0sInJvbGUiOlsiU1VQRVIgQURNSU4iXSwiY3JlYXRlZCI6MTc2NTg3MDQwMDQ3NywiZGlzcGxheU5hbWUiOiJTdXBlciBBZG1pbiIsImV4cCI6MTc2NTk1NjgwMH0.oQc6QUYF-1V9w75fIl61jn26NKwN98GHMD_Bhh0cDKiWC8BNW4f-2zCT7HNtCZg1lgbGWN9XafPI1v_Hxc6fNg';
+                // $angularMenu = $menuService->getFilteredAngularMenuWithToken($hardcodedToken);
             }
             
             Log::info('Angular Menu Structure:');

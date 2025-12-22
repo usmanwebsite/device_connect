@@ -1365,7 +1365,7 @@ public function getFilteredAngularMenu()
                 'subItems' => [
                     [
                         'id' => 8.1,
-                        'label' => "PATHSWAY",
+                        'label' => "PATHWAY",
                         'link' => "/paths", 
                         'isAuth' => 'MasterPath',
                         'parentId' => 8.0,
