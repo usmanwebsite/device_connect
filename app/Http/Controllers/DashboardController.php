@@ -55,12 +55,16 @@ class DashboardController extends Controller
                 } catch (\Exception $e) {
                     Log::error('Menu error: ' . $e->getMessage());
                     $angularMenu = [];
+                    return redirect()->away(config('app.angular_url'))
+    ->with('error', 'Session expired. Please login again.');
                 }
             } else {
                 Log::error('NO TOKEN FOUND IN DASHBOARD!');
                 // Emergency fallback
-                $hardcodedToken = 'eyJhbGciOiJIUzUxMiJ9.eyJzdWIiOiJzdXBlcmF......'; // Your hardcoded token
-                $angularMenu = $menuService->getFilteredAngularMenuWithToken($hardcodedToken);
+                // $hardcodedToken = 'eyJhbGciOiJIUzUxMiJ9.eyJzdWIiOiJzdXBlcmF......'; // Your hardcoded token
+                // $angularMenu = $menuService->getFilteredAngularMenuWithToken($hardcodedToken);
+                return redirect()->away(config('app.angular_url'))
+    ->with('error', 'Session expired. Please login again.');
             }
             
                 Log::info('Angular Menu Structure:');
