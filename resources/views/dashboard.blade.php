@@ -895,44 +895,64 @@ function updateSecurityAlertsModalForCriticalAlert(alertData) {
     const modalBody = document.querySelector('#securityAlertsModal .modal-body');
     const modalTitle = document.querySelector('#securityAlertsModal .modal-title');
     
+    modalTitle.textContent = 'Critical Security Alert Details';
+    
     if (!alertData || !alertData.log) {
         modalBody.innerHTML = `
-            <div class="alert alert-warning">
-                <p class="mb-0">No details found for this incident.</p>
+            <div class="alert alert-danger">
+                <p class="mb-0">Error: No alert data received from server</p>
             </div>
         `;
         return;
     }
     
     const log = alertData.log;
-    const visitor = alertData.visitor_details;
+    const visitor = alertData.visitor_details || {};
     
-    modalTitle.textContent = 'Critical Security Alert Details';
+    // Debug info
+    console.log('Alert data received:', alertData);
+    console.log('Visitor details:', visitor);
     
     const html = `
         <div class="table-responsive">
             <table class="table table-hover">
                 <thead>
                     <tr>
-                        <th>Staff No</th>
-                        <th>Visitor Name</th>
-                        <th>Host</th>
-                        <th>Contact No</th>
-                        <th>IC No</th>
-                        <th>Location</th>
-                        <th>Reason</th>
-                        <th>Date & Time</th>
+                        <th>Field</th>
+                        <th>Value</th>
                     </tr>
                 </thead>
                 <tbody>
                     <tr>
+                        <td><strong>Staff No</strong></td>
                         <td>${log.staff_no || 'N/A'}</td>
-                        <td>${visitor.fullName || 'N/A'}</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Visitor Name</strong></td>
+                        <td>${visitor.fullName || 'N/A (API Failed)'}</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Host</strong></td>
                         <td>${visitor.personVisited || 'N/A'}</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Contact No</strong></td>
                         <td>${visitor.contactNo || 'N/A'}</td>
+                    </tr>
+                    <tr>
+                        <td><strong>IC No</strong></td>
                         <td>${visitor.icNo || 'N/A'}</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Location</strong></td>
                         <td>${log.location_name || 'Unknown Location'}</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Reason</strong></td>
                         <td>${log.reason ? log.reason : 'Other Reason'}</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Date & Time</strong></td>
                         <td>${new Date(log.created_at).toLocaleString('en-US', {
                             day: 'numeric',
                             month: 'short',

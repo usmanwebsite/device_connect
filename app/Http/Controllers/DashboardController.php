@@ -169,17 +169,6 @@ class DashboardController extends Controller
         }
     }
 
-    /**
-     * ✅ NEW: Get current visitors on site with advanced logic
-     * Logic:
-     * 1. Get Turnstile logs from device_access_logs
-     * 2. Match device_id with device_connections
-     * 3. Match location_name with vendor_location
-     * 4. Match with device_location_assigns
-     * 5. Check is_type column
-     * 6. Only show if is_type = 'check_in'
-     * 7. For each visitor, show only if latest check_in is after latest check_out
-     */
     private function getCurrentVisitorsOnSite()
 {
     try {
@@ -440,43 +429,65 @@ class DashboardController extends Controller
         }
     }
 
-    public function getCriticalAlertDetails(Request $request)
-    {
-        try {
-            $alertId = $request->input('alert_id');
-            
-            $alert = DeviceAccessLog::find($alertId);
-            
-            if (!$alert) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Alert not found'
-                ], 404);
-            }
-            
-            $enrichedData = $this->getEnrichedDeniedAccessLogs(collect([$alert]));
-            
-            if (empty($enrichedData)) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'No details found for this alert'
-                ], 404);
-            }
+public function getCriticalAlertDetails(Request $request)
+{
+    try {
+        $alertId = $request->input('alert_id');
+        
+        $alert = DeviceAccessLog::find($alertId);
+        
+        if (!$alert) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Alert not found'
+            ], 404);
+        }
+        
+        // ✅ FIX: Directly get visitor details
+        $javaApiResponse = $this->callJavaVendorApi($alert->staff_no);
+        
+        Log::info('Java API Response for alert: ', ['response' => $javaApiResponse]);
+        
+        if ($javaApiResponse && isset($javaApiResponse['data'])) {
+            $visitorData = $javaApiResponse['data'];
             
             return response()->json([
                 'success' => true,
-                'alert' => $enrichedData[0]
+                'alert' => [
+                    'log' => [
+                        'id' => $alert->id,
+                        'staff_no' => $alert->staff_no,
+                        'location_name' => $alert->location_name ?? 'Unknown Location',
+                        'reason' => $alert->reason ?? 'Other Reason',
+                        'created_at' => $alert->created_at
+                    ],
+                    'visitor_details' => [
+                        'fullName' => $visitorData['fullName'] ?? 'N/A',
+                        'personVisited' => $visitorData['personVisited'] ?? 'N/A',
+                        'contactNo' => $visitorData['contactNo'] ?? 'N/A',
+                        'icNo' => $visitorData['icNo'] ?? 'N/A',
+                        'sex' => $visitorData['sex'] ?? 'N/A',
+                        'dateOfVisitFrom' => $visitorData['dateOfVisitFrom'] ?? 'N/A',
+                        'dateOfVisitTo' => $visitorData['dateOfVisitTo'] ?? 'N/A'
+                    ]
+                ]
             ]);
-            
-        } catch (\Exception $e) {
-            Log::error('Error getting critical alert details: ' . $e->getMessage());
-            
+        } else {
             return response()->json([
                 'success' => false,
-                'message' => 'Error getting alert details'
-            ], 500);
+                'message' => 'Could not fetch visitor details'
+            ], 404);
         }
+        
+    } catch (\Exception $e) {
+        Log::error('Error getting critical alert details: ' . $e->getMessage());
+        
+        return response()->json([
+            'success' => false,
+            'message' => 'Error getting alert details'
+        ], 500);
     }
+}
 
     public function getNextAlert(Request $request)
     {
@@ -611,49 +622,41 @@ class DashboardController extends Controller
         }
     }
 
-    private function getEnrichedDeniedAccessLogs($deniedAccessLogs)
-    {
-        $enrichedLogs = [];
+private function getEnrichedDeniedAccessLogs($deniedAccessLogs)
+{
+    $enrichedLogs = [];
 
-        foreach ($deniedAccessLogs as $log) {
-            try {
-                $javaApiResponse = $this->callJavaVendorApi($log->staff_no);
+    foreach ($deniedAccessLogs as $log) {
+        Log::info('Processing denied access log ID: ' . $log->id);
+        Log::info('Staff No from DB: ' . $log->staff_no);
+        
+        try {
+            // Temporary test - use a fixed staffNo for testing
+            $testStaffNo = 'TESTUSER123'; // Your test staff number
+            $javaApiResponse = $this->callJavaVendorApi($testStaffNo);
+            
+            Log::info('API Response for ' . $testStaffNo . ': ', ['response' => $javaApiResponse]);
 
-                if ($javaApiResponse && isset($javaApiResponse['data'])) {
-                    $visitorData = $javaApiResponse['data'];
-                    
-                    $enrichedLogs[] = [
-                        'log' => $log,
-                        'visitor_details' => [
-                            'fullName' => $visitorData['fullName'] ?? 'N/A',
-                            'personVisited' => $visitorData['personVisited'] ?? 'N/A',
-                            'contactNo' => $visitorData['contactNo'] ?? 'N/A',
-                            'icNo' => $visitorData['icNo'] ?? 'N/A',
-                            'sex' => $visitorData['sex'] ?? 'N/A',
-                            'dateOfVisitFrom' => $visitorData['dateOfVisitFrom'] ?? 'N/A',
-                            'dateOfVisitTo' => $visitorData['dateOfVisitTo'] ?? 'N/A'
-                        ]
-                    ];
-                } else {
-                    $enrichedLogs[] = [
-                        'log' => $log,
-                        'visitor_details' => [
-                            'fullName' => 'N/A',
-                            'personVisited' => 'N/A',
-                            'contactNo' => 'N/A',
-                            'icNo' => 'N/A',
-                            'sex' => 'N/A',
-                            'dateOfVisitFrom' => 'N/A',
-                            'dateOfVisitTo' => 'N/A'
-                        ]
-                    ];
-                }
-            } catch (\Exception $e) {
-                Log::error('Java API error for staff_no ' . $log->staff_no . ' in denied access: ' . $e->getMessage());
+            if ($javaApiResponse && isset($javaApiResponse['data'])) {
+                $visitorData = $javaApiResponse['data'];
+                
                 $enrichedLogs[] = [
                     'log' => $log,
                     'visitor_details' => [
-                        'fullName' => 'N/A',
+                        'fullName' => $visitorData['fullName'] ?? 'N/A',
+                        'personVisited' => $visitorData['personVisited'] ?? 'N/A',
+                        'contactNo' => $visitorData['contactNo'] ?? 'N/A',
+                        'icNo' => $visitorData['icNo'] ?? 'N/A',
+                        'sex' => $visitorData['sex'] ?? 'N/A',
+                        'dateOfVisitFrom' => $visitorData['dateOfVisitFrom'] ?? 'N/A',
+                        'dateOfVisitTo' => $visitorData['dateOfVisitTo'] ?? 'N/A'
+                    ]
+                ];
+            } else {
+                $enrichedLogs[] = [
+                    'log' => $log,
+                    'visitor_details' => [
+                        'fullName' => 'N/A - API Failed',
                         'personVisited' => 'N/A',
                         'contactNo' => 'N/A',
                         'icNo' => 'N/A',
@@ -663,10 +666,25 @@ class DashboardController extends Controller
                     ]
                 ];
             }
+        } catch (\Exception $e) {
+            Log::error('Java API error for staff_no ' . $log->staff_no . ' in denied access: ' . $e->getMessage());
+            $enrichedLogs[] = [
+                'log' => $log,
+                'visitor_details' => [
+                    'fullName' => 'N/A - Exception',
+                    'personVisited' => 'N/A',
+                    'contactNo' => 'N/A',
+                    'icNo' => 'N/A',
+                    'sex' => 'N/A',
+                    'dateOfVisitFrom' => 'N/A',
+                    'dateOfVisitTo' => 'N/A'
+                ]
+            ];
         }
-
-        return $enrichedLogs;
     }
+
+    return $enrichedLogs;
+}
 
     private function getAllVisitorOverstayAlerts($allDeviceUsers)
     {
@@ -765,29 +783,49 @@ class DashboardController extends Controller
         return $enrichedAlerts;
     }
 
-    private function callJavaVendorApi($staffNo)
-    {
-        try {
-            $javaBaseUrl = env('JAVA_BACKEND_URL', 'http://localhost:8080');
-            $token = session()->get('java_backend_token') ?? session()->get('java_auth_token'); 
-            
-            $response = Http::withHeaders([
-                'x-auth-token' => $token,
-                'Accept' => 'application/json',
-            ])->timeout(10)
-              ->get($javaBaseUrl . '/api/vendorpass/get-visitor-details?staffNo=' . $staffNo);
-
-            if ($response->successful()) {
-                return $response->json();
-            } else {
-                Log::error('Java API error for staff_no ' . $staffNo . ': ' . $response->status());
-                return null;
-            }
-        } catch (\Exception $e) {
-            Log::error('Java API exception for staff_no ' . $staffNo . ': ' . $e->getMessage());
+private function callJavaVendorApi($staffNo)
+{
+    try {
+        $javaBaseUrl = env('JAVA_BACKEND_URL', 'http://localhost:8080');
+        $token = session()->get('java_backend_token') ?? session()->get('java_auth_token'); 
+        
+        Log::info('=== Java API Call Debug ===');
+        Log::info('Staff No: ' . $staffNo);
+        Log::info('Java Base URL: ' . $javaBaseUrl);
+        Log::info('Token exists: ' . ($token ? 'Yes' : 'No'));
+        
+        if (!$token) {
+            Log::error('Java API Token missing in session!');
             return null;
         }
+        
+        $url = $javaBaseUrl . '/api/vendorpass/get-visitor-details?staffNo=' . urlencode($staffNo);
+        Log::info('Full URL: ' . $url);
+        
+        $response = Http::withHeaders([
+            'x-auth-token' => $token,
+            'Accept' => 'application/json',
+        ])->timeout(10)
+          ->get($url);
+
+        Log::info('Response Status: ' . $response->status());
+        Log::info('Response Body: ' . $response->body());
+        
+        if ($response->successful()) {
+            $data = $response->json();
+            Log::info('API Response Data: ', $data);
+            return $data;
+        } else {
+            Log::error('Java API error: ' . $response->status());
+            Log::error('Error body: ' . $response->body());
+            return null;
+        }
+    } catch (\Exception $e) {
+        Log::error('Java API exception: ' . $e->getMessage());
+        Log::error('Stack trace: ' . $e->getTraceAsString());
+        return null;
     }
+}
 
     private function getHourlyTrafficData()
     {
