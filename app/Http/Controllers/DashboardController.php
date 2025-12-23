@@ -431,6 +431,7 @@ class DashboardController extends Controller
 
 public function getCriticalAlertDetails(Request $request)
 {
+    // dd('hello');
     try {
         $alertId = $request->input('alert_id');
         

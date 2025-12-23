@@ -869,9 +869,6 @@ function viewCriticalIncidentDetails(alertId) {
             updateSecurityAlertsModalForCriticalAlert(data.alert);
         } else {
             modalBody.innerHTML = `
-                <div class="alert alert-danger">
-                    <p class="mb-0">Error loading incident details: ${data.message}</p>
-                </div>
                 ${originalContent}
             `;
         }
