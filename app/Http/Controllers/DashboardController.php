@@ -429,66 +429,66 @@ class DashboardController extends Controller
         }
     }
 
-public function getCriticalAlertDetails(Request $request)
-{
-    // dd('hello');
-    try {
-        $alertId = $request->input('alert_id');
-        
-        $alert = DeviceAccessLog::find($alertId);
-        
-        if (!$alert) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Alert not found'
-            ], 404);
-        }
-        
-        // ✅ FIX: Directly get visitor details
-        $javaApiResponse = $this->callJavaVendorApi($alert->staff_no);
-        
-        Log::info('Java API Response for alert: ', ['response' => $javaApiResponse]);
-        
-        if ($javaApiResponse && isset($javaApiResponse['data'])) {
-            $visitorData = $javaApiResponse['data'];
+    // public function getCriticalAlertDetails(Request $request)
+    // {
+    //     // dd('hello');
+    //     try {
+    //         $alertId = $request->input('alert_id');
             
-            return response()->json([
-                'success' => true,
-                'alert' => [
-                    'log' => [
-                        'id' => $alert->id,
-                        'staff_no' => $alert->staff_no,
-                        'location_name' => $alert->location_name ?? 'Unknown Location',
-                        'reason' => $alert->reason ?? 'Other Reason',
-                        'created_at' => $alert->created_at
-                    ],
-                    'visitor_details' => [
-                        'fullName' => $visitorData['fullName'] ?? 'N/A',
-                        'personVisited' => $visitorData['personVisited'] ?? 'N/A',
-                        'contactNo' => $visitorData['contactNo'] ?? 'N/A',
-                        'icNo' => $visitorData['icNo'] ?? 'N/A',
-                        'sex' => $visitorData['sex'] ?? 'N/A',
-                        'dateOfVisitFrom' => $visitorData['dateOfVisitFrom'] ?? 'N/A',
-                        'dateOfVisitTo' => $visitorData['dateOfVisitTo'] ?? 'N/A'
-                    ]
-                ]
-            ]);
-        } else {
-            return response()->json([
-                'success' => false,
-                'message' => 'Could not fetch visitor details'
-            ], 404);
-        }
-        
-    } catch (\Exception $e) {
-        Log::error('Error getting critical alert details: ' . $e->getMessage());
-        
-        return response()->json([
-            'success' => false,
-            'message' => 'Error getting alert details'
-        ], 500);
-    }
-}
+    //         $alert = DeviceAccessLog::find($alertId);
+            
+    //         if (!$alert) {
+    //             return response()->json([
+    //                 'success' => false,
+    //                 'message' => 'Alert not found'
+    //             ], 404);
+    //         }
+            
+    //         // ✅ FIX: Directly get visitor details
+    //         $javaApiResponse = $this->callJavaVendorApi($alert->staff_no);
+            
+    //         Log::info('Java API Response for alert: ', ['response' => $javaApiResponse]);
+            
+    //         if ($javaApiResponse && isset($javaApiResponse['data'])) {
+    //             $visitorData = $javaApiResponse['data'];
+                
+    //             return response()->json([
+    //                 'success' => true,
+    //                 'alert' => [
+    //                     'log' => [
+    //                         'id' => $alert->id,
+    //                         'staff_no' => $alert->staff_no,
+    //                         'location_name' => $alert->location_name ?? 'Unknown Location',
+    //                         'reason' => $alert->reason ?? 'Other Reason',
+    //                         'created_at' => $alert->created_at
+    //                     ],
+    //                     'visitor_details' => [
+    //                         'fullName' => $visitorData['fullName'] ?? 'N/A',
+    //                         'personVisited' => $visitorData['personVisited'] ?? 'N/A',
+    //                         'contactNo' => $visitorData['contactNo'] ?? 'N/A',
+    //                         'icNo' => $visitorData['icNo'] ?? 'N/A',
+    //                         'sex' => $visitorData['sex'] ?? 'N/A',
+    //                         'dateOfVisitFrom' => $visitorData['dateOfVisitFrom'] ?? 'N/A',
+    //                         'dateOfVisitTo' => $visitorData['dateOfVisitTo'] ?? 'N/A'
+    //                     ]
+    //                 ]
+    //             ]);
+    //         } else {
+    //             return response()->json([
+    //                 'success' => false,
+    //                 'message' => 'Could not fetch visitor details'
+    //             ], 404);
+    //         }
+            
+    //     } catch (\Exception $e) {
+    //         Log::error('Error getting critical alert details: ' . $e->getMessage());
+            
+    //         return response()->json([
+    //             'success' => false,
+    //             'message' => 'Error getting alert details'
+    //         ], 500);
+    //     }
+    // }
 
     public function getNextAlert(Request $request)
     {

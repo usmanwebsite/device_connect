@@ -35,7 +35,7 @@
                 </p>
 
                 <div class="mt-3">
-                    <button class="btn btn-danger btn-sm" onclick="viewCriticalIncidentDetails({{ $criticalAlert['log_id'] }})">View Incident</button>
+                    <button class="btn btn-danger btn-sm" onclick="showSecurityAlertsModal()">View Incident</button>
                     <button class="btn btn-outline-light btn-sm" onclick="acknowledgeAlert()">Acknowledge</button>
                 </div>
             </div>
@@ -834,138 +834,138 @@ function closeCriticalAlert() {
     });
 }
 
-function viewCriticalIncidentDetails(alertId) {
-    currentCriticalAlertId = alertId;
+// function viewCriticalIncidentDetails(alertId) {
+//     currentCriticalAlertId = alertId;
     
-    // Show loading in modal
-    const modalBody = document.querySelector('#securityAlertsModal .modal-body');
-    const originalContent = modalBody.innerHTML;
+//     // Show loading in modal
+//     const modalBody = document.querySelector('#securityAlertsModal .modal-body');
+//     const originalContent = modalBody.innerHTML;
     
-    modalBody.innerHTML = `
-        <div class="text-center py-4">
-            <div class="spinner-border text-primary" role="status">
-                <span class="visually-hidden">Loading...</span>
-            </div>
-            <p class="mt-2">Loading incident details...</p>
-        </div>
-    `;
+//     modalBody.innerHTML = `
+//         <div class="text-center py-4">
+//             <div class="spinner-border text-primary" role="status">
+//                 <span class="visually-hidden">Loading...</span>
+//             </div>
+//             <p class="mt-2">Loading incident details...</p>
+//         </div>
+//     `;
     
-    // Fetch specific alert details
-    fetch('/dashboard/get-critical-alert-details', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'X-CSRF-TOKEN': '{{ csrf_token() }}',
-            'X-Requested-With': 'XMLHttpRequest'
-        },
-        body: JSON.stringify({
-            alert_id: alertId
-        })
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            // Update modal with specific alert details
-            updateSecurityAlertsModalForCriticalAlert(data.alert);
-        } else {
-            modalBody.innerHTML = `
-                ${originalContent}
-            `;
-        }
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        modalBody.innerHTML = `
-            <div class="alert alert-danger">
-                <p class="mb-0">Error loading incident details. Please try again.</p>
-            </div>
-            ${originalContent}
-        `;
-    });
+//     // Fetch specific alert details
+//     fetch('/dashboard/get-critical-alert-details', {
+//         method: 'POST',
+//         headers: {
+//             'Content-Type': 'application/json',
+//             'X-CSRF-TOKEN': '{{ csrf_token() }}',
+//             'X-Requested-With': 'XMLHttpRequest'
+//         },
+//         body: JSON.stringify({
+//             alert_id: alertId
+//         })
+//     })
+//     .then(response => response.json())
+//     .then(data => {
+//         if (data.success) {
+//             // Update modal with specific alert details
+//             updateSecurityAlertsModalForCriticalAlert(data.alert);
+//         } else {
+//             modalBody.innerHTML = `
+//                 ${originalContent}
+//             `;
+//         }
+//     })
+//     .catch(error => {
+//         console.error('Error:', error);
+//         modalBody.innerHTML = `
+//             <div class="alert alert-danger">
+//                 <p class="mb-0">Error loading incident details. Please try again.</p>
+//             </div>
+//             ${originalContent}
+//         `;
+//     });
     
-    // Show the modal
-    const modal = new bootstrap.Modal(document.getElementById('securityAlertsModal'));
-    modal.show();
-}
+//     // Show the modal
+//     const modal = new bootstrap.Modal(document.getElementById('securityAlertsModal'));
+//     modal.show();
+// }
 
-function updateSecurityAlertsModalForCriticalAlert(alertData) {
-    const modalBody = document.querySelector('#securityAlertsModal .modal-body');
-    const modalTitle = document.querySelector('#securityAlertsModal .modal-title');
+// function updateSecurityAlertsModalForCriticalAlert(alertData) {
+//     const modalBody = document.querySelector('#securityAlertsModal .modal-body');
+//     const modalTitle = document.querySelector('#securityAlertsModal .modal-title');
     
-    modalTitle.textContent = 'Critical Security Alert Details';
+//     modalTitle.textContent = 'Critical Security Alert Details';
     
-    if (!alertData || !alertData.log) {
-        modalBody.innerHTML = `
-            <div class="alert alert-danger">
-                <p class="mb-0">Error: No alert data received from server</p>
-            </div>
-        `;
-        return;
-    }
+//     if (!alertData || !alertData.log) {
+//         modalBody.innerHTML = `
+//             <div class="alert alert-danger">
+//                 <p class="mb-0">Error: No alert data received from server</p>
+//             </div>
+//         `;
+//         return;
+//     }
     
-    const log = alertData.log;
-    const visitor = alertData.visitor_details || {};
+//     const log = alertData.log;
+//     const visitor = alertData.visitor_details || {};
     
-    // Debug info
-    console.log('Alert data received:', alertData);
-    console.log('Visitor details:', visitor);
+//     // Debug info
+//     console.log('Alert data received:', alertData);
+//     console.log('Visitor details:', visitor);
     
-    const html = `
-        <div class="table-responsive">
-            <table class="table table-hover">
-                <thead>
-                    <tr>
-                        <th>Field</th>
-                        <th>Value</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr>
-                        <td><strong>Staff No</strong></td>
-                        <td>${log.staff_no || 'N/A'}</td>
-                    </tr>
-                    <tr>
-                        <td><strong>Visitor Name</strong></td>
-                        <td>${visitor.fullName || 'N/A (API Failed)'}</td>
-                    </tr>
-                    <tr>
-                        <td><strong>Host</strong></td>
-                        <td>${visitor.personVisited || 'N/A'}</td>
-                    </tr>
-                    <tr>
-                        <td><strong>Contact No</strong></td>
-                        <td>${visitor.contactNo || 'N/A'}</td>
-                    </tr>
-                    <tr>
-                        <td><strong>IC No</strong></td>
-                        <td>${visitor.icNo || 'N/A'}</td>
-                    </tr>
-                    <tr>
-                        <td><strong>Location</strong></td>
-                        <td>${log.location_name || 'Unknown Location'}</td>
-                    </tr>
-                    <tr>
-                        <td><strong>Reason</strong></td>
-                        <td>${log.reason ? log.reason : 'Other Reason'}</td>
-                    </tr>
-                    <tr>
-                        <td><strong>Date & Time</strong></td>
-                        <td>${new Date(log.created_at).toLocaleString('en-US', {
-                            day: 'numeric',
-                            month: 'short',
-                            year: 'numeric',
-                            hour: 'numeric',
-                            minute: '2-digit',
-                            hour12: true
-                        })}</td>
-                    </tr>
-                </tbody>
-            </table>
-        </div>
-    `;
+//     const html = `
+//         <div class="table-responsive">
+//             <table class="table table-hover">
+//                 <thead>
+//                     <tr>
+//                         <th>Field</th>
+//                         <th>Value</th>
+//                     </tr>
+//                 </thead>
+//                 <tbody>
+//                     <tr>
+//                         <td><strong>Staff No</strong></td>
+//                         <td>${log.staff_no || 'N/A'}</td>
+//                     </tr>
+//                     <tr>
+//                         <td><strong>Visitor Name</strong></td>
+//                         <td>${visitor.fullName || 'N/A (API Failed)'}</td>
+//                     </tr>
+//                     <tr>
+//                         <td><strong>Host</strong></td>
+//                         <td>${visitor.personVisited || 'N/A'}</td>
+//                     </tr>
+//                     <tr>
+//                         <td><strong>Contact No</strong></td>
+//                         <td>${visitor.contactNo || 'N/A'}</td>
+//                     </tr>
+//                     <tr>
+//                         <td><strong>IC No</strong></td>
+//                         <td>${visitor.icNo || 'N/A'}</td>
+//                     </tr>
+//                     <tr>
+//                         <td><strong>Location</strong></td>
+//                         <td>${log.location_name || 'Unknown Location'}</td>
+//                     </tr>
+//                     <tr>
+//                         <td><strong>Reason</strong></td>
+//                         <td>${log.reason ? log.reason : 'Other Reason'}</td>
+//                     </tr>
+//                     <tr>
+//                         <td><strong>Date & Time</strong></td>
+//                         <td>${new Date(log.created_at).toLocaleString('en-US', {
+//                             day: 'numeric',
+//                             month: 'short',
+//                             year: 'numeric',
+//                             hour: 'numeric',
+//                             minute: '2-digit',
+//                             hour12: true
+//                         })}</td>
+//                     </tr>
+//                 </tbody>
+//             </table>
+//         </div>
+//     `;
     
-    modalBody.innerHTML = html;
-}
+//     modalBody.innerHTML = html;
+// }
 
 // ✅ Reset modal when opened from Active Security Alerts card
 function showSecurityAlertsModal() {
@@ -1053,7 +1053,7 @@ function updateCriticalAlert(alertData) {
                 </p>
 
                 <div class="mt-3">
-                    <button class="btn btn-danger btn-sm" onclick="viewCriticalIncidentDetails(${alertData.log_id})">View Incident</button>
+                    <button class="btn btn-danger btn-sm" onclick="showSecurityAlertsModal()">View Incident</button>
                     <button class="btn btn-outline-light btn-sm" onclick="acknowledgeAlert()">Acknowledge</button>
                 </div>
             </div>
