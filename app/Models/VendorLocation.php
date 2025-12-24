@@ -8,4 +8,5 @@ use Illuminate\Database\Eloquent\Model;
 class VendorLocation extends Model
 {
     use HasFactory;
+    protected $fillable = ['meetingRoom','name','statusId'];
 }

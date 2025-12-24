@@ -29,23 +29,29 @@
         <div class="mb-4">
             <label class="form-label">Select and Order Doors</label>
             
+            @php
+                // Get current selected doors from path
+                $selectedDoors = explode(',', $path->doors);
+                $selectedDoors = array_map('trim', $selectedDoors);
+                $selectedDoors = array_filter($selectedDoors); // Remove empty values
+                
+                // Get all vendor locations as available doors
+                $allDoors = $vendorLocations; // From controller
+                $availableDoors = array_diff($allDoors, $selectedDoors);
+            @endphp
+            
             <div class="row g-2">
                 <div class="col-md-5">
                     <h6 class="fw-bold">Available Doors</h6>
                     <div id="availableDoors" class="list-group" style="max-height: 200px; overflow-y: auto;">
-                        @php
-                            $currentDoors = explode(',', $path->doors);
-                            $selectedDoors = array_map('trim', $currentDoors);
-                        @endphp
-                        
-                        @for($i = 1; $i <= 10; $i++)
-                            @if(!in_array("Door $i", $selectedDoors))
+                        @foreach($availableDoors as $door)
+                            @if(trim($door)) {{-- Check for non-empty doors --}}
                                 <div class="list-group-item list-group-item-action draggable-door py-2" 
-                                     data-value="Door {{ $i }}">
-                                    Door {{ $i }}
+                                     data-value="{{ trim($door) }}">
+                                    {{ trim($door) }}
                                 </div>
                             @endif
-                        @endfor
+                        @endforeach
                     </div>
                 </div>
                 
@@ -58,7 +64,7 @@
                     <h6 class="fw-bold">Selected Doors (Drag to reorder)</h6>
                     <div id="selectedDoors" class="list-group sortable-list" style="max-height: 200px; overflow-y: auto;">
                         @foreach($selectedDoors as $door)
-                            @if(trim($door))
+                            @if(trim($door)) {{-- Check for non-empty doors --}}
                                 <div class="list-group-item draggable-door py-2" data-value="{{ trim($door) }}">
                                     {{ trim($door) }}
                                     <input type="hidden" name="doors[]" value="{{ trim($door) }}">
@@ -120,7 +126,7 @@ $(document).ready(function() {
     $("#addDoor").click(function() {
         $("#availableDoors .list-group-item.selected").each(function() {
             const doorValue = $(this).data('value');
-            const doorText = $(this).text();
+            const doorText = $(this).text().trim();
             
             // Move to selected
             $(this).remove();
@@ -144,7 +150,7 @@ $(document).ready(function() {
     $("#removeDoor").click(function() {
         $("#selectedDoors .list-group-item.selected").each(function() {
             const doorValue = $(this).data('value');
-            const doorText = $(this).text();
+            const doorText = $(this).text().trim();
             
             // Remove from selected
             $(this).remove();
@@ -190,3 +196,4 @@ $(document).ready(function() {
 });
 </script>
 @endsection
+

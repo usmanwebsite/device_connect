@@ -31,11 +31,11 @@
                 <div class="col-md-5">
                     <h6 class="fw-bold">Available Doors</h6>
                     <div id="availableDoors" class="list-group" style="max-height: 200px; overflow-y: auto;">
-                        @for($i = 1; $i <= 10; $i++)
-                            <div class="list-group-item list-group-item-action draggable-door py-2" data-value="Door {{ $i }}">
-                                Door {{ $i }}
+                        @foreach($vendorLocations as $location)
+                            <div class="list-group-item list-group-item-action draggable-door py-2" data-value="{{ $location }}">
+                                {{ $location }}
                             </div>
-                        @endfor
+                        @endforeach
                     </div>
                 </div>
                 
@@ -78,7 +78,6 @@
             <i class="fas fa-info-circle"></i> No paths found. Please add a new path.
         </div>
     @else
-        {{-- Fixed table structure --}}
         <div class="table-responsive">
             <table id="pathsTable" class="table table-bordered table-hover" style="width:100%">
                 <thead>
@@ -96,7 +95,12 @@
                             <td>{{ $path->name }}</td>
                             <td>
                                 <div class="doors-list">
-                                    {{ $path->doors }}
+                                    @php
+                                        $doorsArray = explode(',', $path->doors);
+                                    @endphp
+                                    @foreach($doorsArray as $door)
+                                        <span class="badge bg-primary me-1 mb-1">{{ $door }}</span>
+                                    @endforeach
                                 </div>
                             </td>
                             <td class="text-center">
@@ -129,15 +133,12 @@ $(document).ready(function() {
     let dataTable = null;
     
     function initializeDataTable() {
-        // If DataTable already exists, destroy it
         if ($.fn.DataTable.isDataTable('#pathsTable')) {
             dataTable.destroy();
-            // Remove DataTable classes
             $('#pathsTable').removeClass('dataTable');
             $('#pathsTable_wrapper').remove();
         }
         
-        // Re-initialize DataTable with fixed layout
         dataTable = $('#pathsTable').DataTable({
             dom: "<'row'<'col-sm-12 col-md-6'l><'col-sm-12 col-md-6'f>>" +
                  "<'row'<'col-sm-12'tr>>" +
@@ -185,15 +186,8 @@ $(document).ready(function() {
                     next: "Next",
                     previous: "Previous"
                 }
-            },
-            initComplete: function() {
-                console.log('DataTable initialized successfully');
-                console.log('Rows count:', this.api().rows().count());
             }
         });
-        
-        // Log DataTable instance for debugging
-        console.log('DataTable instance:', dataTable);
     }
     
     // Initialize on page load
@@ -201,21 +195,30 @@ $(document).ready(function() {
     
     // Reload table button
     $('#reloadTable').click(function() {
-        dataTable.ajax.reload();
+        location.reload(); // Simple refresh
     });
     
     // Clear form button
     $('#clearForm').click(function() {
         $('#pathForm')[0].reset();
         $('#selectedDoors').empty();
+        
         // Move all doors back to available
-        for(let i = 1; i <= 10; i++) {
-            $('#availableDoors').append(
-                `<div class="list-group-item list-group-item-action draggable-door py-2" data-value="Door ${i}">
-                    Door ${i}
-                </div>`
-            );
-        }
+        const selectedDoors = $('#selectedDoors .draggable-door');
+        selectedDoors.each(function() {
+            const doorValue = $(this).data('value');
+            const doorText = $(this).text().trim();
+            
+            // Add back to available if not already there
+            if (!$('#availableDoors').find(`[data-value="${doorValue}"]`).length) {
+                $('#availableDoors').append(
+                    `<div class="list-group-item list-group-item-action draggable-door py-2" data-value="${doorValue}">
+                        ${doorText}
+                    </div>`
+                );
+            }
+            $(this).remove();
+        });
     });
     
     // Make selected doors sortable
@@ -230,7 +233,7 @@ $(document).ready(function() {
     $("#addDoor").click(function() {
         $("#availableDoors .list-group-item.selected").each(function() {
             const doorValue = $(this).data('value');
-            const doorText = $(this).text();
+            const doorText = $(this).text().trim();
             
             // Move to selected
             $(this).remove();
@@ -254,7 +257,7 @@ $(document).ready(function() {
     $("#removeDoor").click(function() {
         $("#selectedDoors .list-group-item.selected").each(function() {
             const doorValue = $(this).data('value');
-            const doorText = $(this).text();
+            const doorText = $(this).text().trim();
             
             // Remove from selected
             $(this).remove();
@@ -294,19 +297,6 @@ $(document).ready(function() {
             return false;
         }
     });
-    
-    // Debug: Check table structure after DataTable initialization
-    setTimeout(function() {
-        console.log('Table rows after init:', $('#pathsTable tbody tr').length);
-        console.log('DataTable rows count:', dataTable.rows().count());
-        
-        // If data is not showing properly, try to redraw
-        if (dataTable.rows().count() === 0 && $('#pathsTable tbody tr').length > 0) {
-            console.log('DataTable empty but DOM has rows. Redrawing...');
-            dataTable.draw();
-        }
-    }, 1000);
 });
 </script>
 @endsection
-

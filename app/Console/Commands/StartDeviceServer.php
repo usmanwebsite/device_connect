@@ -16,4 +16,5 @@ class StartDeviceServer extends Command
         $server = new SocketServerService();
         $server->startServer();
     }
+    
 }
