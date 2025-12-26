@@ -24,7 +24,7 @@ class SocketServerService
 
         echo "✅ RD008 Socket Server listening on 0.0.0.0:$port\n";
 
-        //   $this->runTestFlow('TESTUSER123', '008825038135');
+        //   $this->runTestFlow('TESTUSER123', '008825038133');
 
         while (true) {
             $read = [$this->server];
@@ -211,51 +211,58 @@ class SocketServerService
         // ✅ Step 6: Check sequence flow if flag is ON
         $isSequenceFlag = env('isSequenceFlag', 'Off');
         
-        if (strtolower($isSequenceFlag) === 'on') {
-            echo "[" . date('H:i:s') . "] 🔄 Sequence check is ENABLED\n";
-            
-            // Get user's previous door access in this path
-            $previousLogs = DB::table('device_access_logs')
-                ->where('staff_no', $staffNo)
-                ->where('access_granted', 1)
-                ->whereIn('location_name', $doorSequence)
-                ->orderBy('created_at', 'desc')
-                ->get();
-            
-            if ($previousLogs->count() > 0) {
-                $lastAccessedDoor = $previousLogs->first()->location_name;
-                echo "[" . date('H:i:s') . "] 📍 Last accessed door: $lastAccessedDoor\n";
-                
-                $currentIndex = array_search($locationName, $doorSequence);
-                $lastIndex = array_search($lastAccessedDoor, $doorSequence);
-                
-                echo "[" . date('H:i:s') . "] 📊 Current index: $currentIndex, Last index: $lastIndex\n";
-                
-                // Check if current door is the next in sequence
-                if ($currentIndex !== $lastIndex + 1) {
-                    echo "[" . date('H:i:s') . "] ❌ Sequence violation! Expected: " . 
-                        ($doorSequence[$lastIndex + 1] ?? 'END') . ", Got: $locationName\n";
-                    
-                    $this->sendAlarm(
-                        $sock, 
-                        $deviceId, 
-                        $scode, 
-                        "User valid but sequence not followed. Expected: " . 
-                        ($doorSequence[$lastIndex + 1] ?? 'END') . ", Got: $locationName",
-                        $staffNo,
-                        $locationName
-                    );
-                    return;
-                }
+            if (strtolower($isSequenceFlag) === 'on') {
+                echo "[" . date('H:i:s') . "] 🔄 Sequence check is ENABLED\n";
+
+                $previousLogs = DB::table('device_access_logs')
+                    ->where('staff_no', $staffNo)
+                    ->where('access_granted', 1)
+                    ->whereIn('location_name', $doorSequence)
+                    ->orderBy('created_at', 'desc')
+                    ->get();
+
+                if ($previousLogs->count() > 0) {
+
+                    $lastAccessedDoor = $previousLogs->first()->location_name;
+                    echo "[" . date('H:i:s') . "] 📍 Last accessed door: $lastAccessedDoor\n";
+
+                    $currentIndex = array_search($locationName, $doorSequence);
+                    $lastIndex = array_search($lastAccessedDoor, $doorSequence);
+
+                    echo "[" . date('H:i:s') . "] 📊 Current index: $currentIndex, Last index: $lastIndex\n";
+
+                    // ✅ SAFE restart logic
+                    $lastDoorInPath = $doorSequence[count($doorSequence) - 1];
+
+                    if ($lastAccessedDoor === $lastDoorInPath && $currentIndex === 0) {
+                        echo "[" . date('H:i:s') . "] 🔁 New visit detected, restarting sequence from first door\n";
+                        // allow Gate B
+                    }
+                    elseif ($currentIndex !== $lastIndex + 1) {
+                        echo "[" . date('H:i:s') . "] ❌ Sequence violation! Expected: " .
+                            ($doorSequence[$lastIndex + 1] ?? 'END') . ", Got: $locationName\n";
+
+                        $this->sendAlarm(
+                            $sock,
+                            $deviceId,
+                            $scode,
+                            "User valid but sequence not followed. Expected: " .
+                            ($doorSequence[$lastIndex + 1] ?? 'END') . ", Got: $locationName",
+                            $staffNo,
+                            $locationName
+                        );
+                        return;
+                    }
+
                 } else {
-                    // First door in sequence must match
+                    // First ever door must be first in sequence
                     $firstDoor = $doorSequence[0];
                     if ($locationName !== $firstDoor) {
                         echo "[" . date('H:i:s') . "] ❌ Must start with first door: $firstDoor\n";
                         $this->sendAlarm(
-                            $sock, 
-                            $deviceId, 
-                            $scode, 
+                            $sock,
+                            $deviceId,
+                            $scode,
                             "Must start with first door: $firstDoor",
                             $staffNo,
                             $locationName
@@ -263,9 +270,10 @@ class SocketServerService
                         return;
                     }
                 }
-                } else {
-                    echo "[" . date('H:i:s') . "] ⏭️ Sequence check is DISABLED\n";
-                }
+
+            } else {
+                echo "[" . date('H:i:s') . "] ⏭️ Sequence check is DISABLED\n";
+            }
 
                 // ✅ Step 7: Grant access
                 $this->grantAccess($sock, $deviceId, $scode, $staffNo, $locationName, $isType);
@@ -434,7 +442,7 @@ class SocketServerService
     }
 
 
-    //     public function runTestFlow($staffNo, $deviceId)
+    // public function runTestFlow($staffNo, $deviceId)
     // {
     //     echo "[" . date('H:i:s') . "] 🧪 Running full test flow for StaffNo: $staffNo, DeviceID: $deviceId\n";
 
