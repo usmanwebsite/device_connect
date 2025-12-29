@@ -118,7 +118,7 @@ Route::prefix('reports')->group(function () {
         Route::post('/chronology', [VisitorDetailsController::class, 'getVisitorChronology'])->name('visitor-details.chronology');
     });
 
-        Route::prefix('visitor-info-door')->name('visitor-info-door.')->group(function () {
+    Route::prefix('visitor-info-door')->name('visitor-info-door.')->group(function () {
         Route::get('/', [VisitorInfoByDoorController::class, 'index'])->name('index');
         Route::post('/get-visitors', [VisitorInfoByDoorController::class, 'getVisitorsByLocation'])->name('get-visitors');
         Route::get('/get-visitor-details', [VisitorInfoByDoorController::class, 'getVisitorDetails'])->name('get-visitor-details');

@@ -35,6 +35,7 @@ class VisitorDetailsController extends Controller
      */
     public function search(Request $request)
     {
+        // dd($request->all());
         $request->validate([
             'search_term' => 'required|string|min:1',
             'search_type' => 'required|string|in:auto,staffNo,icNo'
@@ -84,272 +85,41 @@ class VisitorDetailsController extends Controller
     private function callJavaApi($searchTerm, $searchType)
     {
         try {
-            $javaBaseUrl = env('JAVA_BACKEND_URL', 'http://localhost:8080');
-            $token = session()->get('java_backend_token') ?? session()->get('java_auth_token');
+            $javaBaseUrl = env('JAVA_BACKEND_URL', 'http://127.0.0.1:8080');
             
+            $params = [];
             if ($searchType === 'staffNo') {
                 $params['staffNo'] = $searchTerm;
             } elseif ($searchType === 'icNo') {
                 $params['icNo'] = $searchTerm;
             } else {
-                // Auto detection - try both
                 $params['staffNo'] = $searchTerm;
                 $params['icNo'] = $searchTerm;
             }
             
-            Log::info('Calling Java API with params: ', $params);
+            Log::info('Calling Java API: ' . $javaBaseUrl . '/api/vendorpass/get-visitor-details-by-icno-or-staffno');
+            Log::info('With params: ', $params);
             
-            $response = Http::withHeaders([
-                'x-auth-token' => $token,
-                'Accept' => 'application/json',
-            ])->timeout(30)
-              ->get($javaBaseUrl . '/api/vendorpass/get-visitor-details-by-icno-or-staffno', $params);
-
+            $response = Http::timeout(30)
+                ->retry(2, 100)
+                ->get($javaBaseUrl . '/api/vendorpass/get-visitor-details-by-icno-or-staffno', $params);
+            
+            Log::info('Java API Response Status: ' . $response->status());
+            
             if ($response->successful()) {
-                return $response->json();
+                $data = $response->json();
+                Log::info('Java API Success: ' . json_encode($data));
+                return $data;
             }
             
-            Log::error('Java API error: ' . $response->body());
+            Log::error('Java API Error: ' . $response->body());
             return null;
             
         } catch (\Exception $e) {
-            Log::error('Java API exception: ' . $e->getMessage());
+            Log::error('Java API Exception: ' . $e->getMessage());
             return null;
         }
     }
-
-
-private function getEntryDatesList($staffNo)
-{
-    Log::info("Getting all activity dates for staff: $staffNo");
-    
-    // Get all access logs, not just turnstile
-    $allLogs = DB::table('device_access_logs')
-        ->where('staff_no', $staffNo)
-        ->where('access_granted', 1)
-        ->orderBy('created_at', 'asc')
-        ->select('id', 'created_at', 'location_name', 'device_id')
-        ->get();
-    
-    Log::info("Found " . $allLogs->count() . " total logs for staff: $staffNo");
-    
-    $activityDates = [];
-    
-    // Group logs by date
-    $logsByDate = [];
-    foreach ($allLogs as $log) {
-        $date = date('Y-m-d', strtotime($log->created_at));
-        $formattedDate = date('d-M-Y', strtotime($log->created_at));
-        
-        if (!isset($logsByDate[$date])) {
-            $logsByDate[$date] = [
-                'formatted_date' => $formattedDate,
-                'logs' => [],
-                'has_turnstile' => false
-            ];
-        }
-        
-        $logsByDate[$date]['logs'][] = $log;
-        
-        // Check if this log is a turnstile log
-        if (strpos(strtolower($log->location_name), 'turnstile') !== false) {
-            $logsByDate[$date]['has_turnstile'] = true;
-        }
-    }
-    
-    // Now process each date to determine if it's an entry/activity date
-    foreach ($logsByDate as $date => $data) {
-        $formattedDate = $data['formatted_date'];
-        $logs = $data['logs'];
-        $hasTurnstile = $data['has_turnstile'];
-        
-        Log::info("Processing date $date with " . count($logs) . " logs, has turnstile: " . ($hasTurnstile ? 'YES' : 'NO'));
-        
-        if ($hasTurnstile) {
-            // For dates with turnstile activity, we need to check the pattern
-            $turnstileLogs = array_filter($logs, function($log) {
-                return strpos(strtolower($log->location_name), 'turnstile') !== false;
-            });
-            
-            $checkInCount = 0;
-            $checkOutCount = 0;
-            
-            foreach ($turnstileLogs as $log) {
-                $isCheckIn = $this->determineTurnstileType($log->id, $staffNo);
-                if ($isCheckIn === true) $checkInCount++;
-                if ($isCheckIn === false) $checkOutCount++;
-            }
-            
-            // If there's at least one check-in that's not matched with a check-out,
-            // or if there are more check-ins than check-outs, it's an entry date
-            if ($checkInCount > $checkOutCount || ($checkInCount == 1 && $checkOutCount == 0)) {
-                $activityDates[$date] = $formattedDate;
-                Log::info("Date $date is an entry date (Check-ins: $checkInCount, Check-outs: $checkOutCount)");
-            } else if (count($logs) > 0) {
-                // Even if no clear entry, but there are logs, show the date
-                $activityDates[$date] = $formattedDate;
-                Log::info("Date $date has activity logs, showing it");
-            }
-        } else {
-            // For dates without turnstile but with other activity, show them
-            if (count($logs) > 0) {
-                $activityDates[$date] = $formattedDate;
-                Log::info("Date $date has non-turnstile activity, showing it");
-            }
-        }
-    }
-    
-    // Sort dates in descending order (latest first)
-    krsort($activityDates);
-    
-    Log::info("Total activity dates found: " . count($activityDates));
-    Log::info("Activity dates: " . json_encode(array_values($activityDates)));
-    
-    return array_values($activityDates);
-}
-
-private function getAllVisitDates($staffNo)
-{
-    // Get all unique dates from ALL access logs where access was granted
-    $dates = DB::table('device_access_logs')
-        ->where('staff_no', $staffNo)
-        ->where('access_granted', 1) // Only successful accesses
-        ->select(DB::raw('DATE(created_at) as visit_date'))
-        ->distinct()
-        ->orderBy('visit_date', 'desc')
-        ->pluck('visit_date')
-        ->toArray();
-    
-    // Convert to formatted dates
-    $formattedDates = [];
-    foreach ($dates as $date) {
-        $formattedDates[$date] = date('d-M-Y', strtotime($date));
-    }
-    
-    krsort($formattedDates);
-    
-    Log::info("All visit dates (successful accesses only): " . json_encode(array_values($formattedDates)));
-    return array_values($formattedDates);
-}
-
-
-
-private function isTurnstileCheckInNew($logId, $staffNo)
-{
-    try {
-        // Get the log record with all details
-        $logRecord = DB::table('device_access_logs')
-            ->where('id', $logId)
-            ->where('staff_no', $staffNo)
-            ->first();
-        
-        if (!$logRecord) {
-            Log::warning("Log record not found for ID: $logId");
-            return false;
-        }
-        
-        $deviceIdFromLog = $logRecord->device_id;
-        $locationName = $logRecord->location_name;
-        $logTime = $logRecord->created_at;
-        
-        Log::info("Checking turnstile type for Log ID: $logId, Device: $deviceIdFromLog, Location: $locationName, Time: $logTime");
-        
-        // Method 1: Check via device_connections and device_location_assigns
-        if ($deviceIdFromLog) {
-            $deviceConnection = DB::table('device_connections')
-                ->where('device_id', $deviceIdFromLog)
-                ->first();
-            
-            if ($deviceConnection) {
-                // Find any turnstile location
-                $turnstileLocation = DB::table('vendor_locations')
-                    ->where('name', 'like', '%Turnstile%')
-                    ->orWhere('name', 'like', '%' . $locationName . '%')
-                    ->first();
-                
-                if ($turnstileLocation) {
-                    $deviceLocationAssign = DB::table('device_location_assigns')
-                        ->where('location_id', $turnstileLocation->id)
-                        ->where('device_id', $deviceConnection->id)
-                        ->first();
-                    
-                    if ($deviceLocationAssign) {
-                        Log::info("Device location assign found: Type = " . $deviceLocationAssign->is_type);
-                        return $deviceLocationAssign->is_type === 'check_in';
-                    }
-                }
-            }
-        }
-        
-        // Method 2: Check based on location name pattern
-        $lowerLocation = strtolower($locationName);
-        if (strpos($lowerLocation, 'checkin') !== false || 
-            strpos($lowerLocation, 'entry') !== false ||
-            strpos($lowerLocation, 'in') !== false) {
-            Log::info("Location name indicates check_in: $locationName");
-            return true;
-        }
-        
-        // Method 3: Check based on time pattern - if it's within working hours (9 AM to 6 PM)
-        $hour = date('H', strtotime($logTime));
-        if ($hour >= 9 && $hour <= 18) {
-            Log::info("Time $logTime is within working hours, assuming check_in");
-            return true;
-        }
-        
-        // Method 4: Check for duplicate entry-exit pattern
-        // Look for another turnstile log on same day with same device
-        $sameDayLogs = DB::table('device_access_logs')
-            ->where('staff_no', $staffNo)
-            ->where('device_id', $deviceIdFromLog)
-            ->whereDate('created_at', date('Y-m-d', strtotime($logTime)))
-            ->where('location_name', 'like', '%Turnstile%')
-            ->orderBy('created_at', 'asc')
-            ->get();
-        
-        if ($sameDayLogs->count() >= 2) {
-            // If this is the first log of the day, it's likely check_in
-            if ($sameDayLogs[0]->id == $logId) {
-                Log::info("First turnstile log of the day, assuming check_in");
-                return true;
-            }
-        }
-        
-        // Default: If no method confirms, assume check_in for access_granted=1
-        if ($logRecord->access_granted == 1) {
-            Log::info("Default: access_granted=1, assuming check_in");
-            return true;
-        }
-        
-        return false;
-        
-    } catch (\Exception $e) {
-        Log::error('Error in isTurnstileCheckInNew: ' . $e->getMessage());
-        return false;
-    }
-}
-
-private function getEntryDatesListSimple($staffNo)
-{
-    // Simple method: Get all distinct dates where turnstile access was granted
-    $dates = DB::table('device_access_logs')
-        ->where('staff_no', $staffNo)
-        ->where('location_name', 'like', '%Turnstile%')
-        ->where('access_granted', 1)
-        ->select(DB::raw('DATE(created_at) as log_date'))
-        ->distinct()
-        ->orderBy('log_date', 'desc')
-        ->get();
-    
-    $entryDates = [];
-    foreach ($dates as $date) {
-        $formattedDate = date('d-M-Y', strtotime($date->log_date));
-        $entryDates[$date->log_date] = $formattedDate;
-    }
-    
-    krsort($entryDates);
-    return array_values($entryDates);
-}
 
 private function isTurnstileCheckIn($locationName, $logTime, $staffNo)
 {
@@ -431,52 +201,6 @@ private function isTurnstileCheckIn($locationName, $logTime, $staffNo)
         return false;
     }
 }
-
-private function getOrCreateVendorLocation($locationName)
-{
-    try {
-        // First try to find exact match
-        $location = DB::table('vendor_locations')
-            ->where('name', $locationName)
-            ->first();
-        
-        if ($location) {
-            return $location;
-        }
-        
-        // Try to find partial match
-        $location = DB::table('vendor_locations')
-            ->where('name', 'like', '%' . $locationName . '%')
-            ->first();
-        
-        if ($location) {
-            return $location;
-        }
-        
-        // If still not found, check for Turnstile locations
-        $location = DB::table('vendor_locations')
-            ->where('name', 'like', '%Turnstile%')
-            ->first();
-        
-        if ($location) {
-            return $location;
-        }
-        
-        // Last resort: try to get any location
-        $location = DB::table('vendor_locations')
-            ->first();
-        
-        return $location;
-        
-    } catch (\Exception $e) {
-        Log::error('Error in getOrCreateVendorLocation: ' . $e->getMessage());
-        return null;
-    }
-}
-
-
-
-
 
 private function getVisitSessions($staffNo)
 {
@@ -831,220 +555,6 @@ public function getVisitorChronology(Request $request)
     }
 }
 
-
-
-
-
-
-
-
-
-/**
- * Group logs by visit date
- */
-private function groupLogsByVisitDate($accessLogs, $visitDates)
-{
-    $groupedLogs = [];
-    
-    // First, create an array of date keys from formatted dates
-    $dateKeys = [];
-    foreach ($visitDates as $formattedDate) {
-        $date = date('Y-m-d', strtotime($formattedDate));
-        $dateKeys[$date] = $formattedDate;
-    }
-    
-    Log::info("Date keys for grouping: " . json_encode($dateKeys));
-    
-    foreach ($accessLogs as $log) {
-        $logDate = date('Y-m-d', strtotime($log->created_at));
-        
-        // Check which visit date this log belongs to
-        if (isset($dateKeys[$logDate])) {
-            $formattedDate = $dateKeys[$logDate];
-            if (!isset($groupedLogs[$formattedDate])) {
-                $groupedLogs[$formattedDate] = [];
-            }
-            $groupedLogs[$formattedDate][] = $log;
-            Log::info("Added log for date: $formattedDate, Log time: " . $log->created_at);
-        } else {
-            Log::info("No matching date found for log: $logDate");
-        }
-    }
-    
-    Log::info("Total grouped logs: " . count($groupedLogs) . " dates");
-    foreach ($groupedLogs as $date => $logs) {
-        Log::info("Date $date has " . count($logs) . " logs");
-    }
-    
-    return $groupedLogs;
-}
-
-/**
- * Group timeline by visit date
- */
-private function groupTimelineByVisitDate($locationTimeline, $visitDates)
-{
-    $groupedTimeline = [];
-
-    $dateKeys = [];
-    foreach ($visitDates as $formattedDate) {
-        $date = date('Y-m-d', strtotime($formattedDate));
-        $dateKeys[$date] = $formattedDate;
-    }
-    
-    Log::info("Timeline date keys: " . json_encode($dateKeys));
-    
-    foreach ($locationTimeline as $item) {
-        $itemDate = date('Y-m-d', strtotime($item['entry_time']));
-        
-        // Check which visit date this item belongs to
-        if (isset($dateKeys[$itemDate])) {
-            $formattedDate = $dateKeys[$itemDate];
-            if (!isset($groupedTimeline[$formattedDate])) {
-                $groupedTimeline[$formattedDate] = [];
-            }
-            $groupedTimeline[$formattedDate][] = $item;
-            Log::info("Added timeline item for date: $formattedDate, Entry time: " . $item['entry_time']);
-        } else {
-            Log::info("No matching date found for timeline item: $itemDate");
-        }
-    }
-    
-    Log::info("Total grouped timeline items: " . count($groupedTimeline) . " dates");
-    
-    return $groupedTimeline;
-}
-
-private function groupTimelineByEntryDate($locationTimeline, $entryDates)
-{
-    $groupedTimeline = [];
-
-    $dateKeys = [];
-    foreach ($entryDates as $formattedDate) {
-        $date = date('Y-m-d', strtotime($formattedDate));
-        $dateKeys[$date] = $formattedDate;
-    }
-    
-    foreach ($locationTimeline as $item) {
-        $itemDate = date('Y-m-d', strtotime($item['entry_time']));
-        
-        // Check which entry date this item belongs to
-        foreach ($dateKeys as $dateKey => $formattedDate) {
-            if ($itemDate === $dateKey) {
-                if (!isset($groupedTimeline[$formattedDate])) {
-                    $groupedTimeline[$formattedDate] = [];
-                }
-                $groupedTimeline[$formattedDate][] = $item;
-                break;
-            }
-        }
-    }
-    
-    return $groupedTimeline;
-}
-
-
-
-private function groupLogsByEntryDate($accessLogs, $entryDates)
-{
-    $groupedLogs = [];
-    
-    // First, create an array of date keys from formatted dates
-    $dateKeys = [];
-    foreach ($entryDates as $formattedDate) {
-        $date = date('Y-m-d', strtotime($formattedDate));
-        $dateKeys[$date] = $formattedDate;
-    }
-    
-    foreach ($accessLogs as $log) {
-        $logDate = date('Y-m-d', strtotime($log->created_at));
-        
-        // Check which entry date this log belongs to
-        foreach ($dateKeys as $dateKey => $formattedDate) {
-            if ($logDate === $dateKey) {
-                if (!isset($groupedLogs[$formattedDate])) {
-                    $groupedLogs[$formattedDate] = [];
-                }
-                $groupedLogs[$formattedDate][] = $log;
-                break;
-            }
-        }
-    }
-    
-    return $groupedLogs;
-}
-
-
-
-
-/**
- * Group access logs by date (latest first)
- */
-private function groupLogsByDate($accessLogs)
-{
-    $groupedLogs = [];
-    
-    foreach ($accessLogs as $log) {
-        $date = date('Y-m-d', strtotime($log->created_at));
-        
-        if (!isset($groupedLogs[$date])) {
-            $groupedLogs[$date] = [];
-        }
-        
-        $groupedLogs[$date][] = $log;
-    }
-    
-    // Sort dates in descending order (latest first)
-    krsort($groupedLogs);
-    
-    return $groupedLogs;
-}
-
-/**
- * Group timeline by date (latest first)
- */
-private function groupTimelineByDate($locationTimeline)
-{
-    $groupedTimeline = [];
-    
-    foreach ($locationTimeline as $item) {
-        $date = date('Y-m-d', strtotime($item['entry_time']));
-        
-        if (!isset($groupedTimeline[$date])) {
-            $groupedTimeline[$date] = [];
-        }
-        
-        $groupedTimeline[$date][] = $item;
-    }
-    
-    // Sort dates in descending order (latest first)
-    krsort($groupedTimeline);
-    
-    return $groupedTimeline;
-}
-
-/**
- * Get unique dates list from logs (sorted descending)
- */
-private function getDatesList($accessLogs)
-{
-    $dates = [];
-    
-    foreach ($accessLogs as $log) {
-        $date = date('Y-m-d', strtotime($log->created_at));
-        $formattedDate = date('d-M-Y', strtotime($log->created_at));
-        
-        if (!in_array($formattedDate, $dates)) {
-            $dates[$date] = $formattedDate;
-        }
-    }
-    
-    // Sort by date key in descending order
-    krsort($dates);
-    
-    return array_values($dates);
-}
-
 /**
  * Get all access logs for visitor (ordered by latest first)
  */
@@ -1114,24 +624,6 @@ private function getLocationTimeline($accessLogs)
     
     return $timeline;
 }
-
-    /**
-     * Get first entry time for visitor
-     */
-    private function getFirstEntryTime($staffNo)
-    {
-        $firstEntry = DB::table('device_access_logs')
-            ->where('staff_no', $staffNo)
-            ->where('access_granted', 1)
-            ->orderBy('created_at', 'asc')
-            ->first(['created_at', 'location_name']);
-            
-        return $firstEntry ? [
-            'time' => $firstEntry->created_at,
-            'location' => $firstEntry->location_name,
-            'days_since_first_entry' => now()->diffInDays($firstEntry->created_at)
-        ] : null;
-    }
 
     /**
      * Get all access logs for visitor
@@ -1239,111 +731,6 @@ private function getLocationTimeline($accessLogs)
         return null;
     }
 
-    /**
-     * Calculate total time spent in building
-     * FIXED: Simplified approach without device_name column
-     */
-private function calculateTotalTimeSpent($accessLogs)
-{
-    if (empty($accessLogs)) {
-        return [
-            'total_seconds' => 0,
-            'hours' => 0,
-            'minutes' => 0,
-            'seconds' => 0,
-            'formatted' => '00:00:00',
-            'description' => 'No access logs found'
-        ];
-    }
-    
-    $totalSeconds = 0;
-    $checkInTime = null;
-    $lastAccessTime = null;
-    
-    // Sort logs in chronological order (ascending)
-    $sortedLogs = collect($accessLogs)->sortBy('created_at')->values();
-    
-    Log::info("Calculating total time spent from " . $sortedLogs->count() . " logs");
-    
-    foreach ($sortedLogs as $log) {
-        $lastAccessTime = $log->created_at;
-        
-        // Check if this is a turnstile location
-        $isTurnstile = stripos($log->location_name, 'turnstile') !== false;
-        
-        if ($isTurnstile) {
-            // Determine if this is check-in or check-out
-            $isCheckIn = $this->determineTurnstileType($log->id, $log->staff_no);
-            
-            Log::info("Turnstile log at " . $log->created_at . 
-                     " - Location: " . $log->location_name . 
-                     " - Is Check-in: " . ($isCheckIn ? 'YES' : 'NO'));
-            
-            if ($isCheckIn && $checkInTime === null) {
-                // Start of a visit session
-                $checkInTime = $log->created_at;
-                Log::info("Check-in detected at: " . $checkInTime);
-                
-            } elseif (!$isCheckIn && $checkInTime !== null) {
-                // End of a visit session
-                $checkOutTime = $log->created_at;
-                
-                // Calculate time spent in this session
-                $sessionSeconds = strtotime($checkOutTime) - strtotime($checkInTime);
-                
-                if ($sessionSeconds > 0) {
-                    $totalSeconds += $sessionSeconds;
-                    Log::info("Session: " . $checkInTime . " to " . $checkOutTime . 
-                             " = " . $this->formatSeconds($sessionSeconds));
-                } else {
-                    Log::warning("Negative session time: " . $sessionSeconds . 
-                               " seconds. Check-in: " . $checkInTime . 
-                               ", Check-out: " . $checkOutTime);
-                }
-                
-                // Reset for next session
-                $checkInTime = null;
-            }
-        }
-    }
-    
-    // If visitor is still in building (check-in without check-out)
-    if ($checkInTime !== null) {
-        $currentTime = now();
-        $ongoingSeconds = strtotime($currentTime) - strtotime($checkInTime);
-        
-        if ($ongoingSeconds > 0) {
-            $totalSeconds += $ongoingSeconds;
-            Log::info("Ongoing session from " . $checkInTime . 
-                     " to now = " . $this->formatSeconds($ongoingSeconds) . 
-                     " (still in building)");
-        } else {
-            Log::warning("Negative ongoing session time: " . $ongoingSeconds . 
-                       " seconds. Check-in: " . $checkInTime);
-        }
-    }
-    
-    // Format the total time
-    $hours = floor($totalSeconds / 3600);
-    $minutes = floor(($totalSeconds % 3600) / 60);
-    $seconds = $totalSeconds % 60;
-    
-    $result = [
-        'total_seconds' => $totalSeconds,
-        'hours' => $hours,
-        'minutes' => $minutes,
-        'seconds' => $seconds,
-        'formatted' => sprintf('%02d:%02d:%02d', $hours, $minutes, $seconds),
-        'description' => $totalSeconds > 0 ? 
-            'Total time spent in building' : 
-            'No valid visit sessions found'
-    ];
-    
-    Log::info("Final total time spent: " . $result['formatted'] . 
-             " (" . $totalSeconds . " seconds)");
-    
-    return $result;
-}
 
 private function formatSeconds($seconds)
 {

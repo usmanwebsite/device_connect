@@ -49,9 +49,14 @@ class VisitorInfoByDoorController extends Controller
     public function getVisitorsByLocation(Request $request)
     {
         try {
+            Log::info('🔍 VisitorInfoByDoor - Request Data:', $request->all());
+            
             $locationName = $request->input('location_name');
             $selectedDate = $request->input('selected_date');
             
+            Log::info('📌 Location:', ['name' => $locationName]);
+            Log::info('📅 Date:', ['selected' => $selectedDate]);
+
             if (!$locationName) {
                 return response()->json([
                     'success' => false,
@@ -68,7 +73,20 @@ class VisitorInfoByDoorController extends Controller
 
             // Parse the selected date
             $date = Carbon::parse($selectedDate)->format('Y-m-d');
+            Log::info('📅 Parsed Date:', ['date' => $date]);
             
+            // ✅ DEBUG: Check all available locations
+            $allLocations = DeviceAccessLog::distinct()->pluck('location_name');
+            Log::info('📍 Available locations in DeviceAccessLog:', $allLocations->toArray());
+            
+            // ✅ DEBUG: Check location match
+            $exactMatch = DeviceAccessLog::where('location_name', $locationName)->exists();
+            Log::info('🔍 Location exact match:', ['location' => $locationName, 'exists' => $exactMatch]);
+            
+            // Check for similar locations
+            $similarLocations = DeviceAccessLog::where('location_name', 'like', '%' . $locationName . '%')->distinct()->pluck('location_name');
+            Log::info('🔍 Similar locations:', $similarLocations->toArray());
+
             // Fetch access logs for the selected location and date
             $accessLogs = DeviceAccessLog::where('location_name', $locationName)
                 ->where('access_granted', 1)
@@ -76,11 +94,69 @@ class VisitorInfoByDoorController extends Controller
                 ->orderBy('created_at', 'desc')
                 ->get();
 
+            Log::info('📊 Access logs found:', [
+                'location' => $locationName,
+                'date' => $date,
+                'count' => $accessLogs->count(),
+                'query' => "WHERE location_name = '$locationName' AND DATE(created_at) = '$date' AND access_granted = 1"
+            ]);
+
+            // If no exact match, try case-insensitive or partial match
+            if ($accessLogs->count() === 0) {
+                Log::info('🔄 Trying case-insensitive search...');
+                
+                // Try case-insensitive search
+                $accessLogs = DeviceAccessLog::whereRaw('LOWER(location_name) = ?', [strtolower($locationName)])
+                    ->where('access_granted', 1)
+                    ->whereDate('created_at', $date)
+                    ->orderBy('created_at', 'desc')
+                    ->get();
+                    
+                Log::info('📊 Case-insensitive access logs:', ['count' => $accessLogs->count()]);
+            }
+
+            // If still no results, try searching without access_granted filter
+            if ($accessLogs->count() === 0) {
+                Log::info('🔄 Trying without access_granted filter...');
+                
+                $accessLogs = DeviceAccessLog::where('location_name', $locationName)
+                    ->whereDate('created_at', $date)
+                    ->orderBy('created_at', 'desc')
+                    ->get();
+                    
+                Log::info('📊 Access logs (all access types):', ['count' => $accessLogs->count()]);
+            }
+
+            // If still no results, try with LIKE operator
+            if ($accessLogs->count() === 0) {
+                Log::info('🔄 Trying with LIKE operator...');
+                
+                $accessLogs = DeviceAccessLog::where('location_name', 'like', '%' . $locationName . '%')
+                    ->whereDate('created_at', $date)
+                    ->orderBy('access_granted', 'desc')
+                    ->orderBy('created_at', 'desc')
+                    ->get();
+                    
+                Log::info('📊 Access logs (LIKE search):', ['count' => $accessLogs->count()]);
+                
+                if ($accessLogs->count() > 0) {
+                    Log::info('🔍 Found locations with LIKE:', $accessLogs->pluck('location_name')->unique()->toArray());
+                }
+            }
+
             $visitors = [];
             $uniqueStaffNos = [];
 
             foreach ($accessLogs as $log) {
                 try {
+                    Log::info('📝 Processing log:', [
+                        'id' => $log->id,
+                        'staff_no' => $log->staff_no,
+                        'location' => $log->location_name,
+                        'created_at' => $log->created_at,
+                        'access_granted' => $log->access_granted
+                    ]);
+
                     // Skip if we already processed this staff_no for this location and date
                     if (in_array($log->staff_no, $uniqueStaffNos)) {
                         continue;
@@ -121,28 +197,68 @@ class VisitorInfoByDoorController extends Controller
                             'access_granted' => $log->access_granted ? 'Yes' : 'No',
                             'log_id' => $log->id
                         ];
+                        
+                        Log::info('✅ Added visitor:', ['staff_no' => $log->staff_no]);
+                    } else {
+                        Log::warning('⚠️ Java API failed for staff_no:', ['staff_no' => $log->staff_no]);
+                        
+                        // Fallback: Add basic info
+                        $latestCheckIn = DeviceAccessLog::where('staff_no', $log->staff_no)
+                            ->where('location_name', $locationName)
+                            ->whereDate('created_at', $date)
+                            ->orderBy('created_at', 'desc')
+                            ->first();
+
+                        $visitors[] = [
+                            'staff_no' => $log->staff_no,
+                            'visitor_name' => 'Unknown',
+                            'person_visited' => 'N/A',
+                            'contact_no' => 'N/A',
+                            'ic_no' => 'N/A',
+                            'sex' => 'N/A',
+                            'date_of_visit_from' => 'N/A',
+                            'date_of_visit_to' => 'N/A',
+                            'check_in_time' => $latestCheckIn ? $latestCheckIn->created_at->format('d M Y h:i A') : 'N/A',
+                            'device_id' => $log->device_id ?? 'N/A',
+                            'location_name' => $log->location_name ?? 'N/A',
+                            'access_granted' => $log->access_granted ? 'Yes' : 'No',
+                            'log_id' => $log->id
+                        ];
                     }
                 } catch (\Exception $e) {
-                    Log::error('Error processing log for staff_no ' . $log->staff_no . ': ' . $e->getMessage());
+                    Log::error('❌ Error processing log: ' . $e->getMessage());
                     continue;
                 }
             }
 
+            Log::info('🎯 Final result:', [
+                'visitors_count' => count($visitors),
+                'location' => $locationName,
+                'date' => $date
+            ]);
+            
             return response()->json([
                 'success' => true,
                 'visitors' => $visitors,
                 'count' => count($visitors),
                 'location' => $locationName,
                 'date' => Carbon::parse($selectedDate)->format('d M Y'),
-                'timestamp' => now()->format('d M Y h:i A')
+                'timestamp' => now()->format('d M Y h:i A'),
+                'debug' => [ // ✅ Add debug info for testing
+                    'location_in_request' => $locationName,
+                    'date_in_request' => $selectedDate,
+                    'parsed_date' => $date,
+                    'access_logs_count' => $accessLogs->count(),
+                    'unique_staff_nos' => $uniqueStaffNos
+                ]
             ]);
 
         } catch (\Exception $e) {
-            Log::error('VisitorInfoByDoorController getVisitorsByLocation error: ' . $e->getMessage());
+            Log::error('💥 VisitorInfoByDoorController error: ' . $e->getMessage());
             
             return response()->json([
                 'success' => false,
-                'message' => 'Error fetching visitor data: ' . $e->getMessage(),
+                'message' => 'Error: ' . $e->getMessage(),
                 'visitors' => []
             ], 500);
         }
@@ -326,28 +442,71 @@ class VisitorInfoByDoorController extends Controller
     /**
      * Helper method to call Java API (same as in DashboardController)
      */
-    private function callJavaVendorApi($staffNo)
-    {
-        try {
-            $javaBaseUrl = env('JAVA_BACKEND_URL', 'http://localhost:8080');
-            $token = session()->get('java_backend_token') ?? session()->get('java_auth_token'); 
+    // private function callJavaVendorApi($staffNo)
+    // {
+    //     try {
+    //         $javaBaseUrl = env('JAVA_BACKEND_URL', 'http://localhost:8080');
+    //         $token = session()->get('java_backend_token') ?? session()->get('java_auth_token'); 
             
-            $response = Http::withHeaders([
-                'x-auth-token' => $token,
-                'Accept' => 'application/json',
-            ])->timeout(10)
-              ->get($javaBaseUrl . '/api/vendorpass/get-visitor-details?staffNo=' . $staffNo);
+    //         $response = Http::withHeaders([
+    //             'x-auth-token' => $token,
+    //             'Accept' => 'application/json',
+    //         ])->timeout(10)
+    //           ->get($javaBaseUrl . '/api/vendorpass/get-visitor-details?staffNo=' . $staffNo);
 
-            if ($response->successful()) {
-                return $response->json();
-            } else {
-                Log::error('Java API error for staff_no ' . $staffNo . ': ' . $response->status());
-                return null;
+    //         if ($response->successful()) {
+    //             return $response->json();
+    //         } else {
+    //             Log::error('Java API error for staff_no ' . $staffNo . ': ' . $response->status());
+    //             return null;
+    //         }
+    //     } catch (\Exception $e) {
+    //         Log::error('Java API exception for staff_no ' . $staffNo . ': ' . $e->getMessage());
+    //         return null;
+    //     }
+    // }
+    private function callJavaVendorApi($staffNo)
+{
+    try {
+        $javaBaseUrl = env('JAVA_BACKEND_URL', 'http://localhost:8080');
+        $url = $javaBaseUrl . '/api/vendorpass/get-visitor-details?staffNo=' . urlencode($staffNo);
+        
+        Log::info('🌐 Calling Java API (without token):', ['url' => $url]);
+        
+        // Option 1: Try without token
+        $response = Http::timeout(10)->get($url);
+        
+        // Option 2: If fails, try with token
+        if (!$response->successful()) {
+            $token = session()->get('java_backend_token') ?? session()->get('java_auth_token');
+            if ($token) {
+                Log::info('🔄 Retrying with token...');
+                $response = Http::withHeaders(['x-auth-token' => $token])
+                    ->timeout(10)
+                    ->get($url);
             }
-        } catch (\Exception $e) {
-            Log::error('Java API exception for staff_no ' . $staffNo . ': ' . $e->getMessage());
+        }
+        
+        Log::info('📡 Response Status:', ['status' => $response->status()]);
+        
+        if ($response->successful()) {
+            $data = $response->json();
+            Log::info('✅ API Success:', [
+                'has_data' => isset($data['data']),
+                'message' => $data['message'] ?? 'No message'
+            ]);
+            return $data;
+        } else {
+            Log::error('❌ API Failed:', [
+                'status' => $response->status(),
+                'body' => $response->body()
+            ]);
             return null;
         }
+    } catch (\Exception $e) {
+        Log::error('💥 Exception:', ['message' => $e->getMessage()]);
+        return null;
     }
+}
 }
 

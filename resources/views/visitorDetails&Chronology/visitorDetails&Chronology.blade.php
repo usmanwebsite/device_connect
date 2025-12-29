@@ -784,9 +784,16 @@ $(document).ready(function() {
         hideAllSections();
         
         console.log('Searching for:', searchTerm, 'Type:', searchType);
+
+        // Add this at the top of your script if not already there
+        $.ajaxSetup({
+            headers: {
+                'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
+            }
+        });
         
         $.ajax({
-            url: '{{ route("visitor-details.search") }}',
+            url: "{{ route('visitor-details.search') }}",
             type: 'POST',
             data: {
                 _token: '{{ csrf_token() }}',
@@ -818,8 +825,6 @@ $(document).ready(function() {
                     errorMessage = xhr.responseJSON.message;
                 } else if (xhr.status === 0) {
                     errorMessage = 'Network error. Please check your connection.';
-                } else if (xhr.status === 404) {
-                    errorMessage = 'API endpoint not found. Please contact administrator.';
                 } else if (xhr.status === 500) {
                     errorMessage = 'Server error. Please try again later.';
                 }

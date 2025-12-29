@@ -1417,15 +1417,23 @@ public function getFilteredAngularMenu()
 
             [
                 'id' => 9.0,
-                'label' => "VISITOR DASHBOARD",
+                'label' => "DASHBOARD",
                 'icon' => "bx-cog",
-                'isAuth' => 'VisitorDashboard',
+                'isAuth' => 'VisitorDashboard,SecurityDashboard',
                 'subItems' => [
                     [
                         'id' => 9.1,
-                        'label' => "DASHBAORD",
+                        'label' => "VISITOR DASHBAORD",
                         'link' => "/", 
                         'isAuth' => 'VisitorDashboard',
+                        'parentId' => 9.0,
+                        'isLaravelRoute' => true 
+                    ],
+                    [
+                        'id' => 9.1,
+                        'label' => "SECURITY DASHBAORD",
+                        'link' => "/security-alerts", 
+                        'isAuth' => 'SecurityDashboard',
                         'parentId' => 9.0,
                         'isLaravelRoute' => true 
                     ],

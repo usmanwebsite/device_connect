@@ -242,75 +242,36 @@ private function getVisitorsFromDeviceLogs()
     private function callJavaVendorApi($staffNo)
     {
         try {
-            $javaBaseUrl = env('JAVA_BACKEND_URL', 'http://localhost:8080');
-            $token = session()->get('java_backend_token') ?? session()->get('java_auth_token');
+            $javaBaseUrl = env('JAVA_BACKEND_URL', 'http://127.0.0.1:8080');
             
-            $response = Http::withHeaders([
-                'x-auth-token' => $token,
-                'Accept' => 'application/json',
-            ])->timeout(10)
-              ->get($javaBaseUrl . '/api/vendorpass/get-visitor-details?staffNo=' . $staffNo);
-
+            Log::info('Calling Java Vendor API for staff_no: ' . $staffNo);
+            Log::info('URL: ' . $javaBaseUrl . '/api/vendorpass/get-visitor-details');
+            
+            // Simple GET request without authentication headers
+            $response = Http::timeout(15)
+                ->retry(2, 100)
+                ->get($javaBaseUrl . '/api/vendorpass/get-visitor-details', [
+                    'staffNo' => $staffNo
+                ]);
+            
+            Log::info('Java Vendor API Response Status: ' . $response->status());
+            Log::info('Java Vendor API Response Body (first 500 chars): ' . substr($response->body(), 0, 500));
+            
             if ($response->successful()) {
-                return $response->json();
+                $data = $response->json();
+                Log::info('Java Vendor API Success for ' . $staffNo . ': Data received');
+                return $data;
             } else {
-                Log::error('Java API error for staff_no ' . $staffNo . ': ' . $response->status());
+                Log::error('Java Vendor API error for staff_no ' . $staffNo . ': HTTP ' . $response->status());
+                Log::error('Error Response: ' . $response->body());
                 return null;
             }
         } catch (\Exception $e) {
-            Log::error('Java API exception for staff_no ' . $staffNo . ': ' . $e->getMessage());
+            Log::error('Java Vendor API exception for staff_no ' . $staffNo . ': ' . $e->getMessage());
             return null;
         }
     }
 
-    // ✅ Duration calculate karein (for API data)
-    private function calculateDuration($dateFrom, $dateTo)
-    {
-        if (!$dateFrom || !$dateTo) {
-            return 'N/A';
-        }
-
-        try {
-            $from = Carbon::parse($dateFrom);
-            $to = Carbon::parse($dateTo);
-            
-            $diffInMinutes = $to->diffInMinutes($from);
-            $hours = floor($diffInMinutes / 60);
-            $minutes = $diffInMinutes % 60;
-            
-            return $hours . ' hours ' . $minutes . ' minutes';
-        } catch (\Exception $e) {
-            return 'N/A';
-        }
-    }
-
-    // ✅ Date format karein
-    private function formatDate($dateString)
-    {
-        if (!$dateString) {
-            return 'N/A';
-        }
-
-        try {
-            return Carbon::parse($dateString)->format('Y-m-d');
-        } catch (\Exception $e) {
-            return 'N/A';
-        }
-    }
-
-    // ✅ Time format karein
-    private function formatTime($dateString)
-    {
-        if (!$dateString) {
-            return 'N/A';
-        }
-
-        try {
-            return Carbon::parse($dateString)->format('H:i:s');
-        } catch (\Exception $e) {
-            return 'N/A';
-        }
-    }
 
     // ✅ Fallback static data
     private function getStaticVisitors()
