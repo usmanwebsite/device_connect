@@ -982,7 +982,7 @@ public function getFilteredAngularMenu()
                 'id' => 6.0,
                 'label' => "CONFIG",
                 'icon' => "bx-cog",
-                'isAuth' => 'Role,User,CpnInf,CInf,StateInf,CityInf,DInf,DESInf,LCInf,LInf,RType,BType,RRConf,VinType,LClass,BName,CTEB,LVCInf,ANNInf,DUInf,BRConf,CTConf,WHLConf,APPConf,VCConf,BrrConf,MeSesC,ITempConf,MCConf,OHConf,AWPConf,EVConf,WGConf,GSConf,WAConf,VQR,VIDEO_QUESTION',
+                'isAuth' => 'Role,User,CpnInf,CInf,StateInf,CityInf,DInf,DESInf,LCInf,LInf,RType,BType,RRConf,VinType,LClass,BName,CTEB,LVCInf,ANNInf,DUInf,BRConf,CTConf,WHLConf,APPConf,VCConf,BrrConf,MeSesC,ITempConf,MCConf,OHConf,AWPConf,EVConf,WGConf,GSConf,WAConf,VQR,VIDEO_QUESTION,MasterPath,MVT,device-assign',
                 'subItems' => [
                     [
                         'id' => 6.1,
@@ -1308,6 +1308,31 @@ public function getFilteredAngularMenu()
                         'isAuth' => 'VQR',
                         'parentId' => 6.0,
                     ],
+                    [
+                        'id' => 6.45, 
+                        'label' => "PATHWAY", 
+                        'link' => "/paths", 
+                        'isAuth' => 'MasterPath', 
+                        'parentId' => 6.0,
+                        'isLaravelRoute' => true
+                    ],
+                    [
+                        'id' => 6.46, 
+                        'label' => "VISITOR TYPE", 
+                        'link' => "/visitor-types",
+                        'isAuth' => 'MVT',
+                        'parentId' => 6.0, 
+                        'isLaravelRoute' => true
+                    ],                      
+                    [
+                        'id' => 6.47, 
+                        'label' => "DEVICE ASSIGNMENT", 
+                        'link' => "/device-assignments",
+                         'isAuth' => 'device-assign',
+                        'parentId' => 6.0, 
+                        'isLaravelRoute' => true
+                    ],
+
                 ],
             ],
             // Reports
@@ -1354,42 +1379,41 @@ public function getFilteredAngularMenu()
                 ],
             ],
 
-
             // Master
 
-            [
-                'id' => 8.0,
-                'label' => "MASTER",
-                'icon' => "bx-cog",
-                'isAuth' => 'MasterPath,MVT,device-assign',
-                'subItems' => [
-                    [
-                        'id' => 8.1,
-                        'label' => "PATHWAY",
-                        'link' => "/paths", 
-                        'isAuth' => 'MasterPath',
-                        'parentId' => 8.0,
-                        'isLaravelRoute' => true 
-                    ],
-                    [
-                        'id' => 8.2,
-                        'label' => "VISITOR-TYPE",
-                        'link' => "/visitor-types", 
-                        'isAuth' => 'MVT',
-                        'parentId' => 8.0,
-                        'isLaravelRoute' => true 
-                    ],
-                    [
-                        'id' => 8.3,
-                        'label' => "DEVICES",
-                        'link' => "/device-assignments", 
-                        'isAuth' => 'device-assign',
-                        'parentId' => 8.0,
-                        'isLaravelRoute' => true 
-                    ],
+            // [
+            //     'id' => 8.0,
+            //     'label' => "MASTER",
+            //     'icon' => "bx-cog",
+            //     'isAuth' => 'MasterPath,MVT,device-assign',
+            //     'subItems' => [
+            //         [
+            //             'id' => 8.1,
+            //             'label' => "PATHWAY",
+            //             'link' => "/paths", 
+            //             'isAuth' => 'MasterPath',
+            //             'parentId' => 8.0,
+            //             'isLaravelRoute' => true 
+            //         ],
+            //         [
+            //             'id' => 8.2,
+            //             'label' => "VISITOR-TYPE",
+            //             'link' => "/visitor-types", 
+            //             'isAuth' => 'MVT',
+            //             'parentId' => 8.0,
+            //             'isLaravelRoute' => true 
+            //         ],
+            //         [
+            //             'id' => 8.3,
+            //             'label' => "DEVICES",
+            //             'link' => "/device-assignments", 
+            //             'isAuth' => 'device-assign',
+            //             'parentId' => 8.0,
+            //             'isLaravelRoute' => true 
+            //         ],
 
-                ],
-            ],
+            //     ],
+            // ],
 
             [
                 'id' => 9.0,
