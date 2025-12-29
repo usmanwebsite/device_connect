@@ -30,8 +30,18 @@ Route::get('/layout', function () {
 });
 
 // web.php
-Route::get('/assign-device', [DeviceLocationAssignController::class, 'create'])->name('assign.device.form');
-Route::post('/assign-device', [DeviceLocationAssignController::class, 'store'])->name('assign.device.store');
+// Route::get('/assign-device', [DeviceLocationAssignController::class, 'create'])->name('assign.device.form');
+// Route::post('/assign-device', [DeviceLocationAssignController::class, 'store'])->name('assign.device.store');
+
+Route::prefix('device-assignments')->group(function () {
+    Route::get('/', [DeviceLocationAssignController::class, 'index'])->name('device-assignments.index');
+    Route::get('/create', [DeviceLocationAssignController::class, 'create'])->name('device-assignments.create'); // ✅ FIXED
+    Route::post('/store', [DeviceLocationAssignController::class, 'store'])->name('device-assignments.store');
+    Route::get('/edit/{id}', [DeviceLocationAssignController::class, 'edit'])->name('device-assignments.edit');
+    Route::put('/update/{id}', [DeviceLocationAssignController::class, 'update'])->name('device-assignments.update');
+    Route::delete('/delete/{id}', [DeviceLocationAssignController::class, 'destroy'])->name('device-assignments.destroy');
+});
+
 
 Route::get('/', [DashboardController::class, 'index'])->name('dashboard');
 Route::post('/login', [LoginController::class, 'login'])->name('login');

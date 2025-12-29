@@ -1361,7 +1361,7 @@ public function getFilteredAngularMenu()
                 'id' => 8.0,
                 'label' => "MASTER",
                 'icon' => "bx-cog",
-                'isAuth' => 'MasterPath,MVT',
+                'isAuth' => 'MasterPath,MVT,device-assign',
                 'subItems' => [
                     [
                         'id' => 8.1,
@@ -1379,13 +1379,21 @@ public function getFilteredAngularMenu()
                         'parentId' => 8.0,
                         'isLaravelRoute' => true 
                     ],
+                    [
+                        'id' => 8.3,
+                        'label' => "DEVICES",
+                        'link' => "/device-assignments", 
+                        'isAuth' => 'device-assign',
+                        'parentId' => 8.0,
+                        'isLaravelRoute' => true 
+                    ],
 
                 ],
             ],
 
             [
                 'id' => 9.0,
-                'label' => "VISITOR DASHBAORD",
+                'label' => "VISITOR DASHBOARD",
                 'icon' => "bx-cog",
                 'isAuth' => 'VisitorDashboard',
                 'subItems' => [
