@@ -67,6 +67,11 @@
         <h3 class="mb-0">Existing Paths</h3>
         <div>
             <span class="badge bg-info">{{ $paths->count() }} paths</span>
+
+            <button type="button" id="refreshLocations" class="btn btn-sm btn-outline-primary ms-2">
+                <i class="fas fa-sync"></i> Refresh Locations
+            </button>
+
             <button type="button" id="reloadTable" class="btn btn-sm btn-outline-warning ms-2">
                 <i class="fas fa-sync-alt"></i> Refresh
             </button>
@@ -297,6 +302,55 @@ $(document).ready(function() {
             return false;
         }
     });
+
+
+$('#refreshLocations').on('click', function () {
+    if (!confirm('This will fetch active locations from Java system (SAFEG_LOCATION_ACCESS_LOCKUP table) and sync with local database.\n\nDo you want to continue?')) {
+        return;
+    }
+
+    // Disable button and show loading
+    const $btn = $(this);
+    const originalHtml = $btn.html();
+    $btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Syncing...');
+
+    $.ajax({
+        url: "{{ route('vendor.locations.refresh') }}",
+        type: "POST",
+        data: {
+            _token: "{{ csrf_token() }}"
+        },
+        success: function (response) {
+            if (response.success) {
+                const message = `✅ ${response.message}\n\n📊 Sync Summary:\n• Received: ${response.total_received} locations\n• New Added: ${response.inserted}\n• Already Existed: ${response.skipped}\n\nPage will reload in 3 seconds...`;
+                alert(message);
+                
+                // Reload after 3 seconds
+                setTimeout(() => {
+                    location.reload();
+                }, 3000);
+            } else {
+                alert('❌ Error: ' + response.message);
+                $btn.prop('disabled', false).html(originalHtml);
+            }
+        },
+        error: function (xhr) {
+            let errorMessage = 'Failed to refresh locations. ';
+            if (xhr.responseJSON && xhr.responseJSON.message) {
+                errorMessage += xhr.responseJSON.message;
+            } else if (xhr.status === 0) {
+                errorMessage += 'Network error. Please check your connection.';
+            } else {
+                errorMessage += 'Status: ' + xhr.status;
+            }
+            alert('❌ ' + errorMessage);
+            console.error(xhr);
+            
+            $btn.prop('disabled', false).html(originalHtml);
+        }
+    });
+});
+
 });
 </script>
 @endsection

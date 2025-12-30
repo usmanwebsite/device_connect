@@ -206,7 +206,8 @@
             table.columns().every(function(index) {
                 var column = this;
                 var header = $(column.header());
-                var columnName = header.data('column') || header.text();
+                // var columnName = header.data('column') || header.text();
+                var columnName = (header.data('column') || header.text()).toString().toUpperCase();
                 var isVisible = column.visible();
                 
                 checkboxesHtml += `

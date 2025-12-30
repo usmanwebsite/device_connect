@@ -75,6 +75,13 @@ public function getFilteredAngularMenu()
                         $this->saveJavaTokenToSession($data['token']);
                         Log::info('New Java token saved to session');
                     }
+
+
+                    if (isset($data['user_id'])) {
+                        Session::put('java_user_id', $data['user_id']);
+                        Session::save();
+                        Log::info('User ID saved to session:', ['user_id' => $data['user_id']]);
+                    }
                     
                     return [
                         'user_id' => $data['user_id'] ?? null,
@@ -91,6 +98,7 @@ public function getFilteredAngularMenu()
                 if ($response->status() === 401) {
                     $this->clearJavaTokenFromSession();
                     $this->clearUserPermissionsFromSession();
+                    Session::forget('java_user_id');
                     Log::info('Cleared expired token and permissions from session');
                 }
                 
@@ -101,6 +109,19 @@ public function getFilteredAngularMenu()
             Log::error('Java API Exception: ' . $e->getMessage());
             return $this->getDefaultAccessData();
         }
+    }
+
+    public function getCurrentUserIdFromSession()
+    {
+        return Session::get('java_user_id');
+    }
+
+    // ✅ NEW: Save User ID to Session (separate function)
+    public function saveUserIdToSession($userId)
+    {
+        Session::put('java_user_id', $userId);
+        Session::save();
+        Log::info('User ID saved to session via function:', ['user_id' => $userId]);
     }
 
     public function saveUserPermissionsToSession($permissions)

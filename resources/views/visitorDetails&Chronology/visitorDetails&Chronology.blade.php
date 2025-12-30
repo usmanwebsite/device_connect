@@ -616,6 +616,27 @@
 
 <script>
 $(document).ready(function() {
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const autoSearch = urlParams.get('autoSearch');
+    const staffNo = urlParams.get('staffNo');
+    const icNo = urlParams.get('icNo');
+    
+    if (autoSearch === 'true' && staffNo) {
+        // Hide all sections initially
+        hideAllSections();
+        
+        // Set search type and value
+        $('#searchType').val('staffNo');
+        $('#searchInput').val(staffNo);
+        
+        // Trigger search after a short delay
+        setTimeout(() => {
+            searchVisitor();
+        }, 500);
+    }
+
+
     let visitorDataTable = null;
     let currentSearchTerm = '';
     let currentSearchType = 'auto';

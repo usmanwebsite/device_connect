@@ -26,36 +26,44 @@ class DashboardController extends Controller
     {
         try {
             Log::info('=== Dashboard Accessed ===');
-    
+
             $token = session()->get('java_backend_token') ?? session()->get('java_auth_token');
             
             $angularMenu = [];
             if ($token) {
                 try {
                     $angularMenu = $menuService->getFilteredAngularMenuWithToken($token);
-                    Log::info('angularmeniu',['angularMenu' => $angularMenu]);
+
+                    // ✅ User ID session mein save karna
+                    $userAccessData = $menuService->getUserAccessData();
+                    if ($userAccessData && isset($userAccessData['user_id'])) {
+                        session()->put('java_user_id', $userAccessData['user_id']);
+                        Log::info('User ID saved in dashboard session:', ['user_id' => $userAccessData['user_id']]);
+                    }
+                    
                     if (empty($angularMenu) || (is_array($angularMenu) && count($angularMenu) === 0)) {
                         Log::warning('Empty angularMenu returned. Redirecting user.');
-
                         return redirect()->away(config('app.angular_url'))
                             ->with('error', 'Session expired. Please login again.');
                     }
+                    
+                    Log::info('angularmeniu', ['angularMenu' => $angularMenu]);
+                    
                 } catch (\Exception $e) {
                     Log::error('Menu error: ' . $e->getMessage());
                     $angularMenu = [];
                     return redirect()->away(config('app.angular_url'))
-    ->with('error', 'Session expired. Please login again.');
+                        ->with('error', 'Session expired. Please login again.');
                 }
             } else {
                 Log::error('NO TOKEN FOUND IN DASHBOARD!');
-                // Emergency fallback
-                // $hardcodedToken = 'eyJhbGciOiJIUzUxMiJ9.eyJzdWIiOiJzdXBlcmF......'; // Your hardcoded token
-                // $angularMenu = $menuService->getFilteredAngularMenuWithToken($hardcodedToken);
                 return redirect()->away(config('app.angular_url'))
-    ->with('error', 'Session expired. Please login again.');
+                    ->with('error', 'Session expired. Please login again.');
             }
             
             Log::info('Angular Menu Structure:');
+            
+            // ✅ User access data ko dobara get karein (agar nahi mila toh)
             $userAccessData = $this->menuService->getUserAccessData();
 
             $todayAppointmentCount = 0;
@@ -68,14 +76,14 @@ class DashboardController extends Controller
                 $upcomingAppointments = $userAccessData['upcoming_appointments'] ?? [];
             }
             
-            // ✅ UPDATED: Get visitors on site with new logic
+            // ✅ Get visitors on site
             $visitorsOnSite = $this->getCurrentVisitorsOnSite();
             
             $criticalAlert = $this->getCriticalSecurityAlert();
 
             $activeSecurityAlertsCount = DeviceAccessLog::where('access_granted', 0)
-            ->where('acknowledge', 0)
-            ->count();
+                ->where('acknowledge', 0)
+                ->count();
 
             $hourlyTrafficData = $this->getHourlyTrafficData();
 
@@ -84,8 +92,8 @@ class DashboardController extends Controller
             $visitorOverstayCount = count($visitorOverstayAlerts);
 
             $deniedAccessCount = DeviceAccessLog::where('access_granted', 0)
-            ->where('acknowledge', 0)
-            ->count();
+                ->where('acknowledge', 0)
+                ->count();
 
             $deniedAccessLogs = DeviceAccessLog::where('access_granted', 0)
                 ->where('acknowledge', 0)
@@ -170,7 +178,7 @@ class DashboardController extends Controller
     }
 
     private function getCurrentVisitorsOnSite()
-{
+    {
     try {
         Log::info('=== Starting getCurrentVisitorsOnSite ===');
         
@@ -376,10 +384,36 @@ class DashboardController extends Controller
                 ], 404);
             }
 
+            // ✅ GET CURRENT USER ID FROM SESSION
+            $currentUserId = session()->get('java_user_id');
+            
+            if (!$currentUserId) {
+                // Agar session mein nahi hai toh Java API se fetch karo
+                $token = session()->get('java_backend_token') ?? session()->get('java_auth_token');
+                if ($token) {
+                    $menuService = new MenuService();
+                    $userAccessData = $menuService->fetchUserAccessFromJavaBackendWithToken($token);
+                    $currentUserId = $userAccessData['user_id'] ?? null;
+                    
+                    // Save to session for next time
+                    if ($currentUserId) {
+                        session()->put('java_user_id', $currentUserId);
+                    }
+                }
+            }
+
+            Log::info('Acknowledging alert with user ID:', [
+                'alert_id' => $alertId,
+                'user_id' => $currentUserId,
+                'staff_no' => $alert->staff_no
+            ]);
+
+            // ✅ UPDATE BOTH acknowledge AND acknowledge_by
             $alert->acknowledge = 1;
+            $alert->acknowledge_by = $currentUserId; // ✅ Yahan save kar rahe hain
             $alert->save();
             
-            Log::info("Alert acknowledged: ID {$alertId}, Staff No: {$alert->staff_no}");
+            Log::info("Alert acknowledged: ID {$alertId}, Staff No: {$alert->staff_no}, Acknowledged By: {$currentUserId}");
 
             $nextAlert = $this->getCriticalSecurityAlert();
             
@@ -387,11 +421,13 @@ class DashboardController extends Controller
                 'success' => true,
                 'message' => 'Alert acknowledged successfully',
                 'next_alert' => $nextAlert,
-                'has_next' => $nextAlert ? true : false
+                'has_next' => $nextAlert ? true : false,
+                'acknowledged_by' => $currentUserId // ✅ Frontend ko bhi bhej sakte hain
             ]);
             
         } catch (\Exception $e) {
             Log::error('Error acknowledging alert: ' . $e->getMessage());
+            Log::error('Stack trace: ' . $e->getTraceAsString());
             
             return response()->json([
                 'success' => false,
@@ -408,9 +444,14 @@ class DashboardController extends Controller
             if ($alertId) {
                 $alert = DeviceAccessLog::find($alertId);
                 if ($alert) {
+                    // ✅ GET CURRENT USER ID FROM SESSION
+                    $currentUserId = session()->get('java_user_id');
+                    
                     $alert->acknowledge = 1;
+                    $alert->acknowledge_by = $currentUserId; // ✅ Yahan bhi save karein
                     $alert->save();
-                    Log::info("Alert hidden and acknowledged: ID {$alertId}");
+                    
+                    Log::info("Alert hidden and acknowledged: ID {$alertId}, Acknowledged By: {$currentUserId}");
                 }
             }
             

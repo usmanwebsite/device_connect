@@ -946,6 +946,43 @@ body {
     color: white;
 }
 
+input[type="datetime-local"] {
+    padding: 8px 12px;
+    border: 1px solid #ced4da;
+    border-radius: 4px;
+    font-size: 14px;
+}
+
+input[type="datetime-local"]:focus {
+    border-color: #80bdff;
+    outline: 0;
+    box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+}
+
+/* Small text for datetime hints */
+.text-muted.small {
+    font-size: 12px;
+    margin-top: 4px;
+    display: block;
+}
+
+.btn-view-chronology {
+    background-color: #ffc107;
+    border-color: #ffc107;
+    color: #000;
+    font-size: 12px;
+    padding: 3px 8px;
+}
+
+.btn-view-chronology:hover {
+    background-color: #e0a800;
+    border-color: #e0a800;
+}
+
+.btn-view-chronology i {
+    margin-right: 3px;
+}
+
 /* ============ TABLE STYLING - FULL DATA DISPLAY ============ */
 
 /* Table Container with Fixed Header */

@@ -70,7 +70,7 @@
         <div class="col-md-3 col-6">
             <div class="stat-card clickable-card" onclick="showCheckoutsTodayModal()">
                 <h2>{{ $checkOutsTodayCount ?? 0 }}</h2>
-                <p>Check-outs Today</p>
+                <p>Check Out Today</p>
             </div>
         </div>
 
@@ -158,73 +158,72 @@
             </div>
         </div>
 
-        <div class="col-lg-4 mb-4">
-            <div class="content-card">
-                <h5 class="mb-3">Upcoming Appointments</h5>
+<div class="col-lg-4 mb-4">
+    <div class="content-card clickable-card" onclick="showUpcomingAppointmentsModal()">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h5 class="mb-0 text-dark">Upcoming Appointments</h5>
+        </div>
 
-                <ul class="list-group list-group-flush dark-list">
-                    @foreach($upcomingAppointments as $appointment)
-                    <li class="list-group-item">
-                        <strong>{{ $appointment['full_name'] }}</strong> – 
-                        {{ \Carbon\Carbon::parse($appointment['date_from'])->format('M d, h:i A') }}
-                    </li>
-                    @endforeach
+        <div class="text-center py-4">
+            <h1 class="display-4 text-dark mb-2">{{ count($upcomingAppointments) }}</h1>
+            <p class="text-muted mb-0">
+                @if(count($upcomingAppointments) > 0)
+                @else
+                    No upcoming appointments
+                @endif
+            </p>
+        </div>
+    </div>
 
-                    @if(empty($upcomingAppointments))
-                    <li class="list-group-item text-center">No upcoming appointments</li>
-                    @endif
-                </ul>
+    {{-- Today's Appointments (Same as before) --}}
+    <div class="content-card">
+        <h5 class="mb-3">Today's Appointments</h5>
+
+        <ul class="list-group list-group-flush dark-list">
+            @foreach($todayAppointments as $appointment)
+            <li class="list-group-item">
+                <strong>{{ $appointment['full_name'] }}</strong> – 
+                {{ \Carbon\Carbon::parse($appointment['date_from'])->format('h:i A') }}                        
+                <br>
+                <small>Host: {{ $appointment['name_of_person_visited'] ?? 'N/A' }}</small>
+            </li>
+            @endforeach
+            
+            @if(empty($todayAppointments))
+            <li class="list-group-item text-center">No appointments today</li>
+            @endif
+        </ul>
+    </div>
+
+    {{-- Recent Alerts Section --}}
+    <div class="content-card mt-4" style="background-color: #F8f9fa;">
+        <h5 class="mb-3">Recent Alerts</h5>
+        
+        <div class="row g-3">
+            {{-- Access Denied Card - takes full width --}}
+            <div class="col-12">
+                <div class="stat-card clickable-card alert-card" onclick="showAccessDeniedModal()">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h2 class="text-danger">{{ $deniedAccessCount ?? 0 }}</h2>
+                        <span class="badge bg-danger">Access Denied</span>
+                    </div>
+                    <p>Access Denied Incidents</p>
+                </div>
             </div>
 
-            <div class="content-card mt-4">
-                <h5 class="mb-3">Today's Appointments</h5>
-
-                <ul class="list-group list-group-flush dark-list">
-                    @foreach($todayAppointments as $appointment)
-                    <li class="list-group-item">
-                        <strong>{{ $appointment['full_name'] }}</strong> – 
-                        {{ \Carbon\Carbon::parse($appointment['date_from'])->format('h:i A') }}                        
-                        <br>
-                        <small>Host: {{ $appointment['name_of_person_visited'] ?? 'N/A' }}</small>
-                    </li>
-                    @endforeach
-                    
-                    @if(empty($todayAppointments))
-                    <li class="list-group-item text-center">No appointments today</li>
-                    @endif
-                </ul>
-            </div>
-
-            {{-- ✅ CORRECTED: Recent Alerts Section with ONE card per row --}}
-            <div class="content-card mt-4" style="background-color: #F8f9fa;">
-                <h5 class="mb-3">Recent Alerts</h5>
-                
-                <div class="row g-3">
-                    {{-- Access Denied Card - takes full width --}}
-                    <div class="col-12">
-                        <div class="stat-card clickable-card alert-card" onclick="showAccessDeniedModal()">
-                            <div class="d-flex justify-content-between align-items-center">
-                                <h2 class="text-danger">{{ $deniedAccessCount ?? 0 }}</h2>
-                                <span class="badge bg-danger">Access Denied</span>
-                            </div>
-                            <p>Access Denied Incidents</p>
-                            {{-- <small class="text-muted">Click to view details</small> --}}
-                        </div>
+            {{-- Visitor Overstay Card - takes full width --}}
+            <div class="col-12">
+                <div class="stat-card clickable-card alert-card" onclick="showVisitorOverstayModal()">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h2 class="text-warning">{{ $visitorOverstayCount ?? 0 }}</h2>
+                        <span class="badge bg-warning">Overstay</span>
                     </div>
-
-                    {{-- Visitor Overstay Card - takes full width --}}
-                    <div class="col-12">
-                        <div class="stat-card clickable-card alert-card" onclick="showVisitorOverstayModal()">
-                            <div class="d-flex justify-content-between align-items-center">
-                                <h2 class="text-warning">{{ $visitorOverstayCount ?? 0 }}</h2>
-                                <span class="badge bg-warning">Overstay</span>
-                            </div>
-                            <p>Visitor Overstay Alerts</p>
-                        </div>
-                    </div>
+                    <p>Visitor Overstay Alerts</p>
                 </div>
             </div>
         </div>
+    </div>
+</div>
     </div>
 
 </div>
@@ -533,6 +532,52 @@
         </div>
     </div>
 </div>
+{{-- NEW: Upcoming Appointments Modal --}}
+{{-- Updated: Upcoming Appointments Modal (Simple List) --}}
+<div class="modal fade" id="upcomingAppointmentsModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Upcoming Appointments ({{ count($upcomingAppointments) }})</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                @if(!empty($upcomingAppointments))
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Visitor Name</th>
+                                    <th>Appointment Date</th>
+                                    <th>Appointment Time</th>
+                                    <th>Host</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach($upcomingAppointments as $appointment)
+                                <tr>
+                                    <td>{{ $appointment['full_name'] ?? 'N/A' }}</td>
+                                    <td>{{ \Carbon\Carbon::parse($appointment['date_from'])->format('M d, Y') }}</td>
+                                    <td>{{ \Carbon\Carbon::parse($appointment['date_from'])->format('h:i A') }}</td>
+                                    <td>{{ $appointment['name_of_person_visited'] ?? 'N/A' }}</td>
+                                </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+                @else
+                    <div class="alert alert-info">
+                        <p class="mb-0">No upcoming appointments found.</p>
+                    </div>
+                @endif
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 {{-- Chart.js Dynamic Graph --}}
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
@@ -547,6 +592,46 @@ function showVisitorOverstayModal() {
     const modal = new bootstrap.Modal(document.getElementById('visitorOverstayModal'));
     modal.show();
 }
+
+// Upcoming Appointments Modal Show Function
+function showUpcomingAppointmentsModal() {
+    const modal = new bootstrap.Modal(document.getElementById('upcomingAppointmentsModal'));
+    
+    // Optional: Sort appointments by date before showing
+    const tableBody = document.querySelector('#upcomingAppointmentsModal tbody');
+    if (tableBody) {
+        const rows = Array.from(tableBody.querySelectorAll('tr'));
+        
+        rows.sort((a, b) => {
+            const dateA = new Date(a.cells[5].textContent + ' ' + a.cells[6].textContent);
+            const dateB = new Date(b.cells[5].textContent + ' ' + b.cells[6].textContent);
+            return dateA - dateB;
+        });
+        
+        // Clear and re-append sorted rows
+        tableBody.innerHTML = '';
+        rows.forEach(row => tableBody.appendChild(row));
+    }
+    
+    modal.show();
+}
+
+// Also make the whole card clickable if there are appointments
+document.addEventListener('DOMContentLoaded', function() {
+    const upcomingCard = document.querySelector('.content-card h5:contains("Upcoming Appointments")')?.closest('.content-card');
+    const appointmentCount = {{ count($upcomingAppointments) }};
+    
+    if (upcomingCard && appointmentCount > 0) {
+        upcomingCard.style.cursor = 'pointer';
+        upcomingCard.addEventListener('click', function(e) {
+            // Only trigger if not clicking on buttons/links
+            if (!e.target.closest('button') && !e.target.closest('a')) {
+                showUpcomingAppointmentsModal();
+            }
+        });
+    }
+});
+
 // Initialize chart with default data
 function initializeChart(labels, data) {
     const ctx = document.getElementById('trafficChart').getContext('2d');   

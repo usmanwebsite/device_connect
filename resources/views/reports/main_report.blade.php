@@ -18,20 +18,26 @@
                     </div>
                 </div>
 
-                {{-- Filter Form - RESPONSIVE DESIGN --}}
                 <div class="row mb-4 filter-form-mobile">
+                    {{-- From Date with Time --}}
                     <div class="col-12 col-sm-6 col-md-3 mb-3 mb-md-0">
-                        <label for="fromDate" class="form-label">From Date</label>
-                        <input type="date" class="form-control" id="fromDate" value="{{ now()->format('Y-m-d') }}">
+                        <label for="fromDate" class="form-label">From Date & Time</label>
+                        <input type="datetime-local" class="form-control" id="fromDate" 
+                            value="{{ now()->format('Y-m-d\T00:00') }}">
+                        <small class="text-muted">Start date and time</small>
                     </div>
+                    
+                    {{-- To Date with Time --}}
                     <div class="col-12 col-sm-6 col-md-3 mb-3 mb-md-0">
-                        <label for="toDate" class="form-label">To Date</label>
-                        <input type="date" class="form-control" id="toDate" value="{{ now()->format('Y-m-d') }}">
+                        <label for="toDate" class="form-label">To Date & Time</label>
+                        <input type="datetime-local" class="form-control" id="toDate" 
+                            value="{{ now()->format('Y-m-d\T23:59') }}">
+                        <small class="text-muted">End date and time</small>
                     </div>
+                    
+                    {{-- Locations Dropdown (Same as before) --}}
                     <div class="col-12 col-md-4 mb-3 mb-md-0">
                         <label class="form-label">Select Locations</label>
-                        
-                        {{-- SIMPLE DROPDOWN - NO BOOTSTRAP ATTRIBUTES --}}
                         <div class="custom-dropdown" id="locationDropdownContainer">
                             <button class="dropdown-toggle form-control text-start" 
                                     type="button" 
@@ -55,9 +61,9 @@
                                         @foreach($locations as $loc)
                                             <div class="form-check">
                                                 <input class="form-check-input location-checkbox" 
-                                                       type="checkbox" 
-                                                       value="{{ $loc->name }}" 
-                                                       id="loc_{{ $loc->id }}">
+                                                    type="checkbox" 
+                                                    value="{{ $loc->name }}" 
+                                                    id="loc_{{ $loc->id }}">
                                                 <label class="form-check-label" for="loc_{{ $loc->id }}">
                                                     {{ $loc->name }}
                                                 </label>
@@ -70,6 +76,7 @@
                         {{-- Selected Locations Display --}}
                         <div id="selectedLocations" class="mt-2 small text-muted" style="min-height: 20px;"></div>
                     </div>
+                    
                     <div class="col-12 col-md-2 d-flex align-items-end">
                         <button class="btn btn-primary w-100" onclick="loadReport()" style="margin-bottom: 30px">
                             <i class="fas fa-search"></i> <span class="d-none d-sm-inline">Generate</span>
@@ -154,51 +161,57 @@
         </div>
     </div>
 
-    {{-- Staff Movement Modal --}}
-    <div class="modal fade" id="staffMovementModal" tabindex="-1" aria-hidden="true">
-        <div class="modal-dialog modal-lg">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="movementModalTitle">Staff Movement History</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body">
-                    <div id="movementLoading" class="text-center d-none">
-                        <div class="spinner-border text-primary" role="status">
-                            <span class="visually-hidden">Loading...</span>
-                        </div>
-                        <p class="mt-2">Loading movement history...</p>
+{{-- Staff Movement Modal --}}
+<div class="modal fade" id="staffMovementModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="movementModalTitle">Staff Movement History</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div id="movementLoading" class="text-center d-none">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
                     </div>
-                    <div id="movementContent" class="d-none">
-                        <p><strong>Staff No:</strong> <span id="modalStaffNo"></span></p>
-                        <div class="table-responsive">
-                            <table class="table table-sm table-bordered">
-                                <thead class="table-dark">
-                                    <tr>
-                                        <th>Date & Time</th>
-                                        <th>Location</th>
-                                        <th>Access</th>
-                                        <th>Reason</th>
-                                        <th>Type</th>
-                                        <th>Action</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="movementTableBody">
-                                    {{-- Dynamic content --}}
-                                </tbody>
-                            </table>
-                        </div>
+                    <p class="mt-2">Loading movement history...</p>
+                </div>
+                <div id="movementContent" class="d-none">
+                    <p><strong>Staff No:</strong> <span id="modalStaffNo"></span></p>
+                    <div class="visitor-info-section mb-3" id="visitorInfoSection" style="display: none;">
+                        <p><strong>Full Name:</strong> <span id="modalVisitorName"></span></p>
+                        <p><strong>IC No:</strong> <span id="modalVisitorIC"></span></p>
                     </div>
-                    <div id="noMovementMessage" class="text-center d-none">
-                        <p>No movement history found for this staff.</p>
+                    <div class="table-responsive">
+                        <table class="table table-sm table-bordered">
+                            <thead class="table-dark">
+                                <tr>
+                                    <th>Date & Time</th>
+                                    <th>Location</th>
+                                    <th>Access</th>
+                                    <th>Reason</th>
+                                    <th>Type</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="movementTableBody">
+                                {{-- Dynamic content --}}
+                            </tbody>
+                        </table>
                     </div>
                 </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <div id="noMovementMessage" class="text-center d-none">
+                    <p>No movement history found for this staff.</p>
                 </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-primary" id="modalViewChronologyBtn">View Chronology</button>
             </div>
         </div>
     </div>
+</div>
+
 </div>
 @endsection
 
@@ -206,21 +219,16 @@
 <script>
 // Custom Dropdown Functionality
 document.addEventListener('DOMContentLoaded', function() {
-    // Get dropdown elements
     const dropdownBtn = document.getElementById('locationDropdownBtn');
     const dropdownMenu = document.getElementById('locationDropdownMenu');
     const dropdownContainer = document.getElementById('locationDropdownContainer');
     
     if (dropdownBtn && dropdownMenu) {
-        // Toggle dropdown on button click
         dropdownBtn.addEventListener('click', function(e) {
             e.preventDefault();
             e.stopPropagation();
-            
-            // Close all other dropdowns
             closeAllDropdownsExcept(this);
             
-            // Toggle current dropdown
             const isShowing = dropdownMenu.classList.contains('show');
             if (isShowing) {
                 dropdownMenu.classList.remove('show');
@@ -231,7 +239,6 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
         
-        // Close dropdown when clicking outside
         document.addEventListener('click', function(e) {
             if (!dropdownContainer.contains(e.target)) {
                 dropdownMenu.classList.remove('show');
@@ -239,12 +246,10 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
         
-        // Prevent dropdown from closing when clicking inside
         dropdownMenu.addEventListener('click', function(e) {
             e.stopPropagation();
         });
         
-        // Close on escape key
         document.addEventListener('keydown', function(e) {
             if (e.key === 'Escape') {
                 dropdownMenu.classList.remove('show');
@@ -254,7 +259,6 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     
     function closeAllDropdownsExcept(currentElement) {
-        // You can add logic to close other dropdowns if needed
         const allDropdowns = document.querySelectorAll('.dropdown-menu');
         const allButtons = document.querySelectorAll('.dropdown-toggle');
         
@@ -271,7 +275,6 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     
-    // Update selected locations display
     function updateSelectedLocationsDisplay() {
         const selectedLocations = [];
         document.querySelectorAll('.location-checkbox:checked').forEach(checkbox => {
@@ -294,7 +297,6 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
     
-    // Select All functionality
     const selectAllCheckbox = document.getElementById('selectAllLocations');
     if (selectAllCheckbox) {
         selectAllCheckbox.addEventListener('change', function() {
@@ -306,12 +308,10 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     
-    // Individual checkbox change
     document.querySelectorAll('.location-checkbox').forEach(checkbox => {
         checkbox.addEventListener('change', function() {
             updateSelectedLocationsDisplay();
             
-            // Update "Select All" checkbox state
             const allCheckboxes = document.querySelectorAll('.location-checkbox');
             const selectAll = document.getElementById('selectAllLocations');
             const checkedCount = document.querySelectorAll('.location-checkbox:checked').length;
@@ -321,10 +321,8 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
     
-    // Initialize display on page load
     updateSelectedLocationsDisplay();
     
-    // Mobile menu toggle functionality
     const mobileMenuToggle = document.getElementById('mobileMenuToggle');
     if (mobileMenuToggle) {
         mobileMenuToggle.addEventListener('click', function() {
@@ -333,7 +331,6 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     
-    // Close sidebar when clicking outside on mobile
     document.addEventListener('click', function(e) {
         const sidebar = document.querySelector('.sidebar');
         const mobileToggle = document.getElementById('mobileMenuToggle');
@@ -347,13 +344,13 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 });
 
-// Rest of your existing JavaScript functions
-// ... [Keep all your existing functions like loadReport, displayReportData, etc.]
-
+// Global Variables
 let currentPage = 1;
 let itemsPerPage = 10;
 let allStaffData = [];
 let visitorDetailsCache = {};
+let currentModalStaffNo = null;
+let currentModalVisitorDetails = null;
 
 // Get selected locations
 function getSelectedLocations() {
@@ -364,19 +361,25 @@ function getSelectedLocations() {
     return selectedLocations;
 }
 
-// Update selected locations display (already defined above)
-
-// Select All functionality (already defined above)
-
-// Individual checkbox change (already defined above)
+function formatDateTimeDisplay(datetimeString) {
+    const date = new Date(datetimeString);
+    return date.toLocaleString('en-GB', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true
+    });
+}
 
 function loadReport() {
-    const fromDate = document.getElementById('fromDate').value;
-    const toDate = document.getElementById('toDate').value;
+    const fromDateTime = document.getElementById('fromDate').value;
+    const toDateTime = document.getElementById('toDate').value;
     const selectedLocations = getSelectedLocations();
 
-    if (!fromDate || !toDate) {
-        alert('Please select both from date and to date');
+    if (!fromDateTime || !toDateTime) {
+        alert('Please select both from date-time and to date-time');
         return;
     }
 
@@ -385,19 +388,23 @@ function loadReport() {
         return;
     }
 
-    if (new Date(fromDate) > new Date(toDate)) {
-        alert('From date cannot be greater than To date');
+    const fromDateObj = new Date(fromDateTime);
+    const toDateObj = new Date(toDateTime);
+
+    if (fromDateObj > toDateObj) {
+        alert('From date-time cannot be greater than To date-time');
         return;
     }
 
-    // Show loading
     document.getElementById('loadingSpinner').classList.remove('d-none');
     document.getElementById('staffTableContainer').classList.add('d-none');
     document.getElementById('noDataMessage').classList.add('d-none');
     document.getElementById('reportSummary').classList.add('d-none');
     document.getElementById('tableFooter').classList.add('d-none');
 
-    // Make API call with date range and multiple locations
+    const fromDisplay = formatDateTimeDisplay(fromDateTime);
+    const toDisplay = formatDateTimeDisplay(toDateTime);
+
     fetch('{{ route("reports.access-logs.data") }}', {
         method: 'POST',
         headers: {
@@ -405,8 +412,8 @@ function loadReport() {
             'X-CSRF-TOKEN': '{{ csrf_token() }}'
         },
         body: JSON.stringify({
-            from_date: fromDate,
-            to_date: toDate,
+            from_date: fromDateTime,
+            to_date: toDateTime,
             locations: selectedLocations
         })
     })
@@ -415,7 +422,7 @@ function loadReport() {
         document.getElementById('loadingSpinner').classList.add('d-none');
 
         if (data.success) {
-            displayReportData(data, fromDate, toDate, selectedLocations);
+            displayReportData(data, fromDisplay, toDisplay, selectedLocations);
         } else {
             showNoData();
         }
@@ -423,11 +430,11 @@ function loadReport() {
     .catch(error => {
         console.error('Error:', error);
         document.getElementById('loadingSpinner').classList.add('d-none');
-        alert('Error loading report data');
+        alert('Error loading report data: ' + error.message);
     });
 }
 
-function displayReportData(data, fromDate, toDate, selectedLocations) {
+function displayReportData(data, fromDisplay, toDisplay, selectedLocations) {
     const staffList = data.staff_list;
     const accessLogs = data.access_logs;
     const totalStaff = data.total_staff;
@@ -437,7 +444,6 @@ function displayReportData(data, fromDate, toDate, selectedLocations) {
         return;
     }
 
-    // Prepare staff data with access information
     allStaffData = staffList.map(staffNo => {
         const staffLogs = accessLogs[staffNo] || [];
         const accessTimes = staffLogs.map(log => new Date(log.created_at));
@@ -452,16 +458,20 @@ function displayReportData(data, fromDate, toDate, selectedLocations) {
         };
     });
 
-    // Update summary
     document.getElementById('totalStaffCount').textContent = totalStaff;
     
     const locationText = selectedLocations.length > 2 
         ? `${selectedLocations.length} locations` 
         : selectedLocations.join(', ');
     
+    const reportInfo = document.getElementById('reportInfo');
+    reportInfo.innerHTML = `
+        <strong>Report Period:</strong> ${fromDisplay} to ${toDisplay}<br>
+        <strong>Locations:</strong> ${locationText}
+    `;
+    
     document.getElementById('reportSummary').classList.remove('d-none');
 
-    // Fetch visitor details for all staff
     fetchAllVisitorDetails().then(() => {
         currentPage = 1;
         displayCurrentPage();
@@ -469,7 +479,6 @@ function displayReportData(data, fromDate, toDate, selectedLocations) {
     });
 }
 
-// Function to fetch visitor details for all staff numbers
 async function fetchAllVisitorDetails() {
     const promises = allStaffData.map(async (staff) => {
         if (visitorDetailsCache[staff.staffNo]) {
@@ -589,19 +598,43 @@ function viewStaffMovement(staffNo) {
     document.getElementById('movementModalTitle').textContent = `Movement History - ${staffNo}`;
     document.getElementById('modalStaffNo').textContent = staffNo;
     
-    document.getElementById('movementLoading').classList.remove('d-none');
-    document.getElementById('movementContent').classList.add('d-none');
-    document.getElementById('noMovementMessage').classList.add('d-none');
+    currentModalStaffNo = staffNo;
+    document.getElementById('visitorInfoSection').style.display = 'none';
 
     modal.show();
 
+    // Reset View Chronology button
+    const viewChronologyBtn = document.getElementById('modalViewChronologyBtn');
+    viewChronologyBtn.disabled = true;
+    viewChronologyBtn.textContent = 'View Chronology';
+    viewChronologyBtn.onclick = function() {
+        viewVisitorChronology(currentModalStaffNo, currentModalVisitorDetails?.icNo, currentModalVisitorDetails?.fullName);
+    };
+
+    // Get visitor details
+    const visitorDetails = visitorDetailsCache[staffNo];
+    
+    if (visitorDetails) {
+        displayVisitorInfoInModal(visitorDetails);
+        currentModalVisitorDetails = visitorDetails;
+        viewChronologyBtn.disabled = false;
+    } else {
+        fetchVisitorDetailsForModal(staffNo);
+    }
+
+    // Fetch movement history
+    document.getElementById('movementLoading').classList.remove('d-none');
+    document.getElementById('movementContent').classList.add('d-none');
+    document.getElementById('noMovementMessage').classList.add('d-none');
+    
     fetch(`/reports/staff-movement/${staffNo}`)
         .then(response => response.json())
         .then(data => {
             document.getElementById('movementLoading').classList.add('d-none');
 
             if (data.success && data.movement_history.length > 0) {
-                displayMovementHistory(data.movement_history);
+                displayMovementHistory(data.movement_history, visitorDetails);
+                document.getElementById('movementContent').classList.remove('d-none');
             } else {
                 document.getElementById('noMovementMessage').classList.remove('d-none');
             }
@@ -613,14 +646,41 @@ function viewStaffMovement(staffNo) {
         });
 }
 
-function displayMovementHistory(movementHistory) {
+function displayVisitorInfoInModal(visitorDetails) {
+    if (visitorDetails && visitorDetails.fullName && visitorDetails.fullName !== 'N/A') {
+        document.getElementById('modalVisitorName').textContent = visitorDetails.fullName;
+        document.getElementById('modalVisitorIC').textContent = visitorDetails.icNo || 'N/A';
+        document.getElementById('visitorInfoSection').style.display = 'block';
+        currentModalVisitorDetails = visitorDetails;
+        
+        // Enable View Chronology button
+        const viewChronologyBtn = document.getElementById('modalViewChronologyBtn');
+        viewChronologyBtn.disabled = false;
+    }
+}
+
+function fetchVisitorDetailsForModal(staffNo) {
+    fetch(`http://127.0.0.1:8080/api/vendorpass/get-visitor-details?staffNo=${staffNo}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'success') {
+                const visitorDetails = data.data;
+                displayVisitorInfoInModal(visitorDetails);
+                visitorDetailsCache[staffNo] = visitorDetails;
+            }
+        })
+        .catch(error => {
+            console.error(`Error fetching details for ${staffNo}:`, error);
+        });
+}
+
+function displayMovementHistory(movementHistory, visitorDetails) {
     const tableBody = document.getElementById('movementTableBody');
     tableBody.innerHTML = '';
 
     movementHistory.forEach(movement => {
         const row = document.createElement('tr');
         
-        // Determine badge class based on type
         let badgeClass = 'badge bg-secondary';
         if (movement.type === 'Checkin') {
             badgeClass = 'badge bg-primary';
@@ -642,12 +702,27 @@ function displayMovementHistory(movementHistory) {
                     ${movement.type || 'N/A'}
                 </span>
             </td>
-            <td>${movement.action || 'N/A'}</td>
+            <td>
+                <span class="badge bg-info">Entered</span>
+            </td>
         `;
         tableBody.appendChild(row);
     });
+}
 
-    document.getElementById('movementContent').classList.remove('d-none');
+function viewVisitorChronology(staffNo, icNo, fullName) {
+    if (!staffNo) {
+        alert('Staff number is required');
+        return;
+    }
+    
+    // Step 1: Pehle modal close karo
+    const modal = bootstrap.Modal.getInstance(document.getElementById('staffMovementModal'));
+    if (modal) {
+        modal.hide();
+    }
+    
+    window.location.href = `/visitor-details?autoSearch=true&staffNo=${encodeURIComponent(staffNo)}&icNo=${encodeURIComponent(icNo || '')}`;
 }
 
 // Event listeners

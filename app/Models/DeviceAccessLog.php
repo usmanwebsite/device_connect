@@ -15,6 +15,7 @@ class DeviceAccessLog extends Model
         'access_granted',
         'location_name',
         'acknowledge',
+        'acknowledge_by',
         'created_at'
     ];
 

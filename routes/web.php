@@ -52,7 +52,6 @@ Route::get('/java-auth/callback',
     [JavaAuthController::class, 'handleCallback']
 )->name('java-auth.callback');
 
-
 Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
 
 
@@ -84,18 +83,17 @@ Route::get('/clear-session', function() {
 
 
 
-Route::prefix('reports')->group(function () {
-
-    Route::get('/access-logs', [ReportController::class, 'accessLogs'])->name('reports.access-logs');
-    Route::post('/access-logs/data', [ReportController::class, 'getAccessLogsData'])->name('reports.access-logs.data');
-    Route::get('/staff-movement/{staffNo}', [ReportController::class, 'getStaffMovement'])->name('reports.staff-movement');
-
-});
+    Route::prefix('reports')->group(function () {
+        Route::get('/access-logs', [ReportController::class, 'accessLogs'])->name('reports.access-logs');
+        Route::post('/access-logs/data', [ReportController::class, 'getAccessLogsData'])->name('reports.access-logs.data');
+        Route::get('/staff-movement/{staffNo}', [ReportController::class, 'getStaffMovement'])->name('reports.staff-movement');
+    });
 
     Route::get('/paths', [PathController::class, 'index'])->name('paths.index');
     Route::post('/paths', [PathController::class, 'store'])->name('paths.store');
     Route::get('/paths/{id}/edit', [PathController::class, 'edit'])->name('paths.edit');
     Route::put('/paths/{id}', [PathController::class, 'update'])->name('paths.update');
+    Route::post('/vendor-locations/refresh',[PathController::class, 'refreshVendorLocations'])->name('vendor.locations.refresh');
 
 
     Route::prefix('visitor-report')->group(function () {
