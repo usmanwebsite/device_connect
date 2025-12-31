@@ -93,7 +93,8 @@ Route::get('/clear-session', function() {
     Route::post('/paths', [PathController::class, 'store'])->name('paths.store');
     Route::get('/paths/{id}/edit', [PathController::class, 'edit'])->name('paths.edit');
     Route::put('/paths/{id}', [PathController::class, 'update'])->name('paths.update');
-    Route::post('/vendor-locations/refresh',[PathController::class, 'refreshVendorLocations'])->name('vendor.locations.refresh');
+    Route::post('/vendor-locations/refresh-hierarchy', [PathController::class, 'refreshLocationHierarchy'])
+    ->name('vendor.locations.refresh.hierarchy');
 
 
     Route::prefix('visitor-report')->group(function () {
@@ -123,6 +124,9 @@ Route::get('/clear-session', function() {
         Route::get('/export', [VisitorInfoByDoorController::class, 'exportVisitors'])->name('export');
     });
 
+
+    Route::post('/logout', [JavaAuthController::class, 'logout'])
+    ->name('logout');
 
     Route::get('/redirect-to-angular/{route}', [AngularRedirectController::class, 'redirect'])
     ->where('route', '.*')

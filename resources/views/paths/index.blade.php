@@ -68,8 +68,8 @@
         <div>
             <span class="badge bg-info">{{ $paths->count() }} paths</span>
 
-            <button type="button" id="refreshLocations" class="btn btn-sm btn-outline-primary ms-2">
-                <i class="fas fa-sync"></i> Refresh Locations
+            <button type="button" id="refreshHierarchy" class="btn btn-sm btn-outline-info ms-2">
+                <i class="fas fa-sitemap"></i> Refresh Locations
             </button>
 
             <button type="button" id="reloadTable" class="btn btn-sm btn-outline-warning ms-2">
@@ -304,28 +304,32 @@ $(document).ready(function() {
     });
 
 
-$('#refreshLocations').on('click', function () {
-    if (!confirm('This will fetch active locations from Java system (SAFEG_LOCATION_ACCESS_LOCKUP table) and sync with local database.\n\nDo you want to continue?')) {
+$('#refreshHierarchy').on('click', function () {
+    if (!confirm('This will fetch location hierarchy from Java system:\n• Main Locations → locations table\n• Sub-Locations → vendor_locations table\n\nDo you want to continue?')) {
         return;
     }
 
-    // Disable button and show loading
     const $btn = $(this);
     const originalHtml = $btn.html();
-    $btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Syncing...');
+    $btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Syncing Hierarchy...');
 
     $.ajax({
-        url: "{{ route('vendor.locations.refresh') }}",
+        url: "{{ route('vendor.locations.refresh.hierarchy') }}",
         type: "POST",
         data: {
             _token: "{{ csrf_token() }}"
         },
         success: function (response) {
             if (response.success) {
-                const message = `✅ ${response.message}\n\n📊 Sync Summary:\n• Received: ${response.total_received} locations\n• New Added: ${response.inserted}\n• Already Existed: ${response.skipped}\n\nPage will reload in 3 seconds...`;
+                const summary = response.summary;
+                // CORRECTED: PHP में 'locations' और 'vendor_locations' हैं
+                const mainLocations = summary.locations || { total: 0, inserted: 0, skipped: 0 };
+                const subLocations = summary.vendor_locations || { total: 0, inserted: 0, skipped: 0 };
+                
+                const message = `✅ ${response.message}\n\n📊 Main Locations:\n• Received: ${mainLocations.total}\n• New Added: ${mainLocations.inserted}\n• Already Existed: ${mainLocations.skipped}\n\n📊 Sub-Locations:\n• Received: ${subLocations.total}\n• New Added: ${subLocations.inserted}\n• Already Existed: ${subLocations.skipped}\n\nPage will reload in 3 seconds...`;
+                
                 alert(message);
                 
-                // Reload after 3 seconds
                 setTimeout(() => {
                     location.reload();
                 }, 3000);
@@ -335,7 +339,7 @@ $('#refreshLocations').on('click', function () {
             }
         },
         error: function (xhr) {
-            let errorMessage = 'Failed to refresh locations. ';
+            let errorMessage = 'Failed to refresh location hierarchy. ';
             if (xhr.responseJSON && xhr.responseJSON.message) {
                 errorMessage += xhr.responseJSON.message;
             } else if (xhr.status === 0) {

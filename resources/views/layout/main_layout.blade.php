@@ -7,6 +7,7 @@
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
     <link href='https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css' rel='stylesheet'>
 
     <!-- DataTables CSS -->
@@ -268,6 +269,36 @@
                 // Optional: Add any link click handling here
             });
         });
+
+
+        
+            const userMenuBtn = document.getElementById('userMenuBtn');
+    const dropdownMenu = document.getElementById('dropdownMenu');
+    const userDropdown = document.querySelector('.user-dropdown');
+
+    if (userMenuBtn && dropdownMenu && userDropdown) {
+        userMenuBtn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            userDropdown.classList.toggle('show');
+        });
+
+        // Close dropdown when clicking outside
+        document.addEventListener('click', function(e) {
+            if (!userDropdown.contains(e.target)) {
+                userDropdown.classList.remove('show');
+            }
+        });
+        
+        // Close dropdown when clicking on a link
+        const dropdownLinks = document.querySelectorAll('.dropdown-link');
+        dropdownLinks.forEach(link => {
+            link.addEventListener('click', function() {
+                userDropdown.classList.remove('show');
+            });
+        });
+    }
+
+
     });
     </script>
 

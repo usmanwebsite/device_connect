@@ -986,6 +986,166 @@ input[type="datetime-local"]:focus {
 /* ============ TABLE STYLING - FULL DATA DISPLAY ============ */
 
 /* Table Container with Fixed Header */
+/* Header Styles */
+.header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 20px;
+    background-color: #fff;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    border-bottom: 1px solid #dee2e6;
+    height: 60px;
+    position: sticky;
+    top: 0;
+    z-index: 1000;
+}
+
+.header .left-section {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+.header .menu-icon {
+    font-size: 24px;
+    cursor: pointer;
+    color: #333;
+    transition: color 0.3s;
+}
+
+.header .menu-icon:hover {
+    color: #007bff;
+}
+
+.header .right-section {
+    display: flex;
+    align-items: center;
+}
+
+/* User Dropdown Styles */
+.user-dropdown {
+    position: relative;
+    display: inline-block;
+}
+
+.user-info {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    padding: 6px 10px;
+    border-radius: 4px;
+    transition: background-color 0.2s;
+}
+
+.user-info:hover {
+    background-color: #f5f5f5;
+}
+
+.user-icon {
+    width: 35px;
+    height: 35px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 2px solid #e9ecef;
+}
+
+.dropdown-arrow {
+    font-size: 12px;
+    color: #6c757d;
+    transition: transform 0.3s;
+}
+
+.user-dropdown.active .dropdown-arrow {
+    transform: rotate(180deg);
+}
+
+/* Dropdown Menu - Image की तरह */
+.user-dropdown .dropdown-menu {
+    display: none;
+    position: absolute;
+    right: 0;
+    top: 100%;
+    background-color: #fff;
+    min-width: 160px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    border-radius: 6px;
+    padding: 8px 0;
+    margin-top: 8px;
+    border: 1px solid #dee2e6;
+    z-index: 1001;
+    list-style: none;
+}
+
+.user-dropdown .dropdown-menu.show {
+    display: block;
+    animation: fadeIn 0.2s ease;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(-10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* Dropdown Items */
+.user-dropdown .dropdown-menu li {
+    margin: 0;
+}
+
+.user-dropdown .dropdown-menu .dropdown-link {
+    display: flex;
+    align-items: center;
+    gap: 12px; /* Icon और text के बीच की दूरी */
+    padding: 10px 16px;
+    text-decoration: none;
+    color: #333;
+    font-size: 14px;
+    font-weight: 500;
+    transition: background-color 0.2s;
+}
+
+.user-dropdown .dropdown-menu .dropdown-link:hover {
+    background-color: #f8f9fa;
+}
+
+/* Icon styling - left side margin के साथ */
+.user-dropdown .dropdown-menu .dropdown-link .icon {
+    width: 16px;
+    text-align: center;
+    font-size: 14px;
+    color: #6c757d;
+    margin-right: 8px; /* Icon और text के बीच space */
+}
+
+/* Logout link - Red color */
+.user-dropdown .dropdown-menu .dropdown-link.logout-link {
+    color: #dc3545 !important;
+}
+
+.user-dropdown .dropdown-menu .dropdown-link.logout-link .icon {
+    color: #dc3545 !important;
+}
+
+.user-dropdown .dropdown-menu .dropdown-link.logout-link:hover {
+    background-color: #f8d7da !important;
+    color: #b02a37 !important;
+}
+
+/* Divider line - Profile और Logout के बीच */
+.user-dropdown .dropdown-menu .dropdown-divider {
+    height: 1px;
+    background-color: #e9ecef;
+    margin: 6px 0;
+    border: none;
+}
+
+/* Dropdown show class for animation */
+.user-dropdown.show .dropdown-menu {
+    display: block;
+}
+
+
 .table-container-wrapper {
     max-height: 500px;
     overflow: auto;

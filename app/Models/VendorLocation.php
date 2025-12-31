@@ -8,5 +8,11 @@ use Illuminate\Database\Eloquent\Model;
 class VendorLocation extends Model
 {
     use HasFactory;
-    protected $fillable = ['meetingRoom','name','statusId'];
+    protected $fillable = ['location_id','meetingRoom','name','statusId'];
+
+    public function location()
+    {
+        return $this->belongsTo(Location::class);
+    }
+
 }

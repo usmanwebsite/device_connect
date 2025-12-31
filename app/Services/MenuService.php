@@ -13,12 +13,17 @@ class MenuService
 
     public function __construct()
     {
+        $domain = request()->getHost();
         $this->APP_URL  = env('APP_URL','http://localhost');
-        $this->javaBaseUrl = env('JAVA_BACKEND_URL', 'http://localhost:8080');
+        
+        $this->javaBaseUrl = 'http://' . $domain . ':8080';
     }
+
 
 public function getFilteredAngularMenu()
 {
+    // $domain = request()->getHost();
+    // dd($domain);
     Log::info('=== getFilteredAngularMenu Called ===');
 
     $token = $this->getJavaAuthToken();
