@@ -130,8 +130,8 @@
         </div>
     </div>
 
-    <div class="row g-3 mb-4">
-        <div class="col-md-3 col-6">
+    <div class="row g-3 mb-4" style="width: 99%; margin-left: 8px !important;">
+        <div class="col-md-3 col-6" >
             <div class="stat-card clickable-card" onclick="showVisitorsOnSiteModal()">
                 <h2>{{ count($visitorsOnSite) }}</h2>
                 <p>Visitors On-Site</p>
@@ -628,7 +628,6 @@
         </div>
     </div>
 </div>
-
 {{-- Chart.js Dynamic Graph --}}
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>

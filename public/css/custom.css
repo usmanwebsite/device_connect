@@ -519,6 +519,8 @@ body {
 
 .dashboard-wrapper {
     padding: 20px;
+    max-width: 1400px; /* or any value that matches the design */
+    margin: 0 auto;
 }
 
 /* Critical Alert Section */
@@ -805,6 +807,8 @@ body {
 
 
 
+
+
 /* Main Report Styling with Color Scheme */
 .main-content {
     margin-left: 250px;
@@ -828,6 +832,10 @@ body {
 /* When sidebar is collapsed */
 .sidebar.collapsed {
     transform: translateX(-100%);
+}
+
+.custom-dropdown .dropdown-toggle::after {
+    display: none !important;
 }
 
 /* Main content when sidebar collapsed */
