@@ -285,7 +285,7 @@ body {
 }
 
 .menu-item.active .dropdown-content {
-    max-height: 1000px;
+    max-height: 1020px;
     padding-top: 5px;
     padding-bottom: 5px;
 }
@@ -472,7 +472,7 @@ body {
 
 /* Main dropdown active state */
 .menu-item.active .dropdown-content {
-    max-height: 1000px;
+    max-height: 1020px;
 }
 
 .menu-item.active .dropdown-arrow {

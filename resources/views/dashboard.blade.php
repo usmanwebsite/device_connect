@@ -584,7 +584,6 @@
         </div>
     </div>
 </div>
-{{-- NEW: Upcoming Appointments Modal --}}
 {{-- Updated: Upcoming Appointments Modal (Simple List) --}}
 <div class="modal fade" id="upcomingAppointmentsModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-lg">
