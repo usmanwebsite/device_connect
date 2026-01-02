@@ -11,6 +11,7 @@ use Illuminate\Support\Carbon;
 use App\Models\DeviceAccessLog;
 use App\Models\DeviceConnection;
 use App\Models\DeviceLocationAssign;
+use App\Models\SecurityAlertPriority;
 use App\Models\VendorLocation;
 
 class DashboardController extends Controller
@@ -22,7 +23,162 @@ class DashboardController extends Controller
         $this->menuService = $menuService;
     }
 
-    public function index(Request $request, MenuService $menuService)
+    // public function index(Request $request, MenuService $menuService)
+    // {
+    //     try {
+    //         Log::info('=== Dashboard Accessed ===');
+
+    //         $token = session()->get('java_backend_token') ?? session()->get('java_auth_token');
+            
+    //         $angularMenu = [];
+    //         if ($token) {
+    //             try {
+    //                 $angularMenu = $menuService->getFilteredAngularMenuWithToken($token);
+
+    //                 // ✅ User ID session mein save karna
+    //                 $userAccessData = $menuService->getUserAccessData();
+    //                 if ($userAccessData && isset($userAccessData['user_id'])) {
+    //                     session()->put('java_user_id', $userAccessData['user_id']);
+    //                     Log::info('User ID saved in dashboard session:', ['user_id' => $userAccessData['user_id']]);
+    //                 }
+                    
+    //                 if (empty($angularMenu) || (is_array($angularMenu) && count($angularMenu) === 0)) {
+    //                     Log::warning('Empty angularMenu returned. Redirecting user.');
+    //                     return redirect()->away(config('app.angular_url'))
+    //                         ->with('error', 'Session expired. Please login again.');
+    //                 }
+                    
+    //                 Log::info('angularmeniu', ['angularMenu' => $angularMenu]);
+                    
+    //             } catch (\Exception $e) {
+    //                 Log::error('Menu error: ' . $e->getMessage());
+    //                 $angularMenu = [];
+    //                 return redirect()->away(config('app.angular_url'))
+    //                     ->with('error', 'Session expired. Please login again.');
+    //             }
+    //         } else {
+    //             Log::error('NO TOKEN FOUND IN DASHBOARD!');
+    //             return redirect()->away(config('app.angular_url'))
+    //                 ->with('error', 'Session expired. Please login again.');
+    //         }
+            
+    //         Log::info('Angular Menu Structure:');
+            
+    //         // ✅ User access data ko dobara get karein (agar nahi mila toh)
+    //         $userAccessData = $this->menuService->getUserAccessData();
+
+    //         $todayAppointmentCount = 0;
+    //         $upcomingAppointments = [];
+    //         $todayAppointments = [];
+            
+    //         if ($userAccessData && isset($userAccessData['today_appointment_count'])) {
+    //             $todayAppointmentCount = $userAccessData['today_appointment_count'];
+    //             $todayAppointments = $userAccessData['today_appointments'] ?? [];
+    //             $upcomingAppointments = $userAccessData['upcoming_appointments'] ?? [];
+    //         }
+            
+    //         // ✅ Get visitors on site
+    //         $visitorsOnSite = $this->getCurrentVisitorsOnSite();
+            
+    //         $criticalAlert = $this->getCriticalSecurityAlert();
+
+    //         $activeSecurityAlertsCount = DeviceAccessLog::where('access_granted', 0)
+    //             ->where('acknowledge', 0)
+    //             ->count();
+
+    //         $hourlyTrafficData = $this->getHourlyTrafficData();
+
+    //         $allDeviceUsers = DeviceAccessLog::where('access_granted', 1)->get();
+    //         $visitorOverstayAlerts = $this->getAllVisitorOverstayAlerts($allDeviceUsers);
+    //         $visitorOverstayCount = count($visitorOverstayAlerts);
+
+    //         $deniedAccessCount = DeviceAccessLog::where('access_granted', 0)
+    //             ->where('acknowledge', 0)
+    //             ->count();
+
+    //         $deniedAccessLogs = DeviceAccessLog::where('access_granted', 0)
+    //             ->where('acknowledge', 0)
+    //             ->orderBy('created_at', 'desc')
+    //             ->get();
+
+    //         $enrichedDeniedAccessLogs = $this->getEnrichedDeniedAccessLogs($deniedAccessLogs);
+
+    //         $criticalAlertDetails = null;
+    //         if ($criticalAlert) {
+    //             $criticalAlertDetails = $this->getEnrichedDeniedAccessLogs(
+    //                 DeviceAccessLog::where('id', $criticalAlert['log_id'])->get()
+    //             );
+    //         }
+
+    //         $enrichedOverstayAlerts = $this->getEnrichedOverstayAlerts($visitorOverstayAlerts);
+
+    //         $checkOutsTodayCount = $this->getCheckoutsTodayCount();
+
+    //         $checkoutsTodayModalData = $this->getCheckoutsTodayModalData();
+
+    //         return view('dashboard', compact(
+    //             'angularMenu', 
+    //             'todayAppointmentCount', 
+    //             'visitorsOnSite',
+    //             'todayAppointments',
+    //             'upcomingAppointments',
+    //             'activeSecurityAlertsCount',
+    //             'hourlyTrafficData',
+    //             'visitorOverstayCount',    
+    //             'deniedAccessCount',      
+    //             'deniedAccessLogs',        
+    //             'visitorOverstayAlerts',    
+    //             'enrichedDeniedAccessLogs', 
+    //             'enrichedOverstayAlerts',   
+    //             'checkOutsTodayCount',       
+    //             'checkoutsTodayModalData',    
+    //             'criticalAlert',
+    //             'criticalAlertDetails'
+    //         ));
+    //     } catch (\Exception $e) {
+    //         Log::error('Dashboard error: ' . $e->getMessage());
+            
+    //         $angularMenu = [];
+    //         $todayAppointmentCount = 0;
+    //         $visitorsOnSite = [];
+    //         $todayAppointments = [];
+    //         $upcomingAppointments = [];
+    //         $activeSecurityAlertsCount = 0;
+    //         $hourlyTrafficData = $this->getDefaultHourlyTrafficData();
+    //         $visitorOverstayCount = 0;
+    //         $deniedAccessCount = 0;
+    //         $checkOutsTodayCount = 0; 
+    //         $checkoutsTodayModalData = []; 
+    //         $deniedAccessLogs = collect(); 
+    //         $visitorOverstayAlerts = [];
+    //         $enrichedDeniedAccessLogs = [];
+    //         $enrichedOverstayAlerts = [];
+    //         $criticalAlert = []; 
+    //         $criticalAlertDetails = [];
+            
+    //         return view('dashboard', compact(
+    //             'angularMenu', 
+    //             'todayAppointmentCount', 
+    //             'visitorsOnSite',
+    //             'todayAppointments',
+    //             'upcomingAppointments',
+    //             'activeSecurityAlertsCount',
+    //             'hourlyTrafficData',
+    //             'visitorOverstayCount',
+    //             'deniedAccessCount',
+    //             'checkOutsTodayCount',
+    //             'checkoutsTodayModalData', 
+    //             'deniedAccessLogs',
+    //             'visitorOverstayAlerts',
+    //             'enrichedDeniedAccessLogs',
+    //             'enrichedOverstayAlerts',
+    //             'criticalAlert',
+    //             'criticalAlertDetails'
+    //         ));
+    //     }
+    // }
+
+    public function index(Request $request)
     {
         try {
             Log::info('=== Dashboard Accessed ===');
@@ -32,10 +188,9 @@ class DashboardController extends Controller
             $angularMenu = [];
             if ($token) {
                 try {
-                    $angularMenu = $menuService->getFilteredAngularMenuWithToken($token);
+                    $angularMenu = $this->menuService->getFilteredAngularMenuWithToken($token);
 
-                    // ✅ User ID session mein save karna
-                    $userAccessData = $menuService->getUserAccessData();
+                    $userAccessData = $this->menuService->getUserAccessData();
                     if ($userAccessData && isset($userAccessData['user_id'])) {
                         session()->put('java_user_id', $userAccessData['user_id']);
                         Log::info('User ID saved in dashboard session:', ['user_id' => $userAccessData['user_id']]);
@@ -46,8 +201,6 @@ class DashboardController extends Controller
                         return redirect()->away(config('app.angular_url'))
                             ->with('error', 'Session expired. Please login again.');
                     }
-                    
-                    Log::info('angularmeniu', ['angularMenu' => $angularMenu]);
                     
                 } catch (\Exception $e) {
                     Log::error('Menu error: ' . $e->getMessage());
@@ -61,9 +214,6 @@ class DashboardController extends Controller
                     ->with('error', 'Session expired. Please login again.');
             }
             
-            Log::info('Angular Menu Structure:');
-            
-            // ✅ User access data ko dobara get karein (agar nahi mila toh)
             $userAccessData = $this->menuService->getUserAccessData();
 
             $todayAppointmentCount = 0;
@@ -76,43 +226,37 @@ class DashboardController extends Controller
                 $upcomingAppointments = $userAccessData['upcoming_appointments'] ?? [];
             }
             
-            // ✅ Get visitors on site
             $visitorsOnSite = $this->getCurrentVisitorsOnSite();
             
-            $criticalAlert = $this->getCriticalSecurityAlert();
+            // ✅ UPDATED: Get critical alert with new priority logic
+            $criticalAlert = $this->getCriticalSecurityAlertWithPriority();
 
+            // Counts for cards
             $activeSecurityAlertsCount = DeviceAccessLog::where('access_granted', 0)
                 ->where('acknowledge', 0)
                 ->count();
 
             $hourlyTrafficData = $this->getHourlyTrafficData();
 
+            // Get overstay alerts (unacknowledged only)
             $allDeviceUsers = DeviceAccessLog::where('access_granted', 1)->get();
-            $visitorOverstayAlerts = $this->getAllVisitorOverstayAlerts($allDeviceUsers);
+            $visitorOverstayAlerts = $this->getUnacknowledgedOverstayAlerts($allDeviceUsers);
             $visitorOverstayCount = count($visitorOverstayAlerts);
 
             $deniedAccessCount = DeviceAccessLog::where('access_granted', 0)
                 ->where('acknowledge', 0)
                 ->count();
 
+            // Get enriched data for modals
             $deniedAccessLogs = DeviceAccessLog::where('access_granted', 0)
                 ->where('acknowledge', 0)
                 ->orderBy('created_at', 'desc')
                 ->get();
 
             $enrichedDeniedAccessLogs = $this->getEnrichedDeniedAccessLogs($deniedAccessLogs);
-
-            $criticalAlertDetails = null;
-            if ($criticalAlert) {
-                $criticalAlertDetails = $this->getEnrichedDeniedAccessLogs(
-                    DeviceAccessLog::where('id', $criticalAlert['log_id'])->get()
-                );
-            }
-
             $enrichedOverstayAlerts = $this->getEnrichedOverstayAlerts($visitorOverstayAlerts);
 
             $checkOutsTodayCount = $this->getCheckoutsTodayCount();
-
             $checkoutsTodayModalData = $this->getCheckoutsTodayModalData();
 
             return view('dashboard', compact(
@@ -131,51 +275,346 @@ class DashboardController extends Controller
                 'enrichedOverstayAlerts',   
                 'checkOutsTodayCount',       
                 'checkoutsTodayModalData',    
-                'criticalAlert',
-                'criticalAlertDetails'
+                'criticalAlert'
             ));
         } catch (\Exception $e) {
             Log::error('Dashboard error: ' . $e->getMessage());
             
-            $angularMenu = [];
-            $todayAppointmentCount = 0;
-            $visitorsOnSite = [];
-            $todayAppointments = [];
-            $upcomingAppointments = [];
-            $activeSecurityAlertsCount = 0;
-            $hourlyTrafficData = $this->getDefaultHourlyTrafficData();
-            $visitorOverstayCount = 0;
-            $deniedAccessCount = 0;
-            $checkOutsTodayCount = 0; 
-            $checkoutsTodayModalData = []; 
-            $deniedAccessLogs = collect(); 
-            $visitorOverstayAlerts = [];
-            $enrichedDeniedAccessLogs = [];
-            $enrichedOverstayAlerts = [];
-            $criticalAlert = []; 
-            $criticalAlertDetails = [];
-            
-            return view('dashboard', compact(
-                'angularMenu', 
-                'todayAppointmentCount', 
-                'visitorsOnSite',
-                'todayAppointments',
-                'upcomingAppointments',
-                'activeSecurityAlertsCount',
-                'hourlyTrafficData',
-                'visitorOverstayCount',
-                'deniedAccessCount',
-                'checkOutsTodayCount',
-                'checkoutsTodayModalData', 
-                'deniedAccessLogs',
-                'visitorOverstayAlerts',
-                'enrichedDeniedAccessLogs',
-                'enrichedOverstayAlerts',
-                'criticalAlert',
-                'criticalAlertDetails'
-            ));
+            return view('dashboard', [
+                'angularMenu' => [],
+                'todayAppointmentCount' => 0,
+                'visitorsOnSite' => [],
+                'todayAppointments' => [],
+                'upcomingAppointments' => [],
+                'activeSecurityAlertsCount' => 0,
+                'hourlyTrafficData' => $this->getDefaultHourlyTrafficData(),
+                'visitorOverstayCount' => 0,
+                'deniedAccessCount' => 0,
+                'checkOutsTodayCount' => 0,
+                'checkoutsTodayModalData' => [],
+                'deniedAccessLogs' => collect(),
+                'visitorOverstayAlerts' => [],
+                'enrichedDeniedAccessLogs' => [],
+                'enrichedOverstayAlerts' => [],
+                'criticalAlert' => null
+            ]);
         }
     }
+
+
+private function getCriticalSecurityAlertWithPriority()
+{
+    try {
+        Log::info('=== Starting getCriticalSecurityAlertWithPriority ===');
+        
+        // Step 1: Get priority settings
+        $accessDeniedPriority = SecurityAlertPriority::where('security_alert', 'Access Denied Incidents')->first();
+        $visitorOverstayPriority = SecurityAlertPriority::where('security_alert', 'Visitor Overstay Alerts')->first();
+        
+        Log::info('Priority Settings:', [
+            'Access Denied' => $accessDeniedPriority ? $accessDeniedPriority->priority : 'low',
+            'Visitor Overstay' => $visitorOverstayPriority ? $visitorOverstayPriority->priority : 'low'
+        ]);
+        
+        // Step 2: Get ALL alerts (both high and low priority)
+        $allAlerts = collect();
+        
+        // Get Access Denied alerts with their priority
+        $accessDeniedAlerts = DeviceAccessLog::where('access_granted', 0)
+            ->where('acknowledge', 0)
+            ->orderBy('created_at', 'desc')
+            ->get();
+        
+        foreach ($accessDeniedAlerts as $alert) {
+            $priority = $accessDeniedPriority ? strtolower($accessDeniedPriority->priority) : 'low';
+            
+            // ✅ Process location for Turnstile
+            $processedLocation = $this->processTurnstileLocationForAlert($alert);
+            
+            $allAlerts->push([
+                'type' => 'access_denied',
+                'alert_type' => 'access_denied',
+                'priority' => $priority,
+                'priority_weight' => $priority == 'high' ? 3 : ($priority == 'medium' ? 2 : 1),
+                'created_at' => $alert->created_at,
+                'log_id' => $alert->id,
+                'data' => $alert,
+                'display_location' => $processedLocation,
+                'original_location' => $alert->location_name ?? 'Unknown Location',
+                'card_no' => $alert->card_no ?? null
+            ]);
+        }
+        
+        // Get Visitor Overstay alerts with their priority
+        $overstayAlerts = $this->getUnacknowledgedOverstayAlerts();
+        
+        foreach ($overstayAlerts as $alert) {
+            $priority = $visitorOverstayPriority ? strtolower($visitorOverstayPriority->priority) : 'low';
+            
+            // ✅ Process location for Turnstile
+            $processedLocation = $this->processTurnstileLocationForOverstay($alert);
+            
+            $allAlerts->push([
+                'type' => 'visitor_overstay',
+                'alert_type' => 'visitor_overstay',
+                'priority' => $priority,
+                'priority_weight' => $priority == 'high' ? 3 : ($priority == 'medium' ? 2 : 1),
+                'created_at' => Carbon::parse($alert['check_in_time']),
+                'log_id' => $alert['log_id'] ?? $alert['staff_no'] . '_overstay',
+                'data' => $alert,
+                'display_location' => $processedLocation,
+                'original_location' => $alert['original_location'] ?? ($alert['location'] ?? 'Unknown Location'),
+                'card_no' => $alert['card_no'] ?? null
+            ]);
+        }
+        
+        Log::info('Total alerts found: ' . $allAlerts->count());
+        
+        // Step 3: Sort alerts by priority (high > medium > low) and then by created_at (latest first)
+        $sortedAlerts = $allAlerts->sortByDesc(function($alert) {
+            return [$alert['priority_weight'], $alert['created_at']->timestamp];
+        });
+        
+        // Step 4: Return the top alert
+        if ($sortedAlerts->isNotEmpty()) {
+            $topAlert = $sortedAlerts->first();
+            
+            Log::info('Top alert selected:', [
+                'type' => $topAlert['type'],
+                'priority' => $topAlert['priority'],
+                'created_at' => $topAlert['created_at']->format('Y-m-d H:i:s')
+            ]);
+            
+            if ($topAlert['type'] === 'access_denied') {
+                $alert = $topAlert['data'];
+                $visitorDetails = $this->getVisitorDetailsForAlert($alert->staff_no);
+                
+                $createdAt = Carbon::parse($alert->created_at);
+                $timeAgo = $createdAt->diffForHumans();
+                
+                return [
+                    'log_id' => $alert->id,
+                    'alert_type' => 'access_denied',
+                    'staff_no' => $alert->staff_no,
+                    'card_no' => $alert->card_no ?? null,
+                    'location' => $topAlert['display_location'],
+                    'original_location' => $topAlert['original_location'],
+                    'created_at' => $createdAt->format('h:i A'),
+                    'time_ago' => $timeAgo,
+                    'reason' => $alert->reason ?? 'Other Reason',
+                    'visitor_name' => $visitorDetails['fullName'] ?? 'Unknown Visitor',
+                    'incident_type' => 'Unauthorized Access Attempt',
+                    'priority' => $topAlert['priority']
+                ];
+            } else {
+                // Visitor Overstay alert
+                $alert = $topAlert['data'];
+                
+                return [
+                    'log_id' => $alert['log_id'] ?? $alert['staff_no'] . '_overstay',
+                    'alert_type' => 'visitor_overstay',
+                    'staff_no' => $alert['staff_no'],
+                    'card_no' => $alert['card_no'] ?? null,
+                    'location' => $topAlert['display_location'],
+                    'original_location' => $topAlert['original_location'],
+                    'created_at' => Carbon::parse($alert['check_in_time'])->format('h:i A'),
+                    'visitor_name' => $alert['visitor_name'],
+                    'incident_type' => 'Visitor Overstay Alert',
+                    'priority' => $topAlert['priority'],
+                    'overstay_details' => [
+                        'check_in_time' => $alert['check_in_time'],
+                        'expected_end_time' => $alert['expected_end_time'],
+                        'current_time' => $alert['current_time'],
+                        'overstay_duration' => $alert['overstay_duration'],
+                        'host' => $alert['host'],
+                        'date_of_visit_from' => $alert['date_of_visit_from'] ?? null,
+                        'date_of_visit_to' => $alert['date_of_visit_to'] ?? null
+                    ]
+                ];
+            }
+        }
+        
+        Log::info('No alerts found');
+        return null;
+        
+    } catch (\Exception $e) {
+        Log::error('Error getting critical alert with priority: ' . $e->getMessage());
+        Log::error('Stack trace: ' . $e->getTraceAsString());
+        return null;
+    }
+}
+
+// ✅ NEW: Process Turnstile location for Access Denied alerts
+private function processTurnstileLocationForAlert($alert)
+{
+    try {
+        $location = $alert->location_name ?? 'Unknown Location';
+        
+        // Check if location contains "Turnstile"
+        if (strpos($location, 'Turnstile') === false) {
+            return $location;
+        }
+        
+        // Get device connection
+        $deviceConnection = DeviceConnection::where('device_id', $alert->device_id)->first();
+        if (!$deviceConnection) {
+            return $location;
+        }
+        
+        // Get vendor location
+        $vendorLocation = VendorLocation::where('name', $location)->first();
+        if (!$vendorLocation) {
+            return $location;
+        }
+        
+        // Get device location assign
+        $deviceLocationAssign = DeviceLocationAssign::where('device_id', $deviceConnection->id)
+            ->where('location_id', $vendorLocation->id)
+            ->first();
+        
+        if (!$deviceLocationAssign) {
+            return $location;
+        }
+        
+        // Check is_type
+        if ($deviceLocationAssign->is_type === 'check_in') {
+            return 'Turnstile In';
+        } elseif ($deviceLocationAssign->is_type === 'check_out') {
+            return '------------';
+        }
+        
+        return $location;
+        
+    } catch (\Exception $e) {
+        Log::error('Error processing turnstile location for alert: ' . $e->getMessage());
+        return $alert->location_name ?? 'Unknown Location';
+    }
+}
+
+// ✅ NEW: Process Turnstile location for Overstay alerts
+private function processTurnstileLocationForOverstay($alert)
+{
+    try {
+        $location = $alert['location'] ?? 'Unknown Location';
+        
+        // Check if location contains "Turnstile"
+        if (strpos($location, 'Turnstile') === false) {
+            return $location;
+        }
+        
+        // Get device connection
+        $deviceConnection = DeviceConnection::where('device_id', $alert['device_id'])->first();
+        if (!$deviceConnection) {
+            return $location;
+        }
+        
+        // Get vendor location
+        $vendorLocation = VendorLocation::where('name', $location)->first();
+        if (!$vendorLocation) {
+            return $location;
+        }
+        
+        // Get device location assign
+        $deviceLocationAssign = DeviceLocationAssign::where('device_id', $deviceConnection->id)
+            ->where('location_id', $vendorLocation->id)
+            ->first();
+        
+        if (!$deviceLocationAssign) {
+            return $location;
+        }
+        
+        // Check is_type
+        if ($deviceLocationAssign->is_type === 'check_in') {
+            return 'Turnstile In';
+        } elseif ($deviceLocationAssign->is_type === 'check_out') {
+            return '------------';
+        }
+        
+        return $location;
+        
+    } catch (\Exception $e) {
+        Log::error('Error processing turnstile location for overstay: ' . $e->getMessage());
+        return $alert['location'] ?? 'Unknown Location';
+    }
+}
+
+private function getUnacknowledgedOverstayAlerts($allDeviceUsers = null)
+{
+    try {
+        if (!$allDeviceUsers) {
+            $allDeviceUsers = DeviceAccessLog::where('access_granted', 1)->get();
+        }
+        
+        $currentTime = now();
+        $overstayAlerts = [];
+        
+        foreach ($allDeviceUsers as $user) {
+            try {
+                if (empty($user['location_name'])) {
+                    continue;
+                }
+                
+                // Skip if already acknowledged
+                if ($user->overstay_acknowledge == 1 || $user->overstay_acknowledge === true) {
+                    continue;
+                }
+                
+                // Get API data
+                $javaApiResponse = $this->callJavaVendorApi($user['staff_no']);
+                
+                if ($javaApiResponse && isset($javaApiResponse['data'])) {
+                    $visitorData = $javaApiResponse['data'];
+                    
+                    if (isset($visitorData['dateOfVisitTo'])) {
+                        $dateOfVisitTo = Carbon::parse($visitorData['dateOfVisitTo']);
+                        
+                        if ($currentTime->greaterThan($dateOfVisitTo)) {
+                            $dateOfVisitFrom = isset($visitorData['dateOfVisitFrom']) 
+                                ? Carbon::parse($visitorData['dateOfVisitFrom']) 
+                                : null;
+                            
+                            $overstayMinutes = $currentTime->diffInMinutes($dateOfVisitTo);
+                            $overstayHours = floor($overstayMinutes / 60);
+                            $remainingMinutes = $overstayMinutes % 60;
+                            
+                            // ✅ Process Turnstile location
+                            $processedLocation = $this->processTurnstileLocationForAlert($user);
+                            
+                            $overstayAlerts[] = [
+                                'visitor_name' => $visitorData['fullName'] ?? 'N/A',
+                                'staff_no' => $user['staff_no'],
+                                'card_no' => $user['card_no'] ?? null,
+                                'expected_end_time' => $dateOfVisitTo->format('d M Y h:i A'),
+                                'current_time' => $currentTime->format('d M Y h:i A'),
+                                'check_in_time' => Carbon::parse($user['created_at'])->format('d M Y h:i A'),
+                                'location' => $processedLocation,
+                                'original_location' => $user['location_name'] ?? 'Unknown Location',
+                                'overstay_minutes' => $overstayMinutes,
+                                'overstay_duration' => $overstayHours . ' hours ' . $remainingMinutes . ' minutes',
+                                'host' => $visitorData['personVisited'] ?? 'N/A',
+                                'contact_no' => $visitorData['contactNo'] ?? 'N/A',
+                                'ic_no' => $visitorData['icNo'] ?? 'N/A',
+                                'device_id' => $user['device_id'],
+                                'date_of_visit_from' => $dateOfVisitFrom ? $dateOfVisitFrom->format('Y-m-d H:i:s') : null,
+                                'date_of_visit_to' => $dateOfVisitTo->format('Y-m-d H:i:s'),
+                                'log_id' => $user->id
+                            ];
+                        }
+                    }
+                }
+            } catch (\Exception $e) {
+                Log::error('Error checking overstay for staff_no ' . $user['staff_no'] . ': ' . $e->getMessage());
+                continue;
+            }
+        }
+        
+        return $overstayAlerts;
+        
+    } catch (\Exception $e) {
+        Log::error('Error getting unacknowledged overstay alerts: ' . $e->getMessage());
+        return [];
+    }
+}
 
     private function getCurrentVisitorsOnSite()
     {
@@ -370,11 +809,35 @@ class DashboardController extends Controller
         }
     }
 
-    public function acknowledgeAlert(Request $request)
-    {
-        try {
-            $alertId = $request->input('alert_id');
-            
+public function acknowledgeAlert(Request $request)
+{
+    try {
+        $alertId = $request->input('alert_id');
+        $alertType = $request->input('alert_type', 'access_denied');
+        
+        Log::info('Acknowledging alert:', [
+            'alert_id' => $alertId,
+            'alert_type' => $alertType,
+            'all_request_data' => $request->all()
+        ]);
+        
+        $currentUserId = session()->get('java_user_id');
+        
+        if (!$currentUserId) {
+            $token = session()->get('java_backend_token') ?? session()->get('java_auth_token');
+            if ($token) {
+                $menuService = new MenuService();
+                $userAccessData = $menuService->fetchUserAccessFromJavaBackendWithToken($token);
+                $currentUserId = $userAccessData['user_id'] ?? null;
+                
+                if ($currentUserId) {
+                    session()->put('java_user_id', $currentUserId);
+                }
+            }
+        }
+
+        if ($alertType == 'access_denied') {
+            // Handle Access Denied alert
             $alert = DeviceAccessLog::find($alertId);
             
             if (!$alert) {
@@ -384,57 +847,102 @@ class DashboardController extends Controller
                 ], 404);
             }
 
-            // ✅ GET CURRENT USER ID FROM SESSION
-            $currentUserId = session()->get('java_user_id');
+            // ✅ Access Denied: Match staff_no, card_no, location_name
+            $updateQuery = DeviceAccessLog::where('staff_no', $alert->staff_no)
+                ->where('card_no', $alert->card_no ?? '')
+                ->where('location_name', $alert->location_name ?? '');
             
-            if (!$currentUserId) {
-                // Agar session mein nahi hai toh Java API se fetch karo
-                $token = session()->get('java_backend_token') ?? session()->get('java_auth_token');
-                if ($token) {
-                    $menuService = new MenuService();
-                    $userAccessData = $menuService->fetchUserAccessFromJavaBackendWithToken($token);
-                    $currentUserId = $userAccessData['user_id'] ?? null;
-                    
-                    // Save to session for next time
-                    if ($currentUserId) {
-                        session()->put('java_user_id', $currentUserId);
-                    }
+            $updateQuery->update([
+                'acknowledge' => true,
+                'acknowledge_by' => $currentUserId,
+                'updated_at' => now()
+            ]);
+            
+            Log::info("Access Denied alert acknowledged: ID {$alertId}, Staff No: {$alert->staff_no}, Card No: {$alert->card_no}");
+            
+        } else if ($alertType == 'visitor_overstay') {
+            Log::info('Processing overstay acknowledgment with specific visit criteria');
+            
+            $staffNo = $request->input('staff_no');
+            $cardNo = $request->input('card_no');
+            $originalLocation = $request->input('original_location'); // ✅ Use original_location
+            $dateOfVisitFrom = $request->input('date_of_visit_from');
+            
+            Log::info('Request data for overstay acknowledgment:', [
+                'staff_no' => $staffNo,
+                'card_no' => $cardNo,
+                'original_location' => $originalLocation,
+                'date_of_visit_from' => $dateOfVisitFrom
+            ]);
+            
+            if (!$staffNo || !$originalLocation || !$dateOfVisitFrom) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Missing required parameters for overstay acknowledgment: ' . 
+                                json_encode(['staff_no' => $staffNo, 'original_location' => $originalLocation, 'date_of_visit_from' => $dateOfVisitFrom])
+                ], 400);
+            }
+            
+            // ✅ Overstay: Match staff_no, card_no, location_name AND date_of_visit_from greater than
+            $query = DeviceAccessLog::where('staff_no', $staffNo)
+                ->where('location_name', $originalLocation); // ✅ Use original_location
+            
+            // Card number match if provided
+            if ($cardNo) {
+                $query->where('card_no', $cardNo);
+            }
+            
+            // Date condition: created_at greater than dateOfVisitFrom
+            if ($dateOfVisitFrom) {
+                try {
+                    $parsedFrom = Carbon::parse($dateOfVisitFrom);
+                    $query->where('created_at', '>', $parsedFrom);
+                    Log::info('Filtering logs with created_at > ' . $parsedFrom->format('Y-m-d H:i:s'));
+                } catch (\Exception $e) {
+                    Log::error('Error parsing dateOfVisitFrom: ' . $e->getMessage());
                 }
             }
-
-            Log::info('Acknowledging alert with user ID:', [
-                'alert_id' => $alertId,
-                'user_id' => $currentUserId,
-                'staff_no' => $alert->staff_no
-            ]);
-
-            // ✅ UPDATE BOTH acknowledge AND acknowledge_by
-            $alert->acknowledge = 1;
-            $alert->acknowledge_by = $currentUserId; // ✅ Yahan save kar rahe hain
-            $alert->save();
             
-            Log::info("Alert acknowledged: ID {$alertId}, Staff No: {$alert->staff_no}, Acknowledged By: {$currentUserId}");
-
-            $nextAlert = $this->getCriticalSecurityAlert();
+            $logs = $query->get();
             
-            return response()->json([
-                'success' => true,
-                'message' => 'Alert acknowledged successfully',
-                'next_alert' => $nextAlert,
-                'has_next' => $nextAlert ? true : false,
-                'acknowledged_by' => $currentUserId // ✅ Frontend ko bhi bhej sakte hain
+            Log::info('Found logs to update for overstay:', [
+                'count' => $logs->count(),
+                'log_ids' => $logs->pluck('id')->toArray()
             ]);
             
-        } catch (\Exception $e) {
-            Log::error('Error acknowledging alert: ' . $e->getMessage());
-            Log::error('Stack trace: ' . $e->getTraceAsString());
+            $updatedCount = 0;
+            foreach ($logs as $log) {
+                $log->overstay_acknowledge = true;
+                $log->acknowledge_by = $currentUserId;
+                $log->save();
+                $updatedCount++;
+                
+                Log::info("Updated log ID: {$log->id}, Staff No: {$log->staff_no}, Overstay Acknowledge: {$log->overstay_acknowledge}");
+            }
             
-            return response()->json([
-                'success' => false,
-                'message' => 'Error acknowledging alert: ' . $e->getMessage()
-            ], 500);
+            Log::info("Visitor Overstay alert acknowledged. Updated {$updatedCount} records.");
         }
+
+        // Get next alert
+        $nextAlert = $this->getCriticalSecurityAlertWithPriority();
+        
+        return response()->json([
+            'success' => true,
+            'message' => 'Alert acknowledged successfully',
+            'next_alert' => $nextAlert,
+            'has_next' => $nextAlert ? true : false
+        ]);
+        
+    } catch (\Exception $e) {
+        Log::error('Error acknowledging alert: ' . $e->getMessage());
+        Log::error('Stack trace: ' . $e->getTraceAsString());
+        
+        return response()->json([
+            'success' => false,
+            'message' => 'Error acknowledging alert: ' . $e->getMessage()
+        ], 500);
     }
+}
 
     public function hideCriticalAlert(Request $request)
     {
@@ -470,67 +978,6 @@ class DashboardController extends Controller
         }
     }
 
-    // public function getCriticalAlertDetails(Request $request)
-    // {
-    //     // dd('hello');
-    //     try {
-    //         $alertId = $request->input('alert_id');
-            
-    //         $alert = DeviceAccessLog::find($alertId);
-            
-    //         if (!$alert) {
-    //             return response()->json([
-    //                 'success' => false,
-    //                 'message' => 'Alert not found'
-    //             ], 404);
-    //         }
-            
-    //         // ✅ FIX: Directly get visitor details
-    //         $javaApiResponse = $this->callJavaVendorApi($alert->staff_no);
-            
-    //         Log::info('Java API Response for alert: ', ['response' => $javaApiResponse]);
-            
-    //         if ($javaApiResponse && isset($javaApiResponse['data'])) {
-    //             $visitorData = $javaApiResponse['data'];
-                
-    //             return response()->json([
-    //                 'success' => true,
-    //                 'alert' => [
-    //                     'log' => [
-    //                         'id' => $alert->id,
-    //                         'staff_no' => $alert->staff_no,
-    //                         'location_name' => $alert->location_name ?? 'Unknown Location',
-    //                         'reason' => $alert->reason ?? 'Other Reason',
-    //                         'created_at' => $alert->created_at
-    //                     ],
-    //                     'visitor_details' => [
-    //                         'fullName' => $visitorData['fullName'] ?? 'N/A',
-    //                         'personVisited' => $visitorData['personVisited'] ?? 'N/A',
-    //                         'contactNo' => $visitorData['contactNo'] ?? 'N/A',
-    //                         'icNo' => $visitorData['icNo'] ?? 'N/A',
-    //                         'sex' => $visitorData['sex'] ?? 'N/A',
-    //                         'dateOfVisitFrom' => $visitorData['dateOfVisitFrom'] ?? 'N/A',
-    //                         'dateOfVisitTo' => $visitorData['dateOfVisitTo'] ?? 'N/A'
-    //                     ]
-    //                 ]
-    //             ]);
-    //         } else {
-    //             return response()->json([
-    //                 'success' => false,
-    //                 'message' => 'Could not fetch visitor details'
-    //             ], 404);
-    //         }
-            
-    //     } catch (\Exception $e) {
-    //         Log::error('Error getting critical alert details: ' . $e->getMessage());
-            
-    //         return response()->json([
-    //             'success' => false,
-    //             'message' => 'Error getting alert details'
-    //         ], 500);
-    //     }
-    // }
-
     public function getNextAlert(Request $request)
     {
         try {
@@ -565,18 +1012,24 @@ class DashboardController extends Controller
     public function refreshDashboardCounts()
     {
         try {
-            $activeSecurityAlertsCount = DeviceAccessLog::where('access_granted', 0)
-                ->where('acknowledge', 0)
-                ->count();
-
+            // Access Denied count
             $deniedAccessCount = DeviceAccessLog::where('access_granted', 0)
                 ->where('acknowledge', 0)
                 ->count();
 
+            // Visitor Overstay count (unacknowledged)
+            $allDeviceUsers = DeviceAccessLog::where('access_granted', 1)->get();
+            $visitorOverstayAlerts = $this->getUnacknowledgedOverstayAlerts($allDeviceUsers);
+            $visitorOverstayCount = count($visitorOverstayAlerts);
+
+            // Active Security Alerts (Access Denied only)
+            $activeSecurityAlertsCount = $deniedAccessCount;
+
             return response()->json([
                 'success' => true,
                 'activeSecurityAlertsCount' => $activeSecurityAlertsCount,
-                'deniedAccessCount' => $deniedAccessCount
+                'deniedAccessCount' => $deniedAccessCount,
+                'visitorOverstayCount' => $visitorOverstayCount
             ]);
             
         } catch (\Exception $e) {
@@ -728,102 +1181,46 @@ private function getEnrichedDeniedAccessLogs($deniedAccessLogs)
     return $enrichedLogs;
 }
 
-    private function getAllVisitorOverstayAlerts($allDeviceUsers)
-    {
-        $overstayAlerts = [];
-        $currentTime = now();
 
-        foreach ($allDeviceUsers as $user) {
-            try {
-                if (empty($user['location_name'])) {
-                    continue; 
-                }
+private function getEnrichedOverstayAlerts($overstayAlerts)
+{
+    $enrichedAlerts = [];
 
-                $javaApiResponse = $this->callJavaVendorApi($user['staff_no']);
+    foreach ($overstayAlerts as $alert) {
+        try {
+            $javaApiResponse = $this->callJavaVendorApi($alert['staff_no']);
+
+            if ($javaApiResponse && isset($javaApiResponse['data'])) {
+                $visitorData = $javaApiResponse['data'];
                 
-                if ($javaApiResponse && isset($javaApiResponse['data'])) {
-                    $visitorData = $javaApiResponse['data'];
-                    
-                    Log::info('Java API Response for ' . $user['staff_no'] . ': ', $javaApiResponse);
-                    
-                    if (isset($visitorData['dateOfVisitTo'])) {
-                        $dateOfVisitTo = \Carbon\Carbon::parse($visitorData['dateOfVisitTo']);
-                        
-                        if ($currentTime->greaterThan($dateOfVisitTo)) {
-                            $overstayMinutes = $currentTime->diffInMinutes($dateOfVisitTo);
-                            $overstayHours = floor($overstayMinutes / 60);
-                            $remainingMinutes = $overstayMinutes % 60;
-                            
-                            $overstayAlerts[] = [
-                                'visitor_name' => $visitorData['fullName'] ?? 'N/A',
-                                'staff_no' => $user['staff_no'],
-                                'expected_end_time' => $dateOfVisitTo->format('d M Y h:i A'), 
-                                'current_time' => $currentTime->format('d M Y h:i A'), 
-                                'check_in_time' => \Carbon\Carbon::parse($user['created_at'])->format('d M Y h:i A'),
-                                'location' => $user['location_name'] ?? 'N/A',
-                                'overstay_minutes' => $overstayMinutes,
-                                'overstay_duration' => $overstayHours . ' hours ' . $remainingMinutes . ' minutes',
-                                'host' => $visitorData['personVisited'] ?? 'N/A',
-                                'contact_no' => $visitorData['contactNo'] ?? 'N/A',
-                                'ic_no' => $visitorData['icNo'] ?? 'N/A',
-                                'date_of_visit_from' => isset($visitorData['dateOfVisitFrom']) ? \Carbon\Carbon::parse($visitorData['dateOfVisitFrom'])->format('d M Y h:i A') : 'N/A',
-                                'date_of_visit_to' => $dateOfVisitTo->format('d M Y h:i A')
-                            ];
-                            
-                            Log::info('Overstay detected for ' . $user['staff_no'] . ': ' . $overstayHours . ' hours ' . $remainingMinutes . ' minutes');
-                        } else {
-                            Log::info('No overstay for ' . $user['staff_no'] . ' - Visit ends at: ' . $dateOfVisitTo->format('d M Y h:i A') . ', Current: ' . $currentTime->format('d M Y h:i A'));
-                        }
-                    } else {
-                        Log::warning('dateOfVisitTo not found for staff_no: ' . $user['staff_no']);
-                    }
-                } else {
-                    Log::warning('Java API response failed for staff_no: ' . $user['staff_no']);
-                }
-            } catch (\Exception $e) {
-                Log::error('Error checking overstay for staff_no ' . $user['staff_no'] . ': ' . $e->getMessage());
-                continue;
-            }
-        }
-
-        Log::info('Total overstay alerts found: ' . count($overstayAlerts));
-        return $overstayAlerts;
-    }
-
-    private function getEnrichedOverstayAlerts($overstayAlerts)
-    {
-        $enrichedAlerts = [];
-
-        foreach ($overstayAlerts as $alert) {
-            try {
-                $javaApiResponse = $this->callJavaVendorApi($alert['staff_no']);
-
-                if ($javaApiResponse && isset($javaApiResponse['data'])) {
-                    $visitorData = $javaApiResponse['data'];
-                    
-                    $enrichedAlerts[] = [
-                        'visitor_name' => $visitorData['fullName'] ?? $alert['visitor_name'],
-                        'staff_no' => $alert['staff_no'],
-                        'host' => $visitorData['personVisited'] ?? $alert['host'],
-                        'location' => $alert['location'],
-                        'check_in_time' => $alert['check_in_time'],
-                        'expected_end_time' => $alert['expected_end_time'],
-                        'current_time' => $alert['current_time'],
-                        'overstay_duration' => $alert['overstay_duration'],
-                        'contact_no' => $visitorData['contactNo'] ?? 'N/A',
-                        'ic_no' => $visitorData['icNo'] ?? 'N/A'
-                    ];
-                } else {
-                    $enrichedAlerts[] = $alert;
-                }
-            } catch (\Exception $e) {
-                Log::error('Java API error for overstay staff_no ' . $alert['staff_no'] . ': ' . $e->getMessage());
+                // ✅ Use the already processed location from alert
+                $displayLocation = $alert['location'] ?? ($alert['original_location'] ?? 'N/A');
+                
+                $enrichedAlerts[] = [
+                    'visitor_name' => $visitorData['fullName'] ?? $alert['visitor_name'],
+                    'staff_no' => $alert['staff_no'],
+                    'host' => $visitorData['personVisited'] ?? $alert['host'],
+                    'location' => $displayLocation, // ✅ Use processed location
+                    'original_location' => $alert['original_location'] ?? 'N/A',
+                    'check_in_time' => $alert['check_in_time'],
+                    'expected_end_time' => $alert['expected_end_time'],
+                    'current_time' => $alert['current_time'],
+                    'overstay_duration' => $alert['overstay_duration'],
+                    'contact_no' => $visitorData['contactNo'] ?? 'N/A',
+                    'ic_no' => $visitorData['icNo'] ?? 'N/A',
+                    'turnstile_type' => $alert['turnstile_type'] ?? null // ✅ Add turnstile type
+                ];
+            } else {
                 $enrichedAlerts[] = $alert;
             }
+        } catch (\Exception $e) {
+            Log::error('Java API error for overstay staff_no ' . $alert['staff_no'] . ': ' . $e->getMessage());
+            $enrichedAlerts[] = $alert;
         }
-
-        return $enrichedAlerts;
     }
+
+    return $enrichedAlerts;
+}
 
 private function callJavaVendorApi($staffNo)
 {

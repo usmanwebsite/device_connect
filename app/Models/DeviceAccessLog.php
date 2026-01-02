@@ -16,12 +16,14 @@ class DeviceAccessLog extends Model
         'location_name',
         'acknowledge',
         'acknowledge_by',
+        'overstay_acknowledge',
         'created_at'
     ];
 
     protected $casts = [
         'access_granted' => 'boolean',
         'acknowledge' => 'boolean',
+        'overstay_acknowledge' => 'boolean',
         'created_at' => 'datetime'
     ];
 }

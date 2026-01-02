@@ -1008,7 +1008,7 @@ public function getFilteredAngularMenu()
                 'id' => 6.0,
                 'label' => "CONFIG",
                 'icon' => "bx-cog",
-                'isAuth' => 'Role,User,CpnInf,CInf,StateInf,CityInf,DInf,DESInf,LCInf,LInf,RType,BType,RRConf,VinType,LClass,BName,CTEB,LVCInf,ANNInf,DUInf,BRConf,CTConf,WHLConf,APPConf,VCConf,BrrConf,MeSesC,ITempConf,MCConf,OHConf,AWPConf,EVConf,WGConf,GSConf,WAConf,VQR,VIDEO_QUESTION,MasterPath,MVT,device-assign',
+                'isAuth' => 'Role,User,CpnInf,CInf,StateInf,CityInf,DInf,DESInf,LCInf,LInf,RType,BType,RRConf,VinType,LClass,BName,CTEB,LVCInf,ANNInf,DUInf,BRConf,CTConf,WHLConf,APPConf,VCConf,BrrConf,MeSesC,ITempConf,MCConf,OHConf,AWPConf,EVConf,WGConf,GSConf,WAConf,VQR,VIDEO_QUESTION,MasterPath,MVT,device-assign,SecurityAlertPriority',
                 'subItems' => [
                     [
                         'id' => 6.1,
@@ -1355,6 +1355,14 @@ public function getFilteredAngularMenu()
                         'label' => "DEVICE ASSIGNMENT", 
                         'link' => "/device-assignments",
                          'isAuth' => 'device-assign',
+                        'parentId' => 6.0, 
+                        'isLaravelRoute' => true
+                    ],
+                    [
+                        'id' => 6.48, 
+                        'label' => "SECURITY ALERT PRIORITY", 
+                        'link' => "/security-alert-priority",
+                        'isAuth' => 'SecurityAlertPriority',
                         'parentId' => 6.0, 
                         'isLaravelRoute' => true
                     ],

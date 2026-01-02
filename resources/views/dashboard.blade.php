@@ -3,52 +3,131 @@
 @section('content')
 <div class="container-fluid dashboard-wrapper">
 
-    {{-- Critical Alert Section --}}
-    <div class="row mb-4" id="criticalAlertSection">
-        @if($criticalAlert)
+{{-- Critical Alert Section --}}
+<div class="row mb-4" id="criticalAlertSection">
+    @if($criticalAlert)
+    <div class="col-12">
+        <div class="critical-alert-box" 
+            id="currentCriticalAlert" 
+            data-alert-id="{{ $criticalAlert['log_id'] }}"
+            data-alert-type="{{ $criticalAlert['alert_type'] }}"
+            data-staff-no="{{ $criticalAlert['staff_no'] ?? '' }}"
+            data-card-no="{{ $criticalAlert['card_no'] ?? '' }}"
+            data-location="{{ $criticalAlert['location'] ?? '' }}"
+            data-original-location="{{ $criticalAlert['original_location'] ?? $criticalAlert['location'] ?? '' }}"
+            @if($criticalAlert['alert_type'] == 'visitor_overstay')
+                data-date-of-visit-from="{{ $criticalAlert['overstay_details']['date_of_visit_from'] ?? '' }}"
+            @endif>
+            <div class="d-flex justify-content-between align-items-center">
+                <h5 class="critical-title mb-0">
+                    @if($criticalAlert['alert_type'] == 'access_denied')
+                        <i class="fas fa-shield-alt me-2"></i>Critical Security Alert
+                    @else
+                        <i class="fas fa-clock me-2"></i>Visitor Overstay Alert
+                    @endif
+                    <span class="badge bg-{{ $criticalAlert['priority'] == 'high' ? 'danger' : ($criticalAlert['priority'] == 'medium' ? 'warning' : 'secondary') }} ms-2">
+                        {{ ucfirst($criticalAlert['priority'] ?? 'low') }} Priority
+                    </span>
+                </h5>
+                <button class="btn btn-sm btn-outline-light" onclick="acknowledgeAlert()">
+                    <i class="fas fa-check me-1"></i> Acknowledge
+                </button>
+            </div>
+
+            <div class="row mt-3">
+                <div class="col-md-4 col-12 mb-3">
+                    <p class="label mb-1">Incident Type</p>
+                    <p class="value mb-0">
+                        @if($criticalAlert['alert_type'] == 'access_denied')
+                            Unauthorized Access Attempt
+                        @else
+                            Visitor Overstay Alert
+                        @endif
+                    </p>
+                </div>
+
+                <div class="col-md-4 col-12 mb-3">
+                    <p class="label mb-1">Location</p>
+                    <p class="value mb-0">{{ $criticalAlert['location'] }}</p>
+                </div>
+
+                <div class="col-md-4 col-12 mb-3">
+                    <p class="label mb-1">Time</p>
+                    <p class="value mb-0">
+                        @if($criticalAlert['alert_type'] == 'access_denied')
+                            {{ $criticalAlert['created_at'] ?? '' }} ({{ $criticalAlert['time_ago'] ?? '' }})
+                        @else
+                            {{ $criticalAlert['created_at'] ?? '' }}
+                        @endif
+                    </p>
+                </div>
+            </div>
+
+            <p class="description mt-2 mb-3">
+                @if($criticalAlert['alert_type'] == 'access_denied')
+                    {{ $criticalAlert['visitor_name'] }} on the restricted watchlist attempted to gain entry.
+                @else
+                    {{ $criticalAlert['visitor_name'] }} has exceeded their scheduled visit time by {{ $criticalAlert['overstay_details']['overstay_duration'] ?? 'unknown time' }}.
+                    Expected end: {{ $criticalAlert['overstay_details']['expected_end_time'] ?? 'N/A' }}
+                @endif
+            </p>
+
+            <div>
+                @if($criticalAlert['alert_type'] == 'access_denied')
+                    <button class="btn btn-danger btn-sm" onclick="showSecurityAlertsModal()">
+                        <i class="fas fa-eye me-1"></i> View Incident
+                    </button>
+                @else
+                    <button class="btn btn-warning btn-sm" onclick="showVisitorOverstayModal()">
+                        <i class="fas fa-clock me-1"></i> View Overstay Details
+                    </button>
+                @endif
+            </div>
+        </div>
+    </div>
+    @else
+    <div class="col-12">
+        <div class="alert alert-success">
+            <h5 class="alert-heading mb-2"><i class="fas fa-shield-check me-2"></i>All Clear</h5>
+            <p class="mb-0">No critical security alerts at this moment.</p>
+        </div>
+    </div>
+    @endif
+</div>
+
+    {{-- Recent Alerts Section - Horizontal Layout --}}
+    <div class="row mb-4">
         <div class="col-12">
-            <div class="critical-alert-box" id="currentCriticalAlert" data-alert-id="{{ $criticalAlert['log_id'] }}">
-                <div class="d-flex justify-content-between">
-                    <h5 class="critical-title">Critical Security Alert</h5>
-                    {{-- <button class="critical-close" onclick="closeCriticalAlert()">&times;</button> --}}
-                </div>
-
-                <div class="row mt-3">
-                    <div class="col-md-4 col-12">
-                        <p class="label">Incident Type</p>
-                        <p class="value">Unauthorized Access Attempt</p> {{-- ✅ Static --}}
+            <div class="content-card" style="background-color: #F8f9fa;">
+                <h5 class="mb-3"><i class="fas fa-bell me-2"></i>Recent Alerts</h5>
+                
+                <div class="row g-3">
+                    {{-- Access Denied Card --}}
+                    <div class="col-12 col-md-6">
+                        <div class="stat-card clickable-card alert-card" onclick="showAccessDeniedModal()">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <h2 class="text-danger">{{ $deniedAccessCount ?? 0 }}</h2>
+                                <span class="badge bg-danger">Access Denied</span>
+                            </div>
+                            <p class="mb-1 fw-medium">Access Denied Incidents</p>
+                            <small class="text-muted">Last 24 hours</small>
+                        </div>
                     </div>
 
-                    <div class="col-md-4 col-12">
-                        <p class="label">Location</p>
-                        <p class="value">{{ $criticalAlert['location'] }}</p>
+                    {{-- Visitor Overstay Card --}}
+                    <div class="col-12 col-md-6">
+                        <div class="stat-card clickable-card alert-card" onclick="showVisitorOverstayModal()">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <h2 class="text-warning">{{ $visitorOverstayCount ?? 0 }}</h2>
+                                <span class="badge bg-warning">Overstay</span>
+                            </div>
+                            <p class="mb-1 fw-medium">Visitor Overstay Alerts</p>
+                            <small class="text-muted">Active alerts</small>
+                        </div>
                     </div>
-
-                    <div class="col-md-4 col-12">
-                        <p class="label">Time</p>
-                        <p class="value">{{ $criticalAlert['created_at'] }} ({{ $criticalAlert['time_ago'] }})</p>
-                    </div>
-                </div>
-
-                <p class="description mt-2">
-                    {{ $criticalAlert['visitor_name'] }} on the restricted watchlist attempted to gain entry.                    
-                </p>
-
-                <div class="mt-3">
-                    <button class="btn btn-danger btn-sm" onclick="showSecurityAlertsModal()">View Incident</button>
-                    <button class="btn btn-outline-light btn-sm" onclick="acknowledgeAlert()">Acknowledge</button>
                 </div>
             </div>
         </div>
-        @else
-        {{-- ✅ Agar koi critical alert nahi hai --}}
-        <div class="col-12">
-            <div class="alert alert-success">
-                <h5 class="alert-heading">All Clear</h5>
-                <p class="mb-0">No critical security alerts at this moment.</p>
-            </div>
-        </div>
-        @endif
     </div>
 
     <div class="row g-3 mb-4">
@@ -158,72 +237,45 @@
             </div>
         </div>
 
-<div class="col-lg-4 mb-4">
-    <div class="content-card clickable-card" onclick="showUpcomingAppointmentsModal()">
-        <div class="d-flex justify-content-between align-items-center mb-3">
-            <h5 class="mb-0 text-dark">Upcoming Appointments</h5>
-        </div>
+        <div class="col-lg-4 mb-4">
+            <div class="content-card clickable-card" onclick="showUpcomingAppointmentsModal()">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h5 class="mb-0 text-dark">Upcoming Appointments</h5>
+                </div>
 
-        <div class="text-center py-4">
-            <h1 class="display-4 text-dark mb-2">{{ count($upcomingAppointments) }}</h1>
-            <p class="text-muted mb-0">
-                @if(count($upcomingAppointments) > 0)
-                @else
-                    No upcoming appointments
-                @endif
-            </p>
-        </div>
-    </div>
-
-    {{-- Today's Appointments (Same as before) --}}
-    <div class="content-card">
-        <h5 class="mb-3">Today's Appointments</h5>
-
-        <ul class="list-group list-group-flush dark-list">
-            @foreach($todayAppointments as $appointment)
-            <li class="list-group-item">
-                <strong>{{ $appointment['full_name'] }}</strong> – 
-                {{ \Carbon\Carbon::parse($appointment['date_from'])->format('h:i A') }}                        
-                <br>
-                <small>Host: {{ $appointment['name_of_person_visited'] ?? 'N/A' }}</small>
-            </li>
-            @endforeach
-            
-            @if(empty($todayAppointments))
-            <li class="list-group-item text-center">No appointments today</li>
-            @endif
-        </ul>
-    </div>
-
-    {{-- Recent Alerts Section --}}
-    <div class="content-card mt-4" style="background-color: #F8f9fa;">
-        <h5 class="mb-3">Recent Alerts</h5>
-        
-        <div class="row g-3">
-            {{-- Access Denied Card - takes full width --}}
-            <div class="col-12">
-                <div class="stat-card clickable-card alert-card" onclick="showAccessDeniedModal()">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <h2 class="text-danger">{{ $deniedAccessCount ?? 0 }}</h2>
-                        <span class="badge bg-danger">Access Denied</span>
-                    </div>
-                    <p>Access Denied Incidents</p>
+                <div class="text-center py-4">
+                    <h1 class="display-4 text-dark mb-2">{{ count($upcomingAppointments) }}</h1>
+                    <p class="text-muted mb-0">
+                        @if(count($upcomingAppointments) > 0)
+                        @else
+                            No upcoming appointments
+                        @endif
+                    </p>
                 </div>
             </div>
 
-            {{-- Visitor Overstay Card - takes full width --}}
-            <div class="col-12">
-                <div class="stat-card clickable-card alert-card" onclick="showVisitorOverstayModal()">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <h2 class="text-warning">{{ $visitorOverstayCount ?? 0 }}</h2>
-                        <span class="badge bg-warning">Overstay</span>
-                    </div>
-                    <p>Visitor Overstay Alerts</p>
-                </div>
+            {{-- Today's Appointments (Same as before) --}}
+            <div class="content-card">
+                <h5 class="mb-3">Today's Appointments</h5>
+
+                <ul class="list-group list-group-flush dark-list">
+                    @foreach($todayAppointments as $appointment)
+                    <li class="list-group-item">
+                        <strong>{{ $appointment['full_name'] }}</strong> – 
+                        {{ \Carbon\Carbon::parse($appointment['date_from'])->format('h:i A') }}                        
+                        <br>
+                        <small>Host: {{ $appointment['name_of_person_visited'] ?? 'N/A' }}</small>
+                    </li>
+                    @endforeach
+                    
+                    @if(empty($todayAppointments))
+                    <li class="list-group-item text-center">No appointments today</li>
+                    @endif
+                </ul>
             </div>
+
+            {{-- Removed Recent Alerts Section from here --}}
         </div>
-    </div>
-</div>
     </div>
 
 </div>
@@ -810,6 +862,30 @@ function acknowledgeAlert() {
     if (!alertBox) return;
     
     const alertId = alertBox.dataset.alertId;
+    const alertType = alertBox.dataset.alertType || 'access_denied';
+    const staffNo = alertBox.dataset.staffNo || '';
+    const cardNo = alertBox.dataset.cardNo || '';
+    const location = alertBox.dataset.location || '';
+    const originalLocation = alertBox.dataset.originalLocation || location; // ✅ Get original_location
+    const dateOfVisitFrom = alertBox.dataset.dateOfVisitFrom || '';
+    
+    // Prepare request data
+    const requestData = {
+        alert_id: alertId,
+        alert_type: alertType,
+        staff_no: staffNo,
+        card_no: cardNo,
+        location: location,
+        original_location: originalLocation // ✅ Add original_location
+    };
+    
+    // Add date_of_visit_from for overstay alerts
+    if (alertType === 'visitor_overstay') {
+        requestData.date_of_visit_from = dateOfVisitFrom;
+        requestData.location = originalLocation; // ✅ For overstay, use original_location for matching
+    }
+    
+    console.log('Sending acknowledgment data:', requestData);
     
     // Show loading state
     const acknowledgeBtn = alertBox.querySelector('.btn-outline-light');
@@ -825,21 +901,15 @@ function acknowledgeAlert() {
             'X-CSRF-TOKEN': '{{ csrf_token() }}',
             'X-Requested-With': 'XMLHttpRequest'
         },
-        body: JSON.stringify({
-            alert_id: alertId
-        })
+        body: JSON.stringify(requestData)
     })
     .then(response => response.json())
     .then(data => {
         if (data.success) {
             if (data.has_next && data.next_alert) {
-                // Update with next alert
                 updateCriticalAlert(data.next_alert);
-                // Refresh counts
                 refreshDashboardCounts();
-                window.location.reload();
             } else {
-                // No more alerts, show success message
                 document.getElementById('criticalAlertSection').innerHTML = `
                     <div class="col-12">
                         <div class="alert alert-success">
@@ -848,11 +918,8 @@ function acknowledgeAlert() {
                         </div>
                     </div>
                 `;
-                // Refresh counts
-                // refreshDashboardCounts();
             }
-
-            updateAllDashboardCountsImmediately();
+            updateDashboardCountsImmediately(alertType);
         } else {
             alert('Error: ' + data.message);
             acknowledgeBtn.innerHTML = originalText;
@@ -866,6 +933,41 @@ function acknowledgeAlert() {
         acknowledgeBtn.disabled = false;
     });
 }
+
+function updateDashboardCountsImmediately(alertType) {
+    if (alertType === 'access_denied') {
+        // Update Active Security Alerts card
+        const activeAlertsCard = document.querySelectorAll('.stat-card')[3]?.querySelector('h2');
+        if (activeAlertsCard) {
+            let currentCount = parseInt(activeAlertsCard.textContent);
+            if (currentCount > 0) {
+                activeAlertsCard.textContent = currentCount - 1;
+            }
+        }
+        
+        // Update Denied Access card
+        const deniedAccessCard = document.querySelector('.alert-card:nth-child(1) h2');
+        if (deniedAccessCard) {
+            let currentCount = parseInt(deniedAccessCard.textContent);
+            if (currentCount > 0) {
+                deniedAccessCard.textContent = currentCount - 1;
+            }
+        }
+    } else if (alertType === 'visitor_overstay') {
+        // Update Visitor Overstay card
+        const overstayCard = document.querySelector('.alert-card:nth-child(2) h2');
+        if (overstayCard) {
+            let currentCount = parseInt(overstayCard.textContent);
+            if (currentCount > 0) {
+                overstayCard.textContent = currentCount - 1;
+            }
+        }
+    }
+    
+    // Also update via AJAX for consistency
+    refreshDashboardCounts();
+}
+
 
 function updateAllDashboardCountsImmediately() {
     // Update Active Security Alerts card (top row, 4th card)
@@ -1108,45 +1210,106 @@ function showSecurityAlertsModal() {
 }
 
 function updateCriticalAlert(alertData) {
-    const html = `
-        <div class="col-12">
-            <div class="critical-alert-box" id="currentCriticalAlert" data-alert-id="${alertData.log_id}">
-                <div class="d-flex justify-content-between">
-                    <h5 class="critical-title">Critical Security Alert</h5>
-                    <button class="critical-close" onclick="closeCriticalAlert()">&times;</button>
-                </div>
-
-                <div class="row mt-3">
-                    <div class="col-md-4 col-12">
-                        <p class="label">Incident Type</p>
-                        <p class="value">Unauthorized Access Attempt</p>
+    let html = '';
+    
+    if (alertData.alert_type === 'access_denied') {
+        html = `
+            <div class="col-12">
+                <div class="critical-alert-box" 
+                     id="currentCriticalAlert" 
+                     data-alert-id="${alertData.log_id}"
+                     data-alert-type="access_denied">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h5 class="critical-title mb-0">
+                            <i class="fas fa-shield-alt me-2"></i>Critical Security Alert
+                            <span class="badge bg-${alertData.priority == 'high' ? 'danger' : (alertData.priority == 'medium' ? 'warning' : 'secondary')} ms-2">
+                                ${alertData.priority ? alertData.priority.charAt(0).toUpperCase() + alertData.priority.slice(1) : 'Medium'} Priority
+                            </span>
+                        </h5>
+                        <button class="btn btn-sm btn-outline-light" onclick="acknowledgeAlert()">
+                            <i class="fas fa-check me-1"></i> Acknowledge
+                        </button>
                     </div>
 
-                    <div class="col-md-4 col-12">
-                        <p class="label">Location</p>
-                        <p class="value">${alertData.location}</p>
+                    <div class="row mt-3">
+                        <div class="col-md-4 col-12 mb-3">
+                            <p class="label mb-1">Incident Type</p>
+                            <p class="value mb-0">Unauthorized Access Attempt</p>
+                        </div>
+
+                        <div class="col-md-4 col-12 mb-3">
+                            <p class="label mb-1">Location</p>
+                            <p class="value mb-0">${alertData.location}</p>
+                        </div>
+
+                        <div class="col-md-4 col-12 mb-3">
+                            <p class="label mb-1">Time</p>
+                        </div>
                     </div>
 
-                    <div class="col-md-4 col-12">
-                        <p class="label">Time</p>
-                        <p class="value">${alertData.created_at} (${alertData.time_ago})</p>
+                    <p class="description mt-2 mb-3">
+                        ${alertData.visitor_name} on the restricted watchlist attempted to gain entry.
+                    </p>
+
+                    <div>
+                        <button class="btn btn-danger btn-sm" onclick="showSecurityAlertsModal()">
+                            <i class="fas fa-eye me-1"></i> View Incident
+                        </button>
                     </div>
-                </div>
-
-                <p class="description mt-2">
-                    ${alertData.visitor_name} on the restricted watchlist attempted to gain entry.                    
-                </p>
-
-                <div class="mt-3">
-                    <button class="btn btn-danger btn-sm" onclick="showSecurityAlertsModal()">View Incident</button>
-                    <button class="btn btn-outline-light btn-sm" onclick="acknowledgeAlert()">Acknowledge</button>
                 </div>
             </div>
-        </div>
-    `;
+        `;
+    } else {
+        html = `
+            <div class="col-12">
+                <div class="critical-alert-box" 
+                     id="currentCriticalAlert" 
+                     data-alert-id="${alertData.log_id}"
+                     data-alert-type="visitor_overstay">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h5 class="critical-title mb-0">
+                            <i class="fas fa-clock me-2"></i>Visitor Overstay Alert
+                            <span class="badge bg-${alertData.priority == 'high' ? 'danger' : (alertData.priority == 'medium' ? 'warning' : 'secondary')} ms-2">
+                                ${alertData.priority ? alertData.priority.charAt(0).toUpperCase() + alertData.priority.slice(1) : 'Medium'} Priority
+                            </span>
+                        </h5>
+                        <button class="btn btn-sm btn-outline-light" onclick="acknowledgeAlert()">
+                            <i class="fas fa-check me-1"></i> Acknowledge
+                        </button>
+                    </div>
+
+                    <div class="row mt-3">
+                        <div class="col-md-4 col-12 mb-3">
+                            <p class="label mb-1">Incident Type</p>
+                            <p class="value mb-0">Visitor Overstay Alert</p>
+                        </div>
+
+                        <div class="col-md-4 col-12 mb-3">
+                            <p class="label mb-1">Location</p>
+                            <p class="value mb-0">${alertData.location}</p>
+                        </div>
+
+                        <div class="col-md-4 col-12 mb-3">
+                            <p class="label mb-1">Time</p>
+                        </div>
+                    </div>
+
+                    <p class="description mt-2 mb-3">
+                        ${alertData.visitor_name} has exceeded their scheduled visit time by ${alertData.overstay_details.overstay_duration || 'unknown time'}.
+                        Expected end: ${alertData.overstay_details.expected_end_time || 'N/A'}
+                    </p>
+
+                    <div>
+                        <button class="btn btn-warning btn-sm" onclick="showVisitorOverstayModal()">
+                            <i class="fas fa-clock me-1"></i> View Overstay Details
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
     
     document.getElementById('criticalAlertSection').innerHTML = html;
-    document.getElementById('criticalAlertSection').style.display = 'block';
 }
 
 function refreshDashboardCounts() {
@@ -1162,7 +1325,7 @@ function refreshDashboardCounts() {
         if (data.success) {
             // Update Active Security Alerts count
             if (data.activeSecurityAlertsCount !== undefined) {
-                const activeAlertsCard = document.querySelector('.stat-card:nth-child(4) h2');
+                const activeAlertsCard = document.querySelectorAll('.stat-card')[3]?.querySelector('h2');
                 if (activeAlertsCard) {
                     activeAlertsCard.textContent = data.activeSecurityAlertsCount;
                 }
@@ -1173,6 +1336,14 @@ function refreshDashboardCounts() {
                 const deniedAccessCard = document.querySelector('.alert-card:nth-child(1) h2');
                 if (deniedAccessCard) {
                     deniedAccessCard.textContent = data.deniedAccessCount;
+                }
+            }
+            
+            // Update Visitor Overstay count
+            if (data.visitorOverstayCount !== undefined) {
+                const overstayCard = document.querySelector('.alert-card:nth-child(2) h2');
+                if (overstayCard) {
+                    overstayCard.textContent = data.visitorOverstayCount;
                 }
             }
         }

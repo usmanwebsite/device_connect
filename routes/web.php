@@ -8,6 +8,7 @@ use App\Http\Controllers\LoginController;
 use App\Http\Controllers\PathController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\SecurityAlertController;
+use App\Http\Controllers\SecurityAlertPriorityController;
 use App\Http\Controllers\VisitorDetailsController;
 use App\Http\Controllers\VisitorInfoByDoorController;
 use App\Http\Controllers\VisitorReportController;
@@ -122,6 +123,13 @@ Route::get('/clear-session', function() {
         Route::post('/get-visitors', [VisitorInfoByDoorController::class, 'getVisitorsByLocation'])->name('get-visitors');
         Route::get('/get-visitor-details', [VisitorInfoByDoorController::class, 'getVisitorDetails'])->name('get-visitor-details');
         Route::get('/export', [VisitorInfoByDoorController::class, 'exportVisitors'])->name('export');
+    });
+
+
+    Route::prefix('security-alert-priority')->name('security-alert-priority.')->group(function () {
+        Route::get('/', [SecurityAlertPriorityController::class, 'index'])->name('index');
+        Route::get('/{securityAlertPriority}/edit', [SecurityAlertPriorityController::class, 'edit'])->name('edit');
+        Route::put('/{securityAlertPriority}', [SecurityAlertPriorityController::class, 'update'])->name('update');
     });
 
 
