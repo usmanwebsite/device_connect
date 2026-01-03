@@ -1360,7 +1360,7 @@ public function getFilteredAngularMenu()
                     ],
                     [
                         'id' => 6.48, 
-                        'label' => "SECURITY ALERT PRIORITY", 
+                        'label' => "ALERT PRIORITY", 
                         'link' => "/security-alert-priority",
                         'isAuth' => 'SecurityAlertPriority',
                         'parentId' => 6.0, 
@@ -1379,7 +1379,7 @@ public function getFilteredAngularMenu()
                 'subItems' => [
                     [
                         'id' => 7.1,
-                        'label' => "MAIN REPORT",
+                        'label' => "ACCESS REPORT",
                         'link' => "/reports/access-logs", 
                         'isAuth' => 'mVRP',
                         'parentId' => 7.0,

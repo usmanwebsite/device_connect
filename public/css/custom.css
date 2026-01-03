@@ -406,14 +406,28 @@ body {
 
 .footer {
     padding: 15px 20px;
-    position: fixed;
-    bottom: 0;
+    /* position: fixed; */
+    /* bottom: 0; */
     width: 100%;
     background-color: #F2F2F5;
-    color: #666;
+    color: #74788D;
     display: flex;
-    align-items: center;             
+    justify-content: space-between;
+    align-items: center;
+    font-family: 'Poppins', sans-serif;
+    font-size: 12px;
 }
+
+
+.footer-right{
+    margin-right: 15px important
+}
+
+/* 
+.footer p {
+    margin: 0;
+} */
+
 
 /* Nested Dropdown Styles */
 .submenu {
@@ -1983,3 +1997,66 @@ body.modal-open {
     border-color: #dc3545;
     background-color: rgba(220, 53, 69, 0.05);
 }
+
+
+/* PathWay css */
+.btn-sm {
+    min-height: 32px; /* یا جتنی height چاہیں */
+    padding: 0.375rem 0.75rem;
+    font-size: 0.875rem;
+    line-height: 1.5;
+}
+
+/* Form کے buttons کو equal width کرنے کے لیے */
+#pathForm .btn {
+    min-width: 120px; /* یا جتنی width چاہیں */
+}
+
+/* Table header کے buttons کو equal size کرنے کے لیے */
+.d-flex.justify-content-between.align-items-center.mb-3 .btn {
+    min-width: 120px;
+    min-height: 32px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Table کے اندر کے buttons */
+#pathsTable .btn {
+    min-width: 80px;
+    min-height: 32px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Specific buttons جو form کے نیچے ہیں */
+.d-flex.justify-content-between .btn {
+    min-width: 120px;
+    min-height: 32px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Move doors والے buttons */
+#addDoor, #removeDoor {
+    min-width: 80px;
+    min-height: 32px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* تمام buttons کو consistent styling */
+.btn {
+    border-radius: 0.25rem;
+    font-weight: 500;
+    transition: all 0.2s ease-in-out;
+}
+
+.btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+} 
+

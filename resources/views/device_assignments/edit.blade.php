@@ -63,10 +63,10 @@
                 </div>
 
                 <div class="mt-4">
-                    <button type="submit" class="btn btn-primary">
-                        <i class="fas fa-save"></i> Update Assignment
+                    <button type="submit" class="btn btn-primary" >
+                        <i class="fas fa-save"></i> Update
                     </button>
-                    <a href="{{ route('device-assignments.index') }}" class="btn btn-secondary">
+                    <a href="{{ route('device-assignments.index') }}" class="btn btn-secondary" style="height: 44px; width:100px;line-height: 28px">
                         Cancel
                     </a>
                 </div>

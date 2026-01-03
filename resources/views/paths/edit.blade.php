@@ -55,12 +55,12 @@
                     </div>
                 </div>
                 
-                <div class="col-md-2 text-center d-flex flex-column justify-content-center">
-                    <button type="button" id="addDoor" class="btn btn-primary btn-sm mb-2">→ Add</button>
-                    <button type="button" id="removeDoor" class="btn btn-secondary btn-sm">← Remove</button>
+                <div class="col-md-2 text-center d-flex flex-column justify-content-center" >
+                    <button type="button" id="addDoor" class="btn btn-primary btn-sm mb-2" style="width: 120px !important; height: 36px">→ Add</button>
+                    <button type="button" id="removeDoor" class="btn btn-secondary btn-sm" style="width: 120px !important; height: 36px">← Remove</button>
                 </div>
                 
-                <div class="col-md-5">
+                <div class="col-md-5" >
                     <h6 class="fw-bold">Selected Doors (Drag to reorder)</h6>
                     <div id="selectedDoors" class="list-group sortable-list" style="max-height: 200px; overflow-y: auto;">
                         @foreach($selectedDoors as $door)
@@ -79,33 +79,12 @@
         </div>
 
         <div class="d-flex justify-content-between">
-            <button type="submit" class="btn btn-primary btn-sm">Update Path</button>
-            <a href="{{ route('paths.index') }}" class="btn btn-outline-secondary btn-sm">Cancel</a>
+            <button type="submit" class="btn btn-primary btn-sm" style="height: 36px">Update Path</button>
+            <a href="{{ route('paths.index') }}" class="btn btn-outline-secondary btn-sm" style="height: 36px">Cancel</a>
         </div>
     </form>
 
 </div>
-@endsection
-
-@section('styles')
-<style>
-.sortable-list {
-    min-height: 100px;
-}
-.draggable-door {
-    cursor: move;
-    transition: all 0.2s;
-}
-.draggable-door.selected {
-    background-color: #007bff !important;
-    color: white !important;
-    border-color: #007bff !important;
-}
-.ui-sortable-helper {
-    background-color: #f8f9fa !important;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-}
-</style>
 @endsection
 
 @section('scripts')

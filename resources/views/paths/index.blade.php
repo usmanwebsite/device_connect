@@ -19,7 +19,7 @@
             <div class="col-md-8">
                 <div class="mb-3">
                     <label for="name" class="form-label">Path Name</label>
-                    <input type="text" name="name" id="name" class="form-control form-control-sm" required>
+                    <input type="text" name="name" id="name" class="form-control form-control-sm" required style="width: 61%">
                 </div>
             </div>
         </div>
@@ -40,8 +40,8 @@
                 </div>
                 
                 <div class="col-md-2 text-center d-flex flex-column justify-content-center">
-                    <button type="button" id="addDoor" class="btn btn-primary btn-sm mb-2">→ Add</button>
-                    <button type="button" id="removeDoor" class="btn btn-secondary btn-sm">← Remove</button>
+                    <button type="button" id="addDoor" class="btn btn-primary btn-sm mb-2" style="width: 120px !important; height: 36px">→ Add</button>
+                    <button type="button" id="removeDoor" class="btn btn-secondary btn-sm" style="width: 120px !important">← Remove</button>
                 </div>
                 
                 <div class="col-md-5">
@@ -109,7 +109,7 @@
                                 </div>
                             </td>
                             <td class="text-center">
-                                <a href="{{ route('paths.edit', $path->id) }}" class="btn btn-sm btn-warning">
+                                <a href="{{ route('paths.edit', $path->id) }}" class="btn btn-sm btn-warning" style="width: 120px !important; height: 36px !important">
                                     <i class="fas fa-edit"></i> Edit
                                 </a>
                             </td>
