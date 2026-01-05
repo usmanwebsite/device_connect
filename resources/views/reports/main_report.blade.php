@@ -1,7 +1,7 @@
 @extends('layout.main_layout')
 
 @section('content')
-<!-- Mobile Menu Toggle Button -->
+
 <button class="mobile-menu-toggle" id="mobileMenuToggle">
     <i class="fas fa-bars"></i>
 </button>
@@ -105,48 +105,28 @@
                     </div>
                 </div>
 
-                {{-- Main Table with Fixed Header and Proper Scrolling --}}
-
-<div class="table-container-wrapper d-none" id="staffTableContainer">
-    <div class="table-responsive">
-        <table class="table table-hover table-striped table-fixed-header" id="staffTable">
-            <thead class="table-light">
-                <tr>
-                    <th>No</th>
-                    <th>Code</th>
-                    <th>Visitor Name</th>
-                    <th>Person Visited</th>
-                    <th>Contact No</th>
-                    <th>IC No</th>
-                    <th>Total Access</th>
-                    <th>First Access</th>
-                    <th>Last Access</th>
-                    <th>Actions</th>
-                </tr>
-            </thead>
-            <tbody id="staffTableBody">
-                {{-- Dynamic content --}}
-            </tbody>
-        </table>
-    </div>
-</div>
-
-                {{-- Pagination and Footer - RESPONSIVE --}}
-                <div id="tableFooter" class="row mt-3 d-none">
-                    <div class="col-12 col-md-6 mb-3 mb-md-0">
-                        <div class="d-flex align-items-center justify-content-center justify-content-md-start">
-                            <span class="text-muted me-3">Showing </span>
-                            <select class="form-select form-select-sm" style="width: auto;" id="itemsPerPage">
-                                <option value="10">10</option>
-                                <option value="25">25</option>
-                                <option value="50">50</option>
-                                <option value="100">100</option>
-                            </select>
-                            <span class="text-muted ms-2">items per page</span>
-                        </div>
-                    </div>
-                    <div class="col-12 col-md-6 text-center text-md-end">
-                        <div id="paginationInfo" class="text-muted"></div>
+                {{-- Main Table with DataTable --}}
+                <div class="table-container-wrapper d-none" id="staffTableContainer">
+                    <div class="table-responsive">
+                        <table class="table table-hover table-striped" id="staffTable">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>No</th>
+                                    <th>Code</th>
+                                    <th>Visitor Name</th>
+                                    <th>Person Visited</th>
+                                    <th>Contact No</th>
+                                    <th>IC No</th>
+                                    <th>Total Access</th>
+                                    <th>First Access</th>
+                                    <th>Last Access</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="staffTableBody">
+                                {{-- Dynamic content --}}
+                            </tbody>
+                        </table>
                     </div>
                 </div>
 
@@ -217,6 +197,13 @@
 
 @section('scripts')
 <script>
+// Global Variables
+let dataTable = null;
+let allStaffData = [];
+let visitorDetailsCache = {};
+let currentModalStaffNo = null;
+let currentModalVisitorDetails = null;
+
 // Custom Dropdown Functionality
 document.addEventListener('DOMContentLoaded', function() {
     const dropdownBtn = document.getElementById('locationDropdownBtn');
@@ -344,14 +331,6 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 });
 
-// Global Variables
-let currentPage = 1;
-let itemsPerPage = 10;
-let allStaffData = [];
-let visitorDetailsCache = {};
-let currentModalStaffNo = null;
-let currentModalVisitorDetails = null;
-
 // Get selected locations
 function getSelectedLocations() {
     const selectedLocations = [];
@@ -370,6 +349,67 @@ function formatDateTimeDisplay(datetimeString) {
         hour: '2-digit',
         minute: '2-digit',
         hour12: true
+    });
+}
+
+function formatDateTime(date) {
+    return new Date(date).toLocaleString('en-GB', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true
+    }).replace(',', '');
+}
+
+// Function to initialize DataTable
+function initializeDataTable() {
+    // Agar existing DataTable hai to destroy karein
+    if (dataTable) {
+        dataTable.destroy();
+    }
+    
+    // DataTable initialize karein
+    dataTable = $('#staffTable').DataTable({
+        "paging": true,
+        "searching": true,
+        "ordering": true,
+        "info": true,
+        "autoWidth": false,
+        "responsive": true,
+        "pageLength": 10,
+        "order": [[0, 'asc']], // Default sorting by first column
+        "language": {
+            "search": "Search records:",
+            "lengthMenu": "Show _MENU_ entries",
+            "info": "Showing _START_ to _END_ of _TOTAL_ entries",
+            "paginate": {
+                "first": "First",
+                "last": "Last",
+                "next": "Next",
+                "previous": "Previous"
+            }
+        },
+        "columns": [
+            { "orderable": true },
+            { "orderable": true },
+            { "orderable": true },
+            { "orderable": true },
+            { "orderable": true },
+            { "orderable": true },
+            { "orderable": true },
+            { "orderable": true },
+            { "orderable": true },
+            { "orderable": false } // Actions column sort nahi hoga
+        ],
+        "drawCallback": function(settings) {
+            // Re-attach event listeners to buttons after table redraw
+            $('.staff-movement-btn').off('click').on('click', function() {
+                const staffNo = $(this).data('staff-no');
+                viewStaffMovement(staffNo);
+            });
+        }
     });
 }
 
@@ -400,7 +440,12 @@ function loadReport() {
     document.getElementById('staffTableContainer').classList.add('d-none');
     document.getElementById('noDataMessage').classList.add('d-none');
     document.getElementById('reportSummary').classList.add('d-none');
-    document.getElementById('tableFooter').classList.add('d-none');
+
+    // Agar existing DataTable hai to destroy karein
+    if (dataTable) {
+        dataTable.destroy();
+        dataTable = null;
+    }
 
     const fromDisplay = formatDateTimeDisplay(fromDateTime);
     const toDisplay = formatDateTimeDisplay(toDateTime);
@@ -473,9 +518,7 @@ function displayReportData(data, fromDisplay, toDisplay, selectedLocations) {
     document.getElementById('reportSummary').classList.remove('d-none');
 
     fetchAllVisitorDetails().then(() => {
-        currentPage = 1;
-        displayCurrentPage();
-        document.getElementById('tableFooter').classList.remove('d-none');
+        populateDataTable();
     });
 }
 
@@ -515,23 +558,25 @@ async function fetchAllVisitorDetails() {
     await Promise.all(promises);
 }
 
-function displayCurrentPage() {
-    const startIndex = (currentPage - 1) * itemsPerPage;
-    const endIndex = startIndex + itemsPerPage;
-    const currentData = allStaffData.slice(startIndex, endIndex);
-
+function populateDataTable() {
     const tableBody = document.getElementById('staffTableBody');
     tableBody.innerHTML = '';
 
-    if (currentData.length === 0) {
+    if (allStaffData.length === 0) {
         const row = document.createElement('tr');
         row.innerHTML = `<td colspan="10" class="text-center">No data available</td>`;
         tableBody.appendChild(row);
+        
+        // DataTable initialize karein (empty table ke saath bhi)
+        setTimeout(() => {
+            initializeDataTable();
+        }, 100);
         return;
     }
 
-    currentData.forEach((staff, index) => {
-        const rowNumber = startIndex + index + 1;
+    // All data show karein, DataTable khud pagination handle karega
+    allStaffData.forEach((staff, index) => {
+        const rowNumber = index + 1;
         const row = document.createElement('tr');
         row.className = 'staff-row';
         
@@ -553,7 +598,7 @@ function displayCurrentPage() {
             <td>${staff.firstAccess ? formatDateTime(staff.firstAccess) : 'N/A'}</td>
             <td>${staff.lastAccess ? formatDateTime(staff.lastAccess) : 'N/A'}</td>
             <td>
-                <button class="btn btn-sm btn-info" onclick="viewStaffMovement('${staff.staffNo}')">
+                <button class="btn btn-sm btn-info staff-movement-btn" data-staff-no="${staff.staffNo}">
                     <i class="fas fa-eye"></i>
                 </button>
             </td>
@@ -561,36 +606,29 @@ function displayCurrentPage() {
         tableBody.appendChild(row);
     });
 
-    updatePaginationInfo();
-    document.getElementById('staffTableContainer').classList.remove('d-none');
-}
-
-function formatDateTime(date) {
-    return new Date(date).toLocaleString('en-GB', {
-        day: '2-digit',
-        month: '2-digit',
-        year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: true
-    }).replace(',', '');
-}
-
-function updatePaginationInfo() {
-    const totalItems = allStaffData.length;
-    const totalPages = Math.ceil(totalItems / itemsPerPage);
-    const startItem = (currentPage - 1) * itemsPerPage + 1;
-    const endItem = Math.min(currentPage * itemsPerPage, totalItems);
-    
-    document.getElementById('paginationInfo').textContent = 
-        `Showing ${startItem} to ${endItem} of ${totalItems} entries`;
+    // Short delay ke baad DataTable initialize karein
+    setTimeout(() => {
+        initializeDataTable();
+        document.getElementById('staffTableContainer').classList.remove('d-none');
+        
+        // Event listeners attach karein
+        $('.staff-movement-btn').off('click').on('click', function() {
+            const staffNo = $(this).data('staff-no');
+            viewStaffMovement(staffNo);
+        });
+    }, 100);
 }
 
 function showNoData() {
     document.getElementById('noDataMessage').classList.remove('d-none');
     document.getElementById('staffTableContainer').classList.add('d-none');
     document.getElementById('reportSummary').classList.add('d-none');
-    document.getElementById('tableFooter').classList.add('d-none');
+    
+    // DataTable clear karein
+    if (dataTable) {
+        dataTable.destroy();
+        dataTable = null;
+    }
 }
 
 function viewStaffMovement(staffNo) {
@@ -724,17 +762,5 @@ function viewVisitorChronology(staffNo, icNo, fullName) {
     
     window.location.href = `/visitor-details?autoSearch=true&staffNo=${encodeURIComponent(staffNo)}&icNo=${encodeURIComponent(icNo || '')}`;
 }
-
-// Event listeners
-document.addEventListener('DOMContentLoaded', function() {
-    document.getElementById('itemsPerPage').addEventListener('change', function() {
-        itemsPerPage = parseInt(this.value);
-        currentPage = 1;
-        if (allStaffData.length > 0) {
-            displayCurrentPage();
-        }
-    });
-});
 </script>
 @endsection
-

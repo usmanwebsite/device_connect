@@ -857,6 +857,16 @@ body {
     margin-left: 0;
 }
 
+.dataTables_filter {
+    margin-left: 210px !important;
+    margin-top: 5px;
+}
+
+#staffTable_length label{
+    margin-right: 330px !important;
+    margin-top: 5px !important;
+}
+
 /* Mobile Menu Toggle Button */
 .mobile-menu-toggle {
     display: none;
