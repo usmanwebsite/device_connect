@@ -136,8 +136,22 @@ class SocketServerService
             return;
         }
 
+        if (!$this->isIpInRange($ip)) {
+            echo "[" . date('H:i:s') . "] 🚨 IP OUT OF RANGE: $ip\n";
+
+            $this->sendAlarm(
+                $sock,
+                $deviceId ?? 'UNKNOWN',
+                $scode ?? null,
+                "IP address $ip is outside allowed range"
+            );
+
+            return;
+        }
+
         // ✅ Step 1: Call Java API to get visitor details
         $javaResponse = $this->callJavaVendorApi($scode);
+
 
         if (!$javaResponse || !isset($javaResponse['status']) || $javaResponse['status'] !== 'success') {
             echo "[" . date('H:i:s') . "] ❌ Java API returned error or no data\n";
@@ -277,7 +291,7 @@ class SocketServerService
 
                 // ✅ Step 7: Grant access
                 $this->grantAccess($sock, $deviceId, $scode, $staffNo, $locationName, $isType);
-            }
+    }
 
     private function getDeviceLocationInfo($deviceId)
     {
@@ -517,6 +531,28 @@ class SocketServerService
 
         socket_write($sock, $alarmCommand, strlen($alarmCommand));
     }
+
+    private function isIpInRange($ip)
+    {
+        $range = DB::table('ip_ranges')->first();
+
+        // Agar IP range configured hi nahi
+        if (!$range) {
+            echo "[" . date('H:i:s') . "] ⚠️ IP Range not configured – skipping IP check\n";
+            return true; // fail-open OR change to false if strict
+        }
+
+        $ipLong   = ip2long($ip);
+        $fromLong = ip2long($range->ip_range_from);
+        $toLong   = ip2long($range->ip_range_to);
+
+        if ($ipLong === false || $fromLong === false || $toLong === false) {
+            return false;
+        }
+
+        return ($ipLong >= $fromLong && $ipLong <= $toLong);
+    }
+
 
 }
 

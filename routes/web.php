@@ -41,6 +41,9 @@ Route::prefix('device-assignments')->group(function () {
     Route::get('/edit/{id}', [DeviceLocationAssignController::class, 'edit'])->name('device-assignments.edit');
     Route::put('/update/{id}', [DeviceLocationAssignController::class, 'update'])->name('device-assignments.update');
     Route::delete('/delete/{id}', [DeviceLocationAssignController::class, 'destroy'])->name('device-assignments.destroy');
+
+    Route::post('/update-ip-range', [DeviceLocationAssignController::class, 'updateIpRange'])->name('device-assignments.update-ip-range');
+    Route::get('/get-status', [DeviceLocationAssignController::class, 'getDeviceStatus'])->name('device-assignments.get-status');
 });
 
 

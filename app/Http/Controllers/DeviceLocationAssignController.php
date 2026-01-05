@@ -4,9 +4,11 @@ namespace App\Http\Controllers;
 
 use App\Models\DeviceConnection;
 use App\Models\DeviceLocationAssign;
-use Illuminate\Http\Request;
 use App\Models\VendorLocation;
+use App\Models\IpRange; // نیا model بنائیں
+use Illuminate\Http\Request;
 use App\Services\MenuService;
+use Illuminate\Support\Carbon;
 
 class DeviceLocationAssignController extends Controller
 {
@@ -17,23 +19,115 @@ class DeviceLocationAssignController extends Controller
         $this->menuService = $menuService;
     }
 
-    // ✅ INDEX
+    // ✅ INDEX - IP Range ke sath
     public function index()
     {
         $angularMenu = $this->menuService->getFilteredAngularMenu();
-        $assignments = DeviceLocationAssign::with(['device', 'location'])
-            ->orderBy('created_at', 'desc')
-            ->get();
         
-        return view('device_assignments.index', compact('assignments', 'angularMenu'));
+        // Get IP Range settings
+        $ipRange = IpRange::first(); // First record from ip_ranges table
+        
+        // Get all device connections
+        $devices = DeviceConnection::with(['assignments'])->get();
+        
+        $assignmentsData = [];
+        
+        foreach ($devices as $device) {
+            // Check registration status
+            $isRegistered = $device->assignments()->exists();
+            
+            // Check online/offline status (if last heartbeat within 1 minute)
+            $isOnline = $device->last_heartbeat && 
+                       Carbon::parse($device->last_heartbeat)->diffInSeconds(now()) <= 60;
+            
+            // Get assignment if exists
+            $assignment = $device->assignments()->first();
+            
+            $assignmentsData[] = [
+                'device_connection_id' => $device->id,
+                'device_id' => $device->device_id,
+                'ip' => $device->ip,
+                'last_heartbeat' => $device->last_heartbeat,
+                'status' => $isOnline ? 'online' : 'offline',
+                'is_registered' => $isRegistered,
+                'location_name' => $assignment ? $assignment->location->name : null,
+                'is_type' => $assignment ? $assignment->is_type : null,
+                'created_at' => $assignment ? $assignment->created_at : null,
+                'assignment_id' => $assignment ? $assignment->id : null,
+            ];
+        }
+        
+        return view('device_assignments.index', compact('assignmentsData', 'angularMenu', 'ipRange'));
+    }
+
+    // ✅ UPDATE IP RANGE
+    public function updateIpRange(Request $request)
+    {
+        $request->validate([
+            'ip_range_from' => 'required|ipv4',
+            'ip_range_to'   => 'required|ipv4',
+        ]);
+
+        // ✅ Proper IP comparison
+        if (ip2long($request->ip_range_from) > ip2long($request->ip_range_to)) {
+            return redirect()->back()
+                ->withInput()
+                ->with('error', 'IP Range To must be greater than or equal to IP Range From.');
+        }
+
+        $ipRange = IpRange::first();
+
+        if (!$ipRange) {
+            IpRange::create([
+                'ip_range_from' => $request->ip_range_from,
+                'ip_range_to'   => $request->ip_range_to
+            ]);
+        } else {
+            $ipRange->update([
+                'ip_range_from' => $request->ip_range_from,
+                'ip_range_to'   => $request->ip_range_to
+            ]);
+        }
+
+        return redirect()->route('device-assignments.index')
+            ->with('success', 'IP Range updated successfully!');
+    }
+
+
+    // ✅ GET DEVICE STATUS (AJAX) - For real-time updates
+    public function getDeviceStatus()
+    {
+        $devices = DeviceConnection::with(['assignments'])->get();
+        
+        $devicesData = [];
+        foreach ($devices as $device) {
+            // Check online/offline status
+            $isOnline = $device->last_heartbeat && 
+                       Carbon::parse($device->last_heartbeat)->diffInSeconds(now()) <= 60;
+            
+            $devicesData[] = [
+                'id' => $device->id,
+                'device_id' => $device->device_id,
+                'status' => $isOnline ? 'online' : 'offline',
+                'last_heartbeat_formatted' => $device->last_heartbeat ? 
+                    Carbon::parse($device->last_heartbeat)->format('d-m-Y H:i:s') : 'Never',
+                'ip' => $device->ip,
+                'is_registered' => $device->assignments()->exists()
+            ];
+        }
+        
+        return response()->json([
+            'success' => true,
+            'devices' => $devicesData
+        ]);
     }
 
     // ✅ CREATE - Status condition removed
     public function create()
     {
-        $devices = DeviceConnection::all(); // ✅ Simple - all devices
+        $devices = DeviceConnection::all();
         $locations = VendorLocation::orderBy('name')->get();
-        $types = DeviceLocationAssign::getTypes(); // ✅ Get types
+        $types = DeviceLocationAssign::getTypes();
         
         return view('device_assignments.create', compact('devices', 'locations', 'types'));
     }
@@ -73,9 +167,9 @@ class DeviceLocationAssignController extends Controller
     public function edit($id)
     {
         $assignment = DeviceLocationAssign::findOrFail($id);
-        $devices = DeviceConnection::all(); // ✅ Simple - all devices
+        $devices = DeviceConnection::all();
         $locations = VendorLocation::orderBy('name')->get();
-        $types = DeviceLocationAssign::getTypes(); // ✅ Get types
+        $types = DeviceLocationAssign::getTypes();
 
         return view('device_assignments.edit', compact('assignment', 'devices', 'locations', 'types'));
     }
