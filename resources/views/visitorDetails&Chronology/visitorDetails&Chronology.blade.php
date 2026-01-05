@@ -7,14 +7,14 @@
     <div class="container-fluid">
         <div class="row mb-2">
             <div class="col-sm-6">
-                <h1 class="m-0">Visitor Details</h1>
+                <h1 class="m-0" style="font-weight: 600; font-size: 1.8rem; margin-left: 20px !important">Visitor Details</h1>
             </div>
-            <div class="col-sm-6">
+            {{-- <div class="col-sm-6">
                 <ol class="breadcrumb float-sm-right">
                     <li class="breadcrumb-item"><a href="{{ route('dashboard') }}">Home</a></li>
                     <li class="breadcrumb-item active">Visitor Details</li>
                 </ol>
-            </div>
+            </div> --}}
         </div>
     </div>
 </div>
@@ -25,7 +25,7 @@
             <div class="col-md-12">
                 <div class="card card-primary">
                     <div class="card-header">
-                        <h3 class="card-title">
+                        <h3 class="card-title" style="font-size: 1.5rem;">
                             <i class="fas fa-search mr-1"></i> 
                             Search Visitor
                         </h3>
@@ -54,10 +54,10 @@
                                                placeholder="Enter Staff No or IC Number" 
                                                aria-label="Search Visitor">
                                         <div class="input-group-append">
-                                            <button class="btn btn-primary btn-lg" type="button" id="searchBtn">
+                                            <button class="btn btn-primary btn-lg" type="button" id="searchBtn" style="width: 140px !important; height: 55px; margin-left: 5px !important">
                                                 <i class="fas fa-search"></i> Search
                                             </button>
-                                            <button class="btn btn-secondary btn-lg" type="button" id="clearBtn">
+                                            <button class="btn btn-secondary btn-lg" type="button" id="clearBtn" style="width: 140px !important; height: 55px">
                                                 <i class="fas fa-times"></i> Clear
                                             </button>
                                         </div>
@@ -101,7 +101,7 @@
             <div class="col-md-12">
                 <div class="card card-success">
                     <div class="card-header">
-                        <h3 class="card-title">
+                        <h3 class="card-title" style="font-weight: 600; font-size: 1.7rem;">
                             <i class="fas fa-users mr-1"></i> 
                             Visitor Details
                         </h3>

@@ -480,7 +480,7 @@ private function processTurnstileLocationForAlert($alert)
         if ($deviceLocationAssign->is_type === 'check_in') {
             return 'Turnstile In';
         } elseif ($deviceLocationAssign->is_type === 'check_out') {
-            return '------------';
+            return 'Out';
         }
         
         return $location;
@@ -527,7 +527,7 @@ private function processTurnstileLocationForOverstay($alert)
         if ($deviceLocationAssign->is_type === 'check_in') {
             return 'Turnstile In';
         } elseif ($deviceLocationAssign->is_type === 'check_out') {
-            return '------------';
+            return 'Out';
         }
         
         return $location;

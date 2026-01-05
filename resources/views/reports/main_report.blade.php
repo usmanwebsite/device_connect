@@ -185,8 +185,8 @@
                 </div>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                <button type="button" class="btn btn-primary" id="modalViewChronologyBtn">View Chronology</button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" style="width: 150px !important; height: 47px">Close</button>
+                <button type="button" class="btn btn-primary" id="modalViewChronologyBtn" style="width: 200px !important; height: 47px">View Chronology</button>
             </div>
         </div>
     </div>
