@@ -259,7 +259,7 @@
                 <h5 class="mb-3">Today's Appointments</h5>
 
                 <ul class="list-group list-group-flush dark-list">
-                    @foreach($todayAppointments as $appointment)
+                    @foreach(collect($todayAppointments)->unique('staff_no') as $appointment)
                     <li class="list-group-item">
                         <strong>{{ $appointment['full_name'] }}</strong> – 
                         {{ \Carbon\Carbon::parse($appointment['date_from'])->format('h:i A') }}                        
@@ -347,7 +347,7 @@
                             </tr>
                         </thead>
                         <tbody>
-                            @foreach($todayAppointments as $appointment)
+                            @foreach(collect($todayAppointments)->unique('staff_no') as $appointment)
                             <tr>
                                 <td>{{ $appointment['full_name'] ?? 'N/A' }}</td>
                                 <td>{{ $appointment['name_of_person_visited'] ?? 'N/A' }}</td>

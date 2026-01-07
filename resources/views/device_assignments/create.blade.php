@@ -39,7 +39,7 @@
                         <option value="">-- Select Device --</option>
                         @foreach($devices as $device)
                             <option value="{{ $device->id }}" {{ old('device_id') == $device->id ? 'selected' : '' }}>
-                                {{ $device->device_id }} - {{ $device->device_name ?? 'Unnamed' }}
+                                {{ $device->device_id }} - {{ $device->ip ?? 'Unnamed' }}
                             </option>
                         @endforeach
                     </select>

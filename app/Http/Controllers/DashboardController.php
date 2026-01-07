@@ -222,7 +222,10 @@ class DashboardController extends Controller
             
             if ($userAccessData && isset($userAccessData['today_appointment_count'])) {
                 $todayAppointmentCount = $userAccessData['today_appointment_count'];
-                $todayAppointments = $userAccessData['today_appointments'] ?? [];
+                $todayAppointments = collect($userAccessData['today_appointments'] ?? [])
+                ->unique('staff_no')   // 👈 KEY POINT
+                ->values()
+                ->toArray();
                 $upcomingAppointments = $userAccessData['upcoming_appointments'] ?? [];
             }
             
