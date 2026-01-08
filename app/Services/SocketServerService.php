@@ -357,6 +357,17 @@ class SocketServerService
         try {
             $javaBaseUrl = env('JAVA_BACKEND_URL', 'http://localhost:8080');
             $token = env('JAVA_API_TOKEN', ''); // You might need to get this from session or config
+
+
+            // ✅ First decrypt staffNo before sending to Java API
+            $decryptedStaffNo = $this->encryptionService->decrypt($staffNo);
+            if (!$decryptedStaffNo) {
+                $decryptedStaffNo = $staffNo; // Already decrypted
+            }
+        
+        $url = $javaBaseUrl . '/api/vendorpass/get-visitor-details?staffNo=' . urlencode($decryptedStaffNo);
+        echo "[" . date('H:i:s') . "] 🌐 Calling Java API with staffNo: $decryptedStaffNo\n";
+
             
             $url = $javaBaseUrl . '/api/vendorpass/get-visitor-details?staffNo=' . urlencode($staffNo);
             echo "[" . date('H:i:s') . "] 🌐 Calling Java API: $url\n";
@@ -388,6 +399,15 @@ class SocketServerService
     {
         echo "[" . date('H:i:s') . "] ✅ Access granted for $staffNo at $locationName ($isType)\n";
         
+        $decryptedStaffNo = $this->encryptionService->decrypt($staffNo);
+    
+        // If decryption fails, use the original (might already be decrypted)
+        if (!$decryptedStaffNo) {
+            $decryptedStaffNo = $staffNo;
+            echo "[" . date('H:i:s') . "] ⚠️ StaffNo already decrypted or decryption failed\n";
+        } else {
+            echo "[" . date('H:i:s') . "] 🔓 Decrypted StaffNo for DB: $decryptedStaffNo\n";
+        }
         // Send open door command to device
         $this->sendOpenDoorCommand($sock, $deviceId);
 
@@ -395,7 +415,7 @@ class SocketServerService
         DB::table('device_access_logs')->insert([
             'device_id' => $deviceId,
             'card_no' => $scode,
-            'staff_no' => $staffNo,
+            'staff_no' => $decryptedStaffNo,
             'location_name' => $locationName,
             'access_granted' => 1,
             'reason' => 'Access granted',
@@ -404,23 +424,33 @@ class SocketServerService
     }
 
     private function sendAlarm($sock, $deviceId, $scode = null, $reason = null, $staffNo = null, $locationName = null)
-    {
-        echo "[" . date('H:i:s') . "] 🚨 Triggering alarm for device $deviceId - Reason: $reason\n";
-        
-        // Trigger device alarm
-        $this->triggerDeviceAlarm($sock, $deviceId);
-
-        // Log denied access
-        DB::table('device_access_logs')->insert([
-            'device_id' => $deviceId,
-            'card_no' => $scode,
-            'staff_no' => $staffNo,
-            'location_name' => $locationName,
-            'access_granted' => 0,
-            'reason' => $reason,
-            'created_at' => now(),
-        ]);
+{
+    echo "[" . date('H:i:s') . "] 🚨 Triggering alarm for device $deviceId - Reason: $reason\n";
+    
+    // ✅ Decrypt staffNo before storing in DB
+    $decryptedStaffNo = null;
+    if ($staffNo) {
+        $decryptedStaffNo = $this->encryptionService->decrypt($staffNo);
+        if (!$decryptedStaffNo) {
+            $decryptedStaffNo = $staffNo;
+        }
+        echo "[" . date('H:i:s') . "] 🔓 Decrypted StaffNo for alarm log: $decryptedStaffNo\n";
     }
+    
+    // Trigger device alarm
+    $this->triggerDeviceAlarm($sock, $deviceId);
+
+    // ✅ Log denied access with DECRYPTED staff_no
+    DB::table('device_access_logs')->insert([
+        'device_id' => $deviceId,
+        'card_no' => $scode,
+        'staff_no' => $decryptedStaffNo,  // ✅ Store DECRYPTED value
+        'location_name' => $locationName,
+        'access_granted' => 0,
+        'reason' => $reason,
+        'created_at' => now(),
+    ]);
+}
 
     // private function sendOpenDoorCommand($sock, $deviceId)
     // {
