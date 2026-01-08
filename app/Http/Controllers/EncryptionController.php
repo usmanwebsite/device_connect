@@ -7,6 +7,17 @@ use Illuminate\Http\Request;
 class EncryptionController extends Controller
 {
     private int $iterations = 100000;
+    private string $secret;
+
+    public function __construct()
+    {
+        // ✅ Get secret from .env file
+        $this->secret = env('ENCRYPTION_SECRET', 'M&RV!$it0@');
+        
+        if (empty($this->secret)) {
+            throw new \Exception('ENCRYPTION_SECRET is not configured in .env file');
+        }
+    }
 
     /**
      * Encrypt (NEW - AES-256-GCM)
@@ -14,8 +25,9 @@ class EncryptionController extends Controller
     public function encrypt(Request $request)
     {
         $request->validate([
-            'value'  => 'required|string',
-            'secret' => 'required|string|min:8'
+            'value'  => 'required|string'
+            // ✅ Remove secret from validation - use from .env
+            // 'secret' => 'required|string|min:8'
         ]);
 
         $salt = random_bytes(16);
@@ -24,7 +36,7 @@ class EncryptionController extends Controller
 
         $key = hash_pbkdf2(
             'sha256',
-            $request->secret,
+            $this->secret, // ✅ Use from .env
             $salt,
             $this->iterations,
             32,
@@ -46,25 +58,28 @@ class EncryptionController extends Controller
                 base64_encode($iv),
                 base64_encode($ciphertext),
                 base64_encode($tag),
-            ])
+            ]),
+            'message' => 'Encrypted using secret from .env'
         ]);
     }
 
     /**
      * Decrypt (AUTO-DETECT OLD + NEW)
+     * ✅ No need to send secret in request
      */
     public function decrypt(Request $request)
     {
         $request->validate([
-            'ciphertext' => 'required|string',
-            'secret'     => 'required|string|min:8'
+            'ciphertext' => 'required|string'
+            // ✅ Remove secret from validation
+            // 'secret'     => 'required|string|min:8'
         ]);
 
         $parts = explode(':', $request->ciphertext);
 
         return match (count($parts)) {
-            3 => $this->decryptOldClient($parts, $request->secret),
-            4 => $this->decryptNewSystem($parts, $request->secret),
+            3 => $this->decryptOldClient($parts),
+            4 => $this->decryptNewSystem($parts),
             default => response()->json(['error' => 'Invalid ciphertext format'], 400),
         };
     }
@@ -72,7 +87,7 @@ class EncryptionController extends Controller
     /**
      * OLD CLIENT DECRYPT (AES-256-CBC)
      */
-    private function decryptOldClient(array $parts, string $secret)
+    private function decryptOldClient(array $parts)
     {
         [$saltHex, $ivHex, $cipherBase64] = $parts;
 
@@ -82,7 +97,7 @@ class EncryptionController extends Controller
 
         $key = hash_pbkdf2(
             'sha256',
-            $secret,
+            $this->secret, // ✅ Use from .env
             $salt,
             1000,          // OLD client iterations
             32,
@@ -99,26 +114,28 @@ class EncryptionController extends Controller
 
         if ($decrypted === false) {
             return response()->json([
-                'error' => 'Old client decryption failed'
+                'error' => 'Old client decryption failed',
+                'note' => 'Using secret from .env: ' . substr($this->secret, 0, 3) . '...'
             ], 400);
         }
 
         return response()->json([
             'value' => $decrypted,
-            'source' => 'old-client'
+            'source' => 'old-client',
+            'message' => 'Decrypted using .env secret'
         ]);
     }
 
     /**
      * NEW SYSTEM DECRYPT (AES-256-GCM)
      */
-    private function decryptNewSystem(array $parts, string $secret)
+    private function decryptNewSystem(array $parts)
     {
         [$salt, $iv, $ciphertext, $tag] = array_map('base64_decode', $parts);
 
         $key = hash_pbkdf2(
             'sha256',
-            $secret,
+            $this->secret, // ✅ Use from .env
             $salt,
             $this->iterations,
             32,
@@ -136,13 +153,28 @@ class EncryptionController extends Controller
 
         if ($decrypted === false) {
             return response()->json([
-                'error' => 'New system decryption failed'
+                'error' => 'New system decryption failed',
+                'note' => 'Using secret from .env: ' . substr($this->secret, 0, 3) . '...'
             ], 400);
         }
 
         return response()->json([
             'value' => $decrypted,
-            'source' => 'new-system'
+            'source' => 'new-system',
+            'message' => 'Decrypted using .env secret'
+        ]);
+    }
+
+    /**
+     * ✅ Optional: Get encryption info (for debugging)
+     */
+    public function getInfo()
+    {
+        return response()->json([
+            'secret_length' => strlen($this->secret),
+            'secret_preview' => substr($this->secret, 0, 3) . '...',
+            'iterations' => $this->iterations,
+            'environment' => app()->environment()
         ]);
     }
 }

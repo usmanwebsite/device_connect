@@ -11,8 +11,14 @@ class SocketServerService
     private $server;
     private $clients = [];
     private $deviceSockets = [];
+    private $encryptionService;
     
     private $javaApiBaseUrl = "http://127.0.0.1:8080";
+
+    public function __construct()
+    {
+        $this->encryptionService = app(EncryptionService::class);
+    }
 
     public function startServer($port = 18887)
     {
@@ -125,16 +131,27 @@ class SocketServerService
         echo "[" . date('H:i:s') . "] 🚪 OpenDoor Request Received\n";
 
         // Extract SCode (card scanned) and DeviceID
-        $scode = $this->extractValue($data, 'SCode'); // card_no
+        // $scode = $this->extractValue($data, 'SCode'); // card_no
+        $encryptedScode = $this->extractValue($data, 'SCode'); // This is encrypted
         $deviceId = $this->extractValue($data, 'DeviceID');
 
-        echo "[" . date('H:i:s') . "] 🔍 SCode: $scode, DeviceID: $deviceId\n";
+        echo "[" . date('H:i:s') . "] 🔍 Encrypted SCode: $encryptedScode, DeviceID: $deviceId\n";
 
-        if (empty($scode) || empty($deviceId)) {
+        if (empty($encryptedScode) || empty($deviceId)) {
             echo "[" . date('H:i:s') . "] ❌ Missing SCode or DeviceID\n";
-            $this->sendAlarm($sock, $deviceId, $scode); // pass SCode to save
+            $this->sendAlarm($sock, $deviceId, $encryptedScode);
             return;
         }
+
+        $decryptedScode = $this->encryptionService->decrypt($encryptedScode);
+
+        if (!$decryptedScode) {
+            echo "[" . date('H:i:s') . "] ❌ Failed to decrypt SCode\n";
+            $this->sendAlarm($sock, $deviceId, $encryptedScode, 'SCode decryption failed');
+            return;
+        }
+
+        echo "[" . date('H:i:s') . "] 🔓 Decrypted SCode: $decryptedScode\n";
 
         if (!$this->isIpInRange($ip)) {
             echo "[" . date('H:i:s') . "] 🚨 IP OUT OF RANGE: $ip\n";
@@ -150,17 +167,17 @@ class SocketServerService
         }
 
         // ✅ Step 1: Call Java API to get visitor details
-        $javaResponse = $this->callJavaVendorApi($scode);
+        $javaResponse = $this->callJavaVendorApi($decryptedScode);
 
 
         if (!$javaResponse || !isset($javaResponse['status']) || $javaResponse['status'] !== 'success') {
             echo "[" . date('H:i:s') . "] ❌ Java API returned error or no data\n";
-            $this->sendAlarm($sock, $deviceId, $scode, 'Java API error or no data');
+            $this->sendAlarm($sock, $deviceId, $decryptedScode, 'Java API error or no data');
             return;
         }
 
         $visitorData = $javaResponse['data'];
-        $staffNo = $visitorData['staffNo'] ?? $scode;
+        $staffNo = $visitorData['staffNo'] ?? $decryptedScode;
         $visitorTypeId = $visitorData['visitorTypeId'] ?? null;
 
         echo "[" . date('H:i:s') . "] 👤 Staff No: $staffNo, Visitor Type ID: $visitorTypeId\n";
@@ -170,7 +187,7 @@ class SocketServerService
         
         if (!$locationInfo) {
             echo "[" . date('H:i:s') . "] ❌ Device location not found\n";
-            $this->sendAlarm($sock, $deviceId, $scode, 'Device location not assigned');
+            $this->sendAlarm($sock, $deviceId, $decryptedScode, 'Device location not assigned');
             return;
         }
 
@@ -182,14 +199,14 @@ class SocketServerService
         // ✅ Step 3: Check if location is Turnstile (skip sequence check)
         if (strtolower($locationName) === 'turnstile') {
             echo "[" . date('H:i:s') . "] ⏭️ Turnstile location - skipping sequence check\n";
-            $this->grantAccess($sock, $deviceId, $scode, $staffNo, $locationName, $isType);
+            $this->grantAccess($sock, $deviceId, $decryptedScode, $staffNo, $locationName, $isType);
             return;
         }
 
         // ✅ Step 4: Get visitor type and path
         if (!$visitorTypeId) {
             echo "[" . date('H:i:s') . "] ❌ No visitor type ID found\n";
-            $this->sendAlarm($sock, $deviceId, $scode, 'No visitor type ID', $staffNo, $locationName);
+            $this->sendAlarm($sock, $deviceId, $decryptedScode, 'No visitor type ID', $staffNo, $locationName);
             return;
         }
 
@@ -197,7 +214,7 @@ class SocketServerService
         
         if (!$visitorType || !$visitorType->path_id) {
             echo "[" . date('H:i:s') . "] ❌ Visitor type not found or no path assigned\n";
-            $this->sendAlarm($sock, $deviceId, $scode, 'No path assigned to visitor type', $staffNo, $locationName);
+            $this->sendAlarm($sock, $deviceId, $decryptedScode, 'No path assigned to visitor type', $staffNo, $locationName);
             return;
         }
 
@@ -205,7 +222,7 @@ class SocketServerService
         
         if (!$path) {
             echo "[" . date('H:i:s') . "] ❌ Path not found\n";
-            $this->sendAlarm($sock, $deviceId, $scode, 'Path not found', $staffNo, $locationName);
+            $this->sendAlarm($sock, $deviceId, $decryptedScode, 'Path not found', $staffNo, $locationName);
             return;
         }
 
@@ -218,7 +235,7 @@ class SocketServerService
         // Check if current door is in the sequence
         if (!in_array($locationName, $doorSequence)) {
             echo "[" . date('H:i:s') . "] ❌ Current door '$locationName' not in path sequence\n";
-            $this->sendAlarm($sock, $deviceId, $scode, "Door '$locationName' not in path", $staffNo, $locationName);
+            $this->sendAlarm($sock, $deviceId, $decryptedScode, "Door '$locationName' not in path", $staffNo, $locationName);
             return;
         }
 
@@ -259,7 +276,7 @@ class SocketServerService
                         $this->sendAlarm(
                             $sock,
                             $deviceId,
-                            $scode,
+                            $decryptedScode,
                             "User valid but sequence not followed. Expected: " .
                             ($doorSequence[$lastIndex + 1] ?? 'END') . ", Got: $locationName",
                             $staffNo,
@@ -276,7 +293,7 @@ class SocketServerService
                         $this->sendAlarm(
                             $sock,
                             $deviceId,
-                            $scode,
+                            $decryptedScode,
                             "Must start with first door: $firstDoor",
                             $staffNo,
                             $locationName
@@ -290,7 +307,7 @@ class SocketServerService
             }
 
                 // ✅ Step 7: Grant access
-                $this->grantAccess($sock, $deviceId, $scode, $staffNo, $locationName, $isType);
+                $this->grantAccess($sock, $deviceId, $decryptedScode, $staffNo, $locationName, $isType);
     }
 
     private function getDeviceLocationInfo($deviceId)
@@ -552,7 +569,6 @@ class SocketServerService
 
         return ($ipLong >= $fromLong && $ipLong <= $toLong);
     }
-
 
 }
 
