@@ -15,6 +15,8 @@ class VerifyCsrfToken extends Middleware
         'java-auth/callback',
         'visitor-info-door/get-visitors',
         'visitor-info-door',
-        '/dashboard/get-critical-alert-details'
+        '/dashboard/get-critical-alert-details',
+        '/encrypt',
+        '/decrypt',
     ];
 }

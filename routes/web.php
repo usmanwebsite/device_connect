@@ -3,6 +3,7 @@
 use App\Http\Controllers\AngularRedirectController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DeviceLocationAssignController;
+use App\Http\Controllers\EncryptionController;
 use App\Http\Controllers\JavaAuthController;
 use App\Http\Controllers\LoginController;
 use App\Http\Controllers\PathController;
@@ -29,6 +30,9 @@ use Illuminate\Support\Facades\Route;
 Route::get('/layout', function () {
     return view('layout.main_layout');
 });
+
+Route::post('/encrypt', [EncryptionController::class, 'encrypt']);
+Route::post('/decrypt', [EncryptionController::class, 'decrypt']);
 
 // web.php
 // Route::get('/assign-device', [DeviceLocationAssignController::class, 'create'])->name('assign.device.form');
