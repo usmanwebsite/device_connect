@@ -530,7 +530,7 @@ async function fetchAllVisitorDetails() {
         }
 
         try {
-            const response = await fetch(`http://127.0.0.1:8080/api/vendorpass/get-visitor-details?staffNo=${staff.staffNo}`);
+            const response = await fetch(`http://127.0.0.1:8080/api/vendorpass/get-visitor-details?icNo=${staff.staffNo}`);
             const data = await response.json();
             
             if (data.status === 'success') {
@@ -698,7 +698,7 @@ function displayVisitorInfoInModal(visitorDetails) {
 }
 
 function fetchVisitorDetailsForModal(staffNo) {
-    fetch(`http://127.0.0.1:8080/api/vendorpass/get-visitor-details?staffNo=${staffNo}`)
+    fetch(`http://127.0.0.1:8080/api/vendorpass/get-visitor-details?icNo=${staffNo}`)
         .then(response => response.json())
         .then(data => {
             if (data.status === 'success') {

@@ -469,7 +469,7 @@ class VisitorInfoByDoorController extends Controller
 {
     try {
         $javaBaseUrl = env('JAVA_BACKEND_URL', 'http://localhost:8080');
-        $url = $javaBaseUrl . '/api/vendorpass/get-visitor-details?staffNo=' . urlencode($staffNo);
+        $url = $javaBaseUrl . '/api/vendorpass/get-visitor-details?icNo=' . urlencode($staffNo);
         
         Log::info('🌐 Calling Java API (without token):', ['url' => $url]);
         

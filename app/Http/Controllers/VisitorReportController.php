@@ -455,7 +455,7 @@ class VisitorReportController extends Controller
             $response = Http::timeout(15)
                 ->retry(2, 100)
                 ->get($javaBaseUrl . '/api/vendorpass/get-visitor-details', [
-                    'staffNo' => $staffNo
+                    'icNo' => $staffNo
                 ]);
             
             Log::info('Java Vendor API Response Status: ' . $response->status());

@@ -57,7 +57,7 @@ class SecurityAlertController extends Controller
             
             // Direct call without authentication headers
             $response = Http::timeout(10)
-                  ->get($javaBaseUrl . '/api/vendorpass/get-visitor-details?staffNo=' . $staffNo);
+                  ->get($javaBaseUrl . '/api/vendorpass/get-visitor-details?icNo=' . $staffNo);
 
             if ($response->successful()) {
                 return $response->json();
@@ -70,8 +70,6 @@ class SecurityAlertController extends Controller
             return null;
         }
     }
-
-    // ... rest of your existing methods remain the same ...
     
     public function index()
     {

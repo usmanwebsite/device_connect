@@ -661,7 +661,6 @@ private function getUnacknowledgedOverstayAlerts($allDeviceUsers = null)
         $currentVisitors = [];
         
         foreach ($groupedLogs as $staffNo => $logs) {
-            // Step 6: For each staff_no, get the latest check_in and check_out
             $latestCheckIn = null;
             $latestCheckOut = null;
             
@@ -1126,14 +1125,40 @@ private function getEnrichedDeniedAccessLogs($deniedAccessLogs)
 
     foreach ($deniedAccessLogs as $log) {
         Log::info('Processing denied access log ID: ' . $log->id);
+        Log::info('IC No from DB: ' . $log->ic_no);
         Log::info('Staff No from DB: ' . $log->staff_no);
         
         try {
-            // Temporary test - use a fixed staffNo for testing
-            $testStaffNo = 'TESTUSER123'; // Your test staff number
-            $javaApiResponse = $this->callJavaVendorApi($testStaffNo);
+            // ✅ Dynamic approach: Pehle ic_no try karein, phir staff_no
+            $identifier = null;
             
-            Log::info('API Response for ' . $testStaffNo . ': ', ['response' => $javaApiResponse]);
+            if (!empty($log->ic_no)) {
+                $identifier = $log->ic_no;
+                Log::info('Using IC No as identifier: ' . $identifier);
+            } elseif (!empty($log->staff_no)) {
+                $identifier = $log->staff_no;
+                Log::info('Using Staff No as identifier: ' . $identifier);
+            } else {
+                Log::warning('Both IC No and Staff No are empty for log ID: ' . $log->id);
+                $enrichedLogs[] = [
+                    'log' => $log,
+                    'visitor_details' => [
+                        'fullName' => 'N/A - No Identifier',
+                        'personVisited' => 'N/A',
+                        'contactNo' => 'N/A',
+                        'icNo' => 'N/A',
+                        'sex' => 'N/A',
+                        'dateOfVisitFrom' => 'N/A',
+                        'dateOfVisitTo' => 'N/A'
+                    ]
+                ];
+                continue;
+            }
+            
+            // ✅ Java API call with dynamic identifier
+            $javaApiResponse = $this->callJavaVendorApi($identifier);
+            
+            Log::info('API Response for ' . $identifier . ': ', ['response' => isset($javaApiResponse['status']) ? $javaApiResponse['status'] : 'No response']);
 
             if ($javaApiResponse && isset($javaApiResponse['data'])) {
                 $visitorData = $javaApiResponse['data'];
@@ -1157,7 +1182,7 @@ private function getEnrichedDeniedAccessLogs($deniedAccessLogs)
                         'fullName' => 'N/A - API Failed',
                         'personVisited' => 'N/A',
                         'contactNo' => 'N/A',
-                        'icNo' => 'N/A',
+                        'icNo' => $identifier,
                         'sex' => 'N/A',
                         'dateOfVisitFrom' => 'N/A',
                         'dateOfVisitTo' => 'N/A'
@@ -1165,14 +1190,14 @@ private function getEnrichedDeniedAccessLogs($deniedAccessLogs)
                 ];
             }
         } catch (\Exception $e) {
-            Log::error('Java API error for staff_no ' . $log->staff_no . ' in denied access: ' . $e->getMessage());
+            Log::error('Java API error for log ID ' . $log->id . ' in denied access: ' . $e->getMessage());
             $enrichedLogs[] = [
                 'log' => $log,
                 'visitor_details' => [
                     'fullName' => 'N/A - Exception',
                     'personVisited' => 'N/A',
                     'contactNo' => 'N/A',
-                    'icNo' => 'N/A',
+                    'icNo' => $log->ic_no ?? $log->staff_no ?? 'N/A',
                     'sex' => 'N/A',
                     'dateOfVisitFrom' => 'N/A',
                     'dateOfVisitTo' => 'N/A'
@@ -1241,7 +1266,7 @@ private function callJavaVendorApi($staffNo)
             return null;
         }
         
-        $url = $javaBaseUrl . '/api/vendorpass/get-visitor-details?staffNo=' . urlencode($staffNo);
+        $url = $javaBaseUrl . '/api/vendorpass/get-visitor-details?icNo=' . urlencode($staffNo);
         Log::info('Full URL: ' . $url);
         
         $response = Http::withHeaders([
