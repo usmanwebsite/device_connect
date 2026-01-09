@@ -30,7 +30,7 @@ class SocketServerService
 
         echo "✅ RD008 Socket Server listening on 0.0.0.0:$port\n";
 
-        //   $this->runTestFlow('TESTUSER123', '008825038133');
+          $this->runTestFlow('jb2qo5lLpwPEV09oHbXysg==:cioKU+21VYms6Gha:KDbjYw==:Vkbupr9pAXw2Q9crF+6+wg==', '008825038133');
 
         while (true) {
             $read = [$this->server];
@@ -128,59 +128,47 @@ class SocketServerService
 
     private function handleOpenDoorRequest($sock, $data, $ip)
     {
-        echo "[" . date('H:i:s') . "] 🚪 OpenDoor Request Received\n";
+    echo "[" . date('H:i:s') . "] 🚪 OpenDoor Request Received\n";
 
-        // Extract SCode (card scanned) and DeviceID
-        // $scode = $this->extractValue($data, 'SCode'); // card_no
-        $encryptedScode = $this->extractValue($data, 'SCode'); // This is encrypted
-        $deviceId = $this->extractValue($data, 'DeviceID');
+    // Extract SCode (card scanned) and DeviceID
+    $encryptedScode = $this->extractValue($data, 'SCode'); // This is ENCRYPTED from device
+    $deviceId = $this->extractValue($data, 'DeviceID');
 
-        echo "[" . date('H:i:s') . "] 🔍 Encrypted SCode: $encryptedScode, DeviceID: $deviceId\n";
+    echo "[" . date('H:i:s') . "] 🔍 Encrypted SCode: $encryptedScode, DeviceID: $deviceId\n";
 
-        if (empty($encryptedScode) || empty($deviceId)) {
-            echo "[" . date('H:i:s') . "] ❌ Missing SCode or DeviceID\n";
-            $this->sendAlarm($sock, $deviceId, $encryptedScode);
-            return;
-        }
+    if (empty($encryptedScode) || empty($deviceId)) {
+        echo "[" . date('H:i:s') . "] ❌ Missing SCode or DeviceID\n";
+        $this->sendAlarm($sock, $deviceId, $encryptedScode);
+        return;
+    }
 
-        $decryptedScode = $this->encryptionService->decrypt($encryptedScode);
+    // ✅ STEP 1: DECRYPT SCode once here
+    $decryptedScode = $this->encryptionService->decrypt($encryptedScode);
 
-        if (!$decryptedScode) {
-            echo "[" . date('H:i:s') . "] ❌ Failed to decrypt SCode\n";
-            $this->sendAlarm($sock, $deviceId, $encryptedScode, 'SCode decryption failed');
-            return;
-        }
+    if (!$decryptedScode) {
+        echo "[" . date('H:i:s') . "] ❌ Failed to decrypt SCode\n";
+        $this->sendAlarm($sock, $deviceId, $encryptedScode, 'SCode decryption failed');
+        return;
+    }
 
-        echo "[" . date('H:i:s') . "] 🔓 Decrypted SCode: $decryptedScode\n";
+    echo "[" . date('H:i:s') . "] 🔓 Decrypted SCode: $decryptedScode\n";
 
-        if (!$this->isIpInRange($ip)) {
-            echo "[" . date('H:i:s') . "] 🚨 IP OUT OF RANGE: $ip\n";
+    // ✅ STEP 2: Call Java API with DECRYPTED SCode
+    $javaResponse = $this->callJavaVendorApi($decryptedScode); // Send decrypted value
 
-            $this->sendAlarm(
-                $sock,
-                $deviceId ?? 'UNKNOWN',
-                $scode ?? null,
-                "IP address $ip is outside allowed range"
-            );
+    if (!$javaResponse || !isset($javaResponse['status']) || $javaResponse['status'] !== 'success') {
+        echo "[" . date('H:i:s') . "] ❌ Java API returned error or no data\n";
+        $this->sendAlarm($sock, $deviceId, $decryptedScode, 'Java API error or no data');
+        return;
+    }
 
-            return;
-        }
-
-        // ✅ Step 1: Call Java API to get visitor details
-        $javaResponse = $this->callJavaVendorApi($decryptedScode);
-
-
-        if (!$javaResponse || !isset($javaResponse['status']) || $javaResponse['status'] !== 'success') {
-            echo "[" . date('H:i:s') . "] ❌ Java API returned error or no data\n";
-            $this->sendAlarm($sock, $deviceId, $decryptedScode, 'Java API error or no data');
-            return;
-        }
-
-        $visitorData = $javaResponse['data'];
-        $staffNo = $visitorData['staffNo'] ?? $decryptedScode;
-        $visitorTypeId = $visitorData['visitorTypeId'] ?? null;
-
-        echo "[" . date('H:i:s') . "] 👤 Staff No: $staffNo, Visitor Type ID: $visitorTypeId\n";
+    $visitorData = $javaResponse['data'];
+    
+    // ✅ Java API should return DECRYPTED staffNo (or same as input if not encrypted)
+    $staffNo = $visitorData['staffNo'] ?? $decryptedScode;
+    
+    
+    $visitorTypeId = $visitorData['visitorTypeId'] ?? null;
 
         // ✅ Step 2: Get location from device assignment
         $locationInfo = $this->getDeviceLocationInfo($deviceId);
@@ -352,75 +340,135 @@ class SocketServerService
         }
     }
 
-    private function callJavaVendorApi($staffNo)
+// private function callJavaVendorApi($decryptedStaffNo)
+// {
+//     try {
+//         $javaBaseUrl = env('JAVA_BACKEND_URL', 'http://localhost:8080');
+//         $token = env('JAVA_API_TOKEN', '');
+        
+//         echo "[" . date('H:i:s') . "] 🌐 Calling Java API with decrypted staffNo: $decryptedStaffNo\n";
+        
+//         $url = $javaBaseUrl . '/api/vendorpass/get-visitor-details?staffNo=' . urlencode($decryptedStaffNo);
+        
+//         $response = Http::withHeaders([
+//             'x-auth-token' => $token,
+//             'Accept' => 'application/json',
+//         ])->timeout(10)->get($url);
+
+//         echo "[" . date('H:i:s') . "] 📡 Response Status: " . $response->status() . "\n";
+        
+//         if ($response->successful()) {
+//             $data = $response->json();
+//             echo "[" . date('H:i:s') . "] ✅ Java API Response Success\n";
+//             return $data;
+//         } else {
+//             echo "[" . date('H:i:s') . "] ❌ Java API HTTP Error: " . $response->status() . "\n";
+//             echo "[" . date('H:i:s') . "] ❌ Error body: " . $response->body() . "\n";
+//             return null;
+//         }
+//     } catch (\Exception $e) {
+//         echo "[" . date('H:i:s') . "] ❌ Java API exception: " . $e->getMessage() . "\n";
+//         return null;
+//     }
+// }
+
+    private function callJavaVendorApi($cardId)
     {
         try {
-            $javaBaseUrl = env('JAVA_BACKEND_URL', 'http://localhost:8080');
-            $token = env('JAVA_API_TOKEN', ''); // You might need to get this from session or config
+            $javaBaseUrl = env('JAVA_BACKEND_URL', 'http://127.0.0.1:8080');
+            $token = env('JAVA_API_TOKEN', '');
+
+            // 🔹 STEP 1: Get vendor by Card ID
+            echo "[" . date('H:i:s') . "] 🌐 Calling getVendorByCardId with CardID: $cardId\n";
 
 
-            // ✅ First decrypt staffNo before sending to Java API
-            $decryptedStaffNo = $this->encryptionService->decrypt($staffNo);
-            if (!$decryptedStaffNo) {
-                $decryptedStaffNo = $staffNo; // Already decrypted
-            }
-        
-        $url = $javaBaseUrl . '/api/vendorpass/get-visitor-details?staffNo=' . urlencode($decryptedStaffNo);
-        echo "[" . date('H:i:s') . "] 🌐 Calling Java API with staffNo: $decryptedStaffNo\n";
 
-            
-            $url = $javaBaseUrl . '/api/vendorpass/get-visitor-details?staffNo=' . urlencode($staffNo);
-            echo "[" . date('H:i:s') . "] 🌐 Calling Java API: $url\n";
-            
-            $response = Http::withHeaders([
-                'x-auth-token' => $token,
+            $vendorResponse = Http::withHeaders([
+                // 'x-auth-token' => $token,
                 'Accept' => 'application/json',
-            ])->timeout(10)
-              ->get($url);
+            ])->timeout(10)->post(
+                $javaBaseUrl . '/api/vendorpass/getVendorByCardId',
+                ['cardId' => $cardId]
+            );
 
-            echo "[" . date('H:i:s') . "] 📡 Response Status: " . $response->status() . "\n";
-            
-            if ($response->successful()) {
-                $data = $response->json();
-                echo "[" . date('H:i:s') . "] ✅ Java API Response Success\n";
-                return $data;
-            } else {
-                echo "[" . date('H:i:s') . "] ❌ Java API HTTP Error: " . $response->status() . "\n";
-                echo "[" . date('H:i:s') . "] ❌ Error body: " . $response->body() . "\n";
+            // echo "$vendorResponse";
+
+            if (!$vendorResponse->successful()) {
+                echo "[" . date('H:i:s') . "] ❌ getVendorByCardId failed\n";
                 return null;
             }
+
+
+            $vendorData = $vendorResponse->json();
+
+            if (empty($vendorData['icNo'])) {
+                echo "[" . date('H:i:s') . "] ❌ IC No not found for card\n";
+                return null;
+            }
+
+            $icNo = $vendorData['icNo'];
+            echo "[" . date('H:i:s') . "] 🆔 IC No Found: $icNo\n";
+
+            // 🔹 STEP 2: Get visitor details by IC No
+            echo "[" . date('H:i:s') . "] 🌐 Calling get-visitor-details-by-icno-or-staffno\n";
+
+            $visitorResponse = Http::withHeaders([
+                'x-auth-token' => $token,
+                'Accept' => 'application/json',
+            ])->timeout(10)->get(
+                $javaBaseUrl . '/api/vendorpass/get-visitor-details-by-icno-or-staffno',
+                ['icNo' => $icNo]
+            );
+
+            echo "$visitorResponse";
+
+            if (!$visitorResponse->successful()) {
+                echo "[" . date('H:i:s') . "] ❌ Visitor details API failed\n";
+                return null;
+            }
+
+            $visitorJson = $visitorResponse->json();
+
+            if (
+                empty($visitorJson['status']) ||
+                $visitorJson['status'] !== 'success' ||
+                empty($visitorJson['data'][0])
+            ) {
+                echo "[" . date('H:i:s') . "] ❌ No visitor data found\n";
+                return null;
+            }
+
+            echo "[" . date('H:i:s') . "] ✅ Visitor data fetched successfully\n";
+
+            return [
+                'status' => 'success',
+                'data'   => $visitorJson['data'][0], // first visitor
+            ];
+
         } catch (\Exception $e) {
-            echo "[" . date('H:i:s') . "] ❌ Java API exception: " . $e->getMessage() . "\n";
+            echo "[" . date('H:i:s') . "] ❌ Java API Exception: " . $e->getMessage() . "\n";
             return null;
         }
     }
 
     private function grantAccess($sock, $deviceId, $scode, $staffNo, $locationName, $isType)
     {
-        echo "[" . date('H:i:s') . "] ✅ Access granted for $staffNo at $locationName ($isType)\n";
-        
-        $decryptedStaffNo = $this->encryptionService->decrypt($staffNo);
+    echo "[" . date('H:i:s') . "] ✅ Access granted for $staffNo at $locationName ($isType)\n";
     
-        // If decryption fails, use the original (might already be decrypted)
-        if (!$decryptedStaffNo) {
-            $decryptedStaffNo = $staffNo;
-            echo "[" . date('H:i:s') . "] ⚠️ StaffNo already decrypted or decryption failed\n";
-        } else {
-            echo "[" . date('H:i:s') . "] 🔓 Decrypted StaffNo for DB: $decryptedStaffNo\n";
-        }
-        // Send open door command to device
-        $this->sendOpenDoorCommand($sock, $deviceId);
+    $this->sendOpenDoorCommand($sock, $deviceId);
 
-        // Log successful access
-        DB::table('device_access_logs')->insert([
-            'device_id' => $deviceId,
-            'card_no' => $scode,
-            'staff_no' => $decryptedStaffNo,
-            'location_name' => $locationName,
-            'access_granted' => 1,
-            'reason' => 'Access granted',
-            'created_at' => now(),
-        ]);
+    // ✅ Log successful access with already decrypted staff_no
+    DB::table('device_access_logs')->insert([
+        'device_id' => $deviceId,
+        'card_no' => $scode,
+        'staff_no' => $staffNo,  // Already decrypted
+        'location_name' => $locationName,
+        'access_granted' => 1,
+        'reason' => 'Access granted',
+        'created_at' => now(),
+    ]);
+    
+    echo "[" . date('H:i:s') . "] 💾 Log stored with staff_no: $staffNo\n";
     }
 
     private function sendAlarm($sock, $deviceId, $scode = null, $reason = null, $staffNo = null, $locationName = null)
@@ -451,12 +499,6 @@ class SocketServerService
         'created_at' => now(),
     ]);
 }
-
-    // private function sendOpenDoorCommand($sock, $deviceId)
-    // {
-    //     // Use existing command sending mechanism
-    //     $this->sendCommandToDeviceProtocol($sock, $deviceId, 'open_door');
-    // }
 
     private function sendOpenDoorCommand($sock, $deviceId)
     {
@@ -503,15 +545,15 @@ class SocketServerService
     }
 
 
-    // public function runTestFlow($staffNo, $deviceId)
-    // {
-    //     echo "[" . date('H:i:s') . "] 🧪 Running full test flow for StaffNo: $staffNo, DeviceID: $deviceId\n";
+    public function runTestFlow($staffNo, $deviceId)
+    {
+        echo "[" . date('H:i:s') . "] 🧪 Running full test flow for StaffNo: $staffNo, DeviceID: $deviceId\n";
 
-    //     $data = "SCode={$staffNo}&DeviceID={$deviceId}";
-    //     $sock = null; // No real socket needed
+        $data = "SCode={$staffNo}&DeviceID={$deviceId}";
+        $sock = null; // No real socket needed
 
-    //     $this->handleOpenDoorRequest($sock, $data, '127.0.0.1');
-    // }
+        $this->handleOpenDoorRequest($sock, $data, '127.0.0.1');
+    }
 
     public function sendCommandToDevice($deviceId, $command)
     {
@@ -945,3 +987,25 @@ class SocketServerService
 
 // }
 
+
+
+
+
+
+
+
+
+
+
+
+    //if ($scode === 'TEST1234') {
+      //  echo "[" . date('H:i:s') . "] 🧪 Test card detected! Granting immediate access.\n";
+
+        // Get location info (optional, for logging)
+        //$locationInfo = $this->getDeviceLocationInfo($deviceId);
+        //$locationName = $locationInfo['location_name'] ?? 'Test Door';
+        //$isType = $locationInfo['is_type'] ?? 'check_in';
+
+       // $this->grantAccess($sock, $deviceId, $scode, $scode, $locationName, $isType);
+    //    return;
+    //}
