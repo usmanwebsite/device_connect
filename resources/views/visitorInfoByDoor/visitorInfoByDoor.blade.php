@@ -36,7 +36,7 @@
                             <button type="button" id="fetchVisitorsBtn" class="btn btn-primary me-2">
                                 <i class="fas fa-search me-1"></i> Fetch Visitors
                             </button>
-                            <button type="button" id="exportBtn" class="btn btn-success" disabled>
+                            <button type="button" id="exportBtn" class="btn btn-success" style="height: 44px !important; width: 160px" disabled>
                                 <i class="fas fa-download me-1"></i> Export CSV
                             </button>
                         </div>

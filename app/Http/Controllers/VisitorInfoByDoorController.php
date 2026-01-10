@@ -191,7 +191,15 @@ class VisitorInfoByDoorController extends Controller
                             'date_of_visit_to' => isset($visitorData['dateOfVisitTo']) 
                                 ? Carbon::parse($visitorData['dateOfVisitTo'])->format('d M Y h:i A') 
                                 : 'N/A',
-                            'check_in_time' => $latestCheckIn ? $latestCheckIn->created_at->format('d M Y h:i A') : 'N/A',
+                            'check_in_time' => $latestCheckIn
+                            ? Carbon::createFromFormat(
+                                'Y-m-d H:i:s',
+                                $latestCheckIn->created_at->format('Y-m-d H:i:s'),
+                                'Asia/Karachi' // 👈 SOURCE timezone (DB)
+                            )
+                            ->setTimezone('Asia/Kuala_Lumpur') // 👈 TARGET timezone
+                            ->format('d M Y h:i A')
+                            : 'N/A',
                             'device_id' => $log->device_id ?? 'N/A',
                             'location_name' => $log->location_name ?? 'N/A',
                             'access_granted' => $log->access_granted ? 'Yes' : 'No',
@@ -218,7 +226,15 @@ class VisitorInfoByDoorController extends Controller
                             'sex' => 'N/A',
                             'date_of_visit_from' => 'N/A',
                             'date_of_visit_to' => 'N/A',
-                            'check_in_time' => $latestCheckIn ? $latestCheckIn->created_at->format('d M Y h:i A') : 'N/A',
+                            'check_in_time' => $latestCheckIn
+                                ? Carbon::createFromFormat(
+                                    'Y-m-d H:i:s',
+                                    $latestCheckIn->created_at->format('Y-m-d H:i:s'),
+                                    'Asia/Karachi' // 👈 SOURCE timezone (DB)
+                                )
+                                ->setTimezone('Asia/Kuala_Lumpur') // 👈 TARGET timezone
+                                ->format('d M Y h:i A')
+                                : 'N/A',
                             'device_id' => $log->device_id ?? 'N/A',
                             'location_name' => $log->location_name ?? 'N/A',
                             'access_granted' => $log->access_granted ? 'Yes' : 'No',
