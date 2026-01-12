@@ -32,18 +32,17 @@ class ReportController extends Controller
     {
         try {
             $request->validate([
-                'from_date' => 'required|date_format:Y-m-d\TH:i',
-                'to_date' => 'required|date_format:Y-m-d\TH:i',
+                'from_date' => 'required|date_format:Y-m-d H:i',
+                'to_date'   => 'required|date_format:Y-m-d H:i',
                 'locations' => 'required|array'
             ]);
 
-            // ✅ Convert datetime-local format to database format
-            $fromDateTime = Carbon::createFromFormat('Y-m-d\TH:i', $request->input('from_date'));
-            $toDateTime = Carbon::createFromFormat('Y-m-d\TH:i', $request->input('to_date'));
-            
-            // ✅ Add seconds to make complete datetime
-            $fromDateTime = $fromDateTime->format('Y-m-d H:i:s');
-            $toDateTime = $toDateTime->format('Y-m-d H:i:s');
+            // Convert datetime-local format to database format
+            $fromDateTime = Carbon::createFromFormat('Y-m-d H:i', $request->from_date)
+                ->format('Y-m-d H:i:s');
+
+            $toDateTime = Carbon::createFromFormat('Y-m-d H:i', $request->to_date)
+                ->format('Y-m-d H:i:s');
             
             Log::info('Access Logs Report Filters:', [
                 'from_datetime' => $fromDateTime,
@@ -53,23 +52,65 @@ class ReportController extends Controller
 
             $locations = $request->input('locations');
 
-            // Get unique staff numbers for the selected date range and locations
-            $staffList = DeviceAccessLog::whereBetween('created_at', [$fromDateTime, $toDateTime])
+            // Get pagination parameters
+            $start = $request->input('start', 0);
+            $length = $request->input('length', 10);
+            $draw = $request->input('draw', 1);
+            $searchValue = $request->input('search.value', '');
+            $orderColumn = $request->input('order.0.column', 0);
+            $orderDirection = $request->input('order.0.dir', 'asc');
+
+            // Column mapping for ordering
+            $columns = [
+                0 => 'staff_no',
+                1 => 'staff_no',
+                2 => 'full_name',
+                3 => 'person_visited',
+                4 => 'contact_no',
+                5 => 'ic_no',
+                6 => 'total_access',
+                7 => 'first_access',
+                8 => 'last_access'
+            ];
+
+            // Get unique staff numbers with pagination
+            $query = DeviceAccessLog::whereBetween('created_at', [$fromDateTime, $toDateTime])
                 ->where(function($query) use ($locations) {
                     foreach ($locations as $location) {
                         $query->orWhere('location_name', 'like', '%' . $location . '%');
                     }
                 })
                 ->select('staff_no')
-                ->distinct()
-                ->get()
-                ->pluck('staff_no');
+                ->selectRaw('COUNT(*) as total_access')
+                ->selectRaw('MIN(created_at) as first_access')
+                ->selectRaw('MAX(created_at) as last_access')
+                ->groupBy('staff_no');
+
+            // Apply search
+            if (!empty($searchValue)) {
+                $query->where('staff_no', 'like', '%' . $searchValue . '%');
+            }
+
+            // Get total count before pagination
+            $totalRecords = $query->count();
+
+            // Apply ordering
+            if (isset($columns[$orderColumn])) {
+                $query->orderBy($columns[$orderColumn], $orderDirection);
+            } else {
+                $query->orderBy('staff_no', 'asc');
+            }
+
+            // Apply pagination
+            $staffList = $query->skip($start)->take($length)->get();
 
             Log::info('Staff list found:', ['count' => $staffList->count()]);
 
             // Get all logs for these staff numbers in the date range
+            $staffNos = $staffList->pluck('staff_no');
+            
             $accessLogs = DeviceAccessLog::whereBetween('created_at', [$fromDateTime, $toDateTime])
-                ->whereIn('staff_no', $staffList)
+                ->whereIn('staff_no', $staffNos)
                 ->where(function($query) use ($locations) {
                     foreach ($locations as $location) {
                         $query->orWhere('location_name', 'like', '%' . $location . '%');
@@ -79,11 +120,31 @@ class ReportController extends Controller
                 ->get()
                 ->groupBy('staff_no');
 
+            // Format the response for DataTables
+            $formattedData = [];
+            foreach ($staffList as $index => $staff) {
+                $staffLogs = $accessLogs[$staff->staff_no] ?? [];
+                
+                $formattedData[] = [
+                    'DT_RowIndex' => $start + $index + 1,
+                    'staff_no' => $staff->staff_no,
+                    'full_name' => 'Loading...', // Will be filled by frontend
+                    'person_visited' => 'Loading...',
+                    'contact_no' => 'Loading...',
+                    'ic_no' => 'Loading...',
+                    'total_access' => $staff->total_access,
+                    'first_access' => $staff->first_access ? Carbon::parse($staff->first_access)->format('d/m/Y H:i') : 'N/A',
+                    'last_access' => $staff->last_access ? Carbon::parse($staff->last_access)->format('d/m/Y H:i') : 'N/A',
+                    'logs' => $staffLogs
+                ];
+            }
+
             return response()->json([
+                'draw' => intval($draw),
+                'recordsTotal' => $totalRecords,
+                'recordsFiltered' => $totalRecords,
+                'data' => $formattedData,
                 'success' => true,
-                'staff_list' => $staffList,
-                'access_logs' => $accessLogs,
-                'total_staff' => $staffList->count(),
                 'from_datetime' => $fromDateTime,
                 'to_datetime' => $toDateTime
             ]);

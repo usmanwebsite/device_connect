@@ -9,7 +9,7 @@
 <div class="container-fluid">
     <div class="row mb-4">
         <div class="col-12">
-            <div class="content-card">
+            <div class="content-card" style="height: 100%">
                 {{-- Header --}}
                 <div class="row mb-4">
                     <div class="col-12">
@@ -22,7 +22,7 @@
                     {{-- From Date with Time --}}
                     <div class="col-12 col-sm-6 col-md-3 mb-3 mb-md-0">
                         <label for="fromDate" class="form-label">From Date & Time</label>
-                        <input type="datetime-local" class="form-control" id="fromDate" 
+                        <input type="datetime-local" class="form-control datetime-picker" id="fromDate" 
                             value="{{ now()->format('Y-m-d\T00:00') }}">
                         <small class="text-muted">Start date and time</small>
                     </div>
@@ -30,7 +30,7 @@
                     {{-- To Date with Time --}}
                     <div class="col-12 col-sm-6 col-md-3 mb-3 mb-md-0">
                         <label for="toDate" class="form-label">To Date & Time</label>
-                        <input type="datetime-local" class="form-control" id="toDate" 
+                        <input type="datetime-local" class="form-control datetime-picker" id="toDate" 
                             value="{{ now()->format('Y-m-d\T23:59') }}">
                         <small class="text-muted">End date and time</small>
                     </div>
@@ -83,7 +83,6 @@
                         </button>
                     </div>
                 </div>
-
                 {{-- Loading Spinner --}}
                 <div id="loadingSpinner" class="text-center d-none">
                     <div class="spinner-border text-primary" role="status">
@@ -91,7 +90,6 @@
                     </div>
                     <p class="mt-2">Loading report data...</p>
                 </div>
-
                 {{-- Report Summary Cards - RESPONSIVE --}}
                 <div id="reportSummary" class="row mb-4 d-none">
                     <div class="col-12 col-sm-6 col-md-3 mb-3 mb-md-0">
@@ -104,10 +102,9 @@
                         <p class="mb-0 text-center text-md-start" id="reportInfo"></p>
                     </div>
                 </div>
-
                 {{-- Main Table with DataTable --}}
                 <div class="table-container-wrapper d-none" id="staffTableContainer">
-                    <div class="table-responsive">
+                    <div class="table-responsive" style="height: 1500px !important">
                         <table class="table table-hover table-striped" id="staffTable">
                             <thead class="table-light">
                                 <tr>
@@ -129,7 +126,6 @@
                         </table>
                     </div>
                 </div>
-
                 {{-- No Data Message --}}
                 <div id="noDataMessage" class="text-center d-none">
                     <div class="alert alert-info">
@@ -331,7 +327,6 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 });
 
-// Get selected locations
 function getSelectedLocations() {
     const selectedLocations = [];
     document.querySelectorAll('.location-checkbox:checked').forEach(checkbox => {
@@ -363,27 +358,100 @@ function formatDateTime(date) {
     }).replace(',', '');
 }
 
-// Function to initialize DataTable
 function initializeDataTable() {
-    // Agar existing DataTable hai to destroy karein
     if (dataTable) {
         dataTable.destroy();
+        dataTable = null;
     }
     
-    // DataTable initialize karein
     dataTable = $('#staffTable').DataTable({
-        "paging": true,
-        "searching": true,
-        "ordering": true,
-        "info": true,
-        "autoWidth": false,
-        "responsive": true,
+        "processing": true,
+        "serverSide": true,
+        "ajax": {
+            "url": '{{ route("reports.access-logs.data") }}',
+            "type": "POST",
+            "data": function (d) {
+                // Add your custom filters
+                d.from_date = document.getElementById('fromDate').value;
+                d.to_date = document.getElementById('toDate').value;
+                d.locations = getSelectedLocations();
+                d._token = '{{ csrf_token() }}';
+            },
+            "error": function (xhr, error, thrown) {
+                console.error('DataTables Ajax Error:', xhr, error, thrown);
+                alert('Error loading data. Please try again.');
+            }
+        },
+        "columns": [
+            { 
+                "data": "DT_RowIndex",
+                "name": "DT_RowIndex",
+                "orderable": false,
+                "searchable": false 
+            },
+            { 
+                "data": "staff_no",
+                "name": "staff_no" 
+            },
+            { 
+                "data": "full_name",
+                "name": "full_name",
+                "orderable": false,
+                "searchable": false 
+            },
+            { 
+                "data": "person_visited",
+                "name": "person_visited",
+                "orderable": false,
+                "searchable": false 
+            },
+            { 
+                "data": "contact_no",
+                "name": "contact_no",
+                "orderable": false,
+                "searchable": false 
+            },
+            { 
+                "data": "ic_no",
+                "name": "ic_no",
+                "orderable": false,
+                "searchable": false 
+            },
+            { 
+                "data": "total_access",
+                "name": "total_access" 
+            },
+            { 
+                "data": "first_access",
+                "name": "first_access" 
+            },
+            { 
+                "data": "last_access",
+                "name": "last_access" 
+            },
+            { 
+                "data": null,
+                "orderable": false,
+                "searchable": false,
+                "render": function (data, type, row) {
+                    return `
+                        <button class="btn btn-sm btn-info staff-movement-btn" data-staff-no="${row.staff_no}">
+                            <i class="fas fa-eye"></i>
+                        </button>
+                    `;
+                }
+            }
+        ],
         "pageLength": 10,
-        "order": [[0, 'asc']], // Default sorting by first column
+        "lengthMenu": [[10, 25, 50, 100], [10, 25, 50, 100]],
+        "order": [[1, 'asc']],
         "language": {
             "search": "Search records:",
             "lengthMenu": "Show _MENU_ entries",
             "info": "Showing _START_ to _END_ of _TOTAL_ entries",
+            "infoEmpty": "Showing 0 to 0 of 0 entries",
+            "infoFiltered": "(filtered from _MAX_ total entries)",
+            "zeroRecords": "No matching records found",
             "paginate": {
                 "first": "First",
                 "last": "Last",
@@ -391,26 +459,56 @@ function initializeDataTable() {
                 "previous": "Previous"
             }
         },
-        "columns": [
-            { "orderable": true },
-            { "orderable": true },
-            { "orderable": true },
-            { "orderable": true },
-            { "orderable": true },
-            { "orderable": true },
-            { "orderable": true },
-            { "orderable": true },
-            { "orderable": true },
-            { "orderable": false } // Actions column sort nahi hoga
-        ],
         "drawCallback": function(settings) {
-            // Re-attach event listeners to buttons after table redraw
+            // Update visitor details for current page
+            updateVisitorDetailsForCurrentPage();
+            
+            // Re-attach event listeners
             $('.staff-movement-btn').off('click').on('click', function() {
                 const staffNo = $(this).data('staff-no');
                 viewStaffMovement(staffNo);
             });
         }
     });
+}
+
+async function updateVisitorDetailsForCurrentPage() {
+    const rows = dataTable.rows({ page: 'current' }).nodes();
+    
+    for (let i = 0; i < rows.length; i++) {
+        const row = rows[i];
+        const staffNo = dataTable.cell(row, 1).data(); // staff_no column
+        
+        if (!visitorDetailsCache[staffNo]) {
+            try {
+                const response = await fetch(`http://127.0.0.1:8080/api/vendorpass/get-visitor-details?icNo=${staffNo}`);
+                const data = await response.json();
+                
+                if (data.status === 'success') {
+                    visitorDetailsCache[staffNo] = data.data;
+                    updateRowDetails(row, data.data);
+                }
+            } catch (error) {
+                console.error(`Error fetching details for ${staffNo}:`, error);
+            }
+        } else {
+            updateRowDetails(row, visitorDetailsCache[staffNo]);
+        }
+    }
+}
+
+function updateRowDetails(row, visitorDetails) {
+    // Update columns 2, 3, 4, 5 with visitor details
+    dataTable.cell(row, 2).data(visitorDetails.fullName || 'N/A');
+    dataTable.cell(row, 3).data(visitorDetails.personVisited || 'N/A');
+    dataTable.cell(row, 4).data(visitorDetails.contactNo || 'N/A');
+    dataTable.cell(row, 5).data(visitorDetails.icNo || 'N/A');
+    
+    // Draw the updated cell
+    dataTable.cells(row, 2).draw();
+    dataTable.cells(row, 3).draw();
+    dataTable.cells(row, 4).draw();
+    dataTable.cells(row, 5).draw();
 }
 
 function loadReport() {
@@ -441,85 +539,51 @@ function loadReport() {
     document.getElementById('noDataMessage').classList.add('d-none');
     document.getElementById('reportSummary').classList.add('d-none');
 
-    // Agar existing DataTable hai to destroy karein
+    // Reset visitor cache
+    visitorDetailsCache = {};
+    
+    // اگر DataTable پہلے سے موجود ہے تو صرف reload کریں
     if (dataTable) {
-        dataTable.destroy();
-        dataTable = null;
+        dataTable.ajax.reload(function(json) {
+            handleDataTableResponse(json, fromDateTime, toDateTime, selectedLocations);
+        });
+    } else {
+        // نئی DataTable بنائیں
+        initializeDataTable();
+        
+        // DataTable کے ajax response کو handle کریں
+        dataTable.on('xhr.dt', function (e, settings, json, xhr) {
+            handleDataTableResponse(json, fromDateTime, toDateTime, selectedLocations);
+        });
+        
+        document.getElementById('staffTableContainer').classList.remove('d-none');
     }
-
-    const fromDisplay = formatDateTimeDisplay(fromDateTime);
-    const toDisplay = formatDateTimeDisplay(toDateTime);
-
-    fetch('{{ route("reports.access-logs.data") }}', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'X-CSRF-TOKEN': '{{ csrf_token() }}'
-        },
-        body: JSON.stringify({
-            from_date: fromDateTime,
-            to_date: toDateTime,
-            locations: selectedLocations
-        })
-    })
-    .then(response => response.json())
-    .then(data => {
-        document.getElementById('loadingSpinner').classList.add('d-none');
-
-        if (data.success) {
-            displayReportData(data, fromDisplay, toDisplay, selectedLocations);
-        } else {
-            showNoData();
-        }
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        document.getElementById('loadingSpinner').classList.add('d-none');
-        alert('Error loading report data: ' + error.message);
-    });
 }
 
-function displayReportData(data, fromDisplay, toDisplay, selectedLocations) {
-    const staffList = data.staff_list;
-    const accessLogs = data.access_logs;
-    const totalStaff = data.total_staff;
-
-    if (totalStaff === 0) {
-        showNoData();
-        return;
-    }
-
-    allStaffData = staffList.map(staffNo => {
-        const staffLogs = accessLogs[staffNo] || [];
-        const accessTimes = staffLogs.map(log => new Date(log.created_at));
+function handleDataTableResponse(json, fromDateTime, toDateTime, selectedLocations) {
+    document.getElementById('loadingSpinner').classList.add('d-none');
+    
+    if (json && json.recordsTotal > 0) {
+        document.getElementById('staffTableContainer').classList.remove('d-none');
+        document.getElementById('totalStaffCount').textContent = json.recordsTotal;
         
-        return {
-            staffNo: staffNo,
-            totalAccess: staffLogs.length,
-            firstAccess: accessTimes.length > 0 ? new Date(Math.min(...accessTimes)) : null,
-            lastAccess: accessTimes.length > 0 ? new Date(Math.max(...accessTimes)) : null,
-            logs: staffLogs,
-            visitorDetails: null
-        };
-    });
-
-    document.getElementById('totalStaffCount').textContent = totalStaff;
-    
-    const locationText = selectedLocations.length > 2 
-        ? `${selectedLocations.length} locations` 
-        : selectedLocations.join(', ');
-    
-    const reportInfo = document.getElementById('reportInfo');
-    reportInfo.innerHTML = `
-        <strong>Report Period:</strong> ${fromDisplay} to ${toDisplay}<br>
-        <strong>Locations:</strong> ${locationText}
-    `;
-    
-    document.getElementById('reportSummary').classList.remove('d-none');
-
-    fetchAllVisitorDetails().then(() => {
-        populateDataTable();
-    });
+        const locationText = selectedLocations.length > 2 
+            ? `${selectedLocations.length} locations` 
+            : selectedLocations.join(', ');
+        
+        const fromDisplay = formatDateTimeDisplay(fromDateTime);
+        const toDisplay = formatDateTimeDisplay(toDateTime);
+        
+        const reportInfo = document.getElementById('reportInfo');
+        reportInfo.innerHTML = `
+            <strong>Report Period:</strong> ${fromDisplay} to ${toDisplay}<br>
+            <strong>Locations:</strong> ${locationText}
+        `;
+        
+        document.getElementById('reportSummary').classList.remove('d-none');
+    } else {
+        showNoData();
+    }
 }
 
 async function fetchAllVisitorDetails() {
@@ -762,5 +826,12 @@ function viewVisitorChronology(staffNo, icNo, fullName) {
     
     window.location.href = `/visitor-details?autoSearch=true&staffNo=${encodeURIComponent(staffNo)}&icNo=${encodeURIComponent(icNo || '')}`;
 }
+</script>
+<script>
+flatpickr(".datetime-picker", {
+    enableTime: true,
+    dateFormat: "Y-m-d H:i",
+    time_24hr: true
+});
 </script>
 @endsection
