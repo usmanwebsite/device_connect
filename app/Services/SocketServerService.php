@@ -30,7 +30,7 @@ class SocketServerService
 
         echo "✅ RD008 Socket Server listening on 0.0.0.0:$port\n";
 
-          $this->runTestFlow('jb2qo5lLpwPEV09oHbXysg==:cioKU+21VYms6Gha:KDbjYw==:Vkbupr9pAXw2Q9crF+6+wg==', '008825038133');
+          $this->runTestFlow('lK98+suwMhrtbbebbrU85Q==:cp2WJfAUpfR9q6qA:wm/S7Q==:6YcYBuylypwFanhDe9rxig==', '008825038135');
 
         while (true) {
             $read = [$this->server];
@@ -126,390 +126,269 @@ class SocketServerService
         echo "[" . date('H:i:s') . "] 📦 Raww Data (HEX): " . strtoupper(bin2hex($data)) . "\n";
     }
 
+private function handleOpenDoorRequest($sock, $data, $ip)
+{
+    echo "[" . date('H:i:s') . "] 🚪 OpenDoor Request Received\n";
 
-    private function handleOpenDoorRequest($sock, $data, $ip)
-    {
-        echo "[" . date('H:i:s') . "] 🚪 OpenDoor Request Received\n";
+    // Extract SCode (card scanned) and DeviceID
+    $encryptedCardId = $this->extractValue($data, 'SCode');
+    $deviceId = $this->extractValue($data, 'DeviceID');
 
-        // Extract SCode (card scanned) and DeviceID
-        $encryptedCardId = $this->extractValue($data, 'SCode'); // This is ENCRYPTED Card ID from device
-        $deviceId = $this->extractValue($data, 'DeviceID');
+    echo "[" . date('H:i:s') . "] 🔍 Encrypted Card ID: $encryptedCardId, DeviceID: $deviceId\n";
 
-        echo "[" . date('H:i:s') . "] 🔍 Encrypted Card ID: $encryptedCardId, DeviceID: $deviceId\n";
-
-        if (empty($encryptedCardId) || empty($deviceId)) {
-            echo "[" . date('H:i:s') . "] ❌ Missing SCode or DeviceID\n";
-            $this->sendAlarm($sock, $deviceId, $encryptedCardId);
-            return;
-        }
-
-        // ✅ STEP 1: DECRYPT Card ID once here
-        $decryptedCardId = $this->encryptionService->decrypt($encryptedCardId);
-
-        if (!$decryptedCardId) {
-            echo "[" . date('H:i:s') . "] ❌ Failed to decrypt Card ID\n";
-            $this->sendAlarm($sock, $deviceId, $encryptedCardId, 'Card ID decryption failed');
-            return;
-        }
-
-        echo "[" . date('H:i:s') . "] 🔓 Decrypted Card ID: $decryptedCardId\n";
-
-        // ✅ STEP 2: Call Java API with DECRYPTED Card ID
-        $javaResponse = $this->callJavaVendorApi($decryptedCardId);
-
-        if (!$javaResponse || !isset($javaResponse['status']) || $javaResponse['status'] !== 'success') {
-            echo "[" . date('H:i:s') . "] ❌ Java API returned error or no data\n";
-            $this->sendAlarm($sock, $deviceId, $decryptedCardId, 'Java API error or no data');
-            return;
-        }
-
-        $apiData = $javaResponse['data'];
-        
-        // Extract IC No from API response
-        $icNo = $apiData['icNo'] ?? null;
-        
-        if (!$icNo) {
-            echo "[" . date('H:i:s') . "] ❌ IC No not found in API response\n";
-            $this->sendAlarm($sock, $deviceId, $decryptedCardId, 'IC No not found');
-            return;
-        }
-        
-        // StaffNo bhi nikal lete hain agar chahiye ho future mein
-        $staffNo = $apiData['staffNo'] ?? null;
-        
-        $visitorData = $apiData['visitorData'] ?? [];
-        $visitorTypeId = $visitorData['visitorTypeId'] ?? null;
-        
-        echo "[" . date('H:i:s') . "] 👤 IC No: $icNo, Staff No: $staffNo, Visitor Type ID: $visitorTypeId\n";
-        echo "[" . date('H:i:s') . "] 👤 Full Name: " . ($visitorData['fullName'] ?? 'N/A') . "\n";
-        echo "[" . date('H:i:s') . "] 👤 Company: " . ($visitorData['companyName'] ?? 'N/A') . "\n";
-
-        // ✅ Step 3: Get location from device assignment
-        $locationInfo = $this->getDeviceLocationInfo($deviceId);
-        
-        if (!$locationInfo) {
-            echo "[" . date('H:i:s') . "] ❌ Device location not found\n";
-            $this->sendAlarm($sock, $deviceId, $decryptedCardId, 'Device location not assigned', $icNo);
-            return;
-        }
-
-        $locationName = $locationInfo['location_name'];
-        $isType = $locationInfo['is_type']; // check_in or check_out
-
-        echo "[" . date('H:i:s') . "] 📍 Location: $locationName, Type: $isType\n";
-
-        // ✅ Step 4: Check if location is Turnstile (skip sequence check)
-        if (strtolower($locationName) === 'turnstile') {
-            echo "[" . date('H:i:s') . "] ⏭️ Turnstile location - skipping sequence check\n";
-            $this->grantAccess($sock, $deviceId, $decryptedCardId, $icNo, $locationName, $isType, [
-                'staffNo' => $staffNo,
-                'fullName' => $visitorData['fullName'] ?? null,
-                'companyName' => $visitorData['companyName'] ?? null
-            ]);
-            return;
-        }
-
-        // ✅ Step 5: Get visitor type and path
-        if (!$visitorTypeId) {
-            echo "[" . date('H:i:s') . "] ❌ No visitor type ID found\n";
-            $this->sendAlarm($sock, $deviceId, $decryptedCardId, 'No visitor type ID', $icNo, $locationName);
-            return;
-        }
-
-        $visitorType = DB::table('visitor_types')->where('id', $visitorTypeId)->first();
-        
-        if (!$visitorType || !$visitorType->path_id) {
-            echo "[" . date('H:i:s') . "] ❌ Visitor type not found or no path assigned\n";
-            $this->sendAlarm($sock, $deviceId, $decryptedCardId, 'No path assigned to visitor type', $icNo, $locationName);
-            return;
-        }
-
-        $path = DB::table('paths')->where('id', $visitorType->path_id)->first();
-        
-        if (!$path) {
-            echo "[" . date('H:i:s') . "] ❌ Path not found\n";
-            $this->sendAlarm($sock, $deviceId, $decryptedCardId, 'Path not found', $icNo, $locationName);
-            return;
-        }
-
-        // ✅ Step 6: Check door sequence
-        $doorSequence = explode(',', $path->doors);
-        $doorSequence = array_map('trim', $doorSequence);
-        
-        echo "[" . date('H:i:s') . "] 🚪 Path sequence: " . implode(' → ', $doorSequence) . "\n";
-
-        // Check if current door is in the sequence
-        if (!in_array($locationName, $doorSequence)) {
-            echo "[" . date('H:i:s') . "] ❌ Current door '$locationName' not in path sequence\n";
-            $this->sendAlarm($sock, $deviceId, $decryptedCardId, "Door '$locationName' not in path", $icNo, $locationName);
-            return;
-        }
-
-        // ✅ Step 7: Check sequence flow if flag is ON
-        $isSequenceFlag = env('isSequenceFlag', 'Off');
-        
-        if (strtolower($isSequenceFlag) === 'on') {
-            echo "[" . date('H:i:s') . "] 🔄 Sequence check is ENABLED\n";
-
-            $previousLogs = DB::table('device_access_logs')
-                ->where('ic_no', $icNo) // IC No se check karein
-                ->where('access_granted', 1)
-                ->whereIn('location_name', $doorSequence)
-                ->orderBy('created_at', 'desc')
-                ->get();
-
-            if ($previousLogs->count() > 0) {
-                $lastAccessedDoor = $previousLogs->first()->location_name;
-                echo "[" . date('H:i:s') . "] 📍 Last accessed door: $lastAccessedDoor\n";
-
-                $currentIndex = array_search($locationName, $doorSequence);
-                $lastIndex = array_search($lastAccessedDoor, $doorSequence);
-
-                echo "[" . date('H:i:s') . "] 📊 Current index: $currentIndex, Last index: $lastIndex\n";
-
-                // ✅ SAFE restart logic
-                $lastDoorInPath = $doorSequence[count($doorSequence) - 1];
-
-                if ($lastAccessedDoor === $lastDoorInPath && $currentIndex === 0) {
-                    echo "[" . date('H:i:s') . "] 🔁 New visit detected, restarting sequence from first door\n";
-                    // allow Gate B
-                }
-                elseif ($currentIndex !== $lastIndex + 1) {
-                    echo "[" . date('H:i:s') . "] ❌ Sequence violation! Expected: " .
-                        ($doorSequence[$lastIndex + 1] ?? 'END') . ", Got: $locationName\n";
-
-                    $this->sendAlarm(
-                        $sock,
-                        $deviceId,
-                        $decryptedCardId,
-                        "User valid but sequence not followed. Expected: " .
-                        ($doorSequence[$lastIndex + 1] ?? 'END') . ", Got: $locationName",
-                        $icNo,
-                        $locationName
-                    );
-                    return;
-                }
-            } else {
-                // First ever door must be first in sequence
-                $firstDoor = $doorSequence[0];
-                if ($locationName !== $firstDoor) {
-                    echo "[" . date('H:i:s') . "] ❌ Must start with first door: $firstDoor\n";
-                    $this->sendAlarm(
-                        $sock,
-                        $deviceId,
-                        $decryptedCardId,
-                        "Must start with first door: $firstDoor",
-                        $icNo,
-                        $locationName
-                    );
-                    return;
-                }
-            }
-        } else {
-            echo "[" . date('H:i:s') . "] ⏭️ Sequence check is DISABLED\n";
-        }
-
-        // ✅ Step 8: Grant access
-        $this->grantAccess($sock, $deviceId, $decryptedCardId, $icNo, $locationName, $isType, [
-            'staffNo' => $staffNo,
-            'fullName' => $visitorData['fullName'] ?? null,
-            'companyName' => $visitorData['companyName'] ?? null
-        ]);
+    if (empty($encryptedCardId) || empty($deviceId)) {
+        echo "[" . date('H:i:s') . "] ❌ Missing SCode or DeviceID\n";
+        $this->sendAlarm($sock, $deviceId, $encryptedCardId);
+        return;
     }
 
+    // ✅ STEP 1: DECRYPT Card ID
+    $decryptedCardId = $this->encryptionService->decrypt($encryptedCardId);
 
+    if (!$decryptedCardId) {
+        echo "[" . date('H:i:s') . "] ❌ Failed to decrypt Card ID\n";
+        $this->sendAlarm($sock, $deviceId, $encryptedCardId, 'Card ID decryption failed');
+        return;
+    }
 
-    // private function handleOpenDoorRequest($sock, $data, $ip)
-    // {
-    // echo "[" . date('H:i:s') . "] 🚪 OpenDoor Request Received\n";
+    echo "[" . date('H:i:s') . "] 🔓 Decrypted Card ID: $decryptedCardId\n";
 
-    // // Extract SCode (card scanned) and DeviceID
-    // $encryptedCardId = $this->extractValue($data, 'SCode'); // This is ENCRYPTED Card ID from device
-    // $deviceId = $this->extractValue($data, 'DeviceID');
+    // ✅ STEP 2: Call Java API with DECRYPTED Card ID
+    $javaResponse = $this->callJavaVendorApi($decryptedCardId);
 
-    // echo "[" . date('H:i:s') . "] 🔍 Encrypted Card ID: $encryptedCardId, DeviceID: $deviceId\n";
+    if (!$javaResponse || !isset($javaResponse['status']) || $javaResponse['status'] !== 'success') {
+        echo "[" . date('H:i:s') . "] ❌ Java API returned error or no data\n";
+        $this->sendAlarm($sock, $deviceId, $decryptedCardId, 'Java API error or no data');
+        return;
+    }
 
-    // if (empty($encryptedCardId) || empty($deviceId)) {
-    //     echo "[" . date('H:i:s') . "] ❌ Missing SCode or DeviceID\n";
-    //     $this->sendAlarm($sock, $deviceId, $encryptedCardId);
-    //     return;
-    // }
-
-    // // ✅ STEP 1: DECRYPT Card ID once here
-    // $decryptedCardId = $this->encryptionService->decrypt($encryptedCardId);
-
-    // if (!$decryptedCardId) {
-    //     echo "[" . date('H:i:s') . "] ❌ Failed to decrypt Card ID\n";
-    //     $this->sendAlarm($sock, $deviceId, $encryptedCardId, 'Card ID decryption failed');
-    //     return;
-    // }
-
-    // echo "[" . date('H:i:s') . "] 🔓 Decrypted Card ID: $decryptedCardId\n";
-
-    // // ✅ STEP 2: Call Java API with DECRYPTED Card ID
-    // $javaResponse = $this->callJavaVendorApi($decryptedCardId);
-
-    // if (!$javaResponse || !isset($javaResponse['status']) || $javaResponse['status'] !== 'success') {
-    //     echo "[" . date('H:i:s') . "] ❌ Java API returned error or no data\n";
-    //     $this->sendAlarm($sock, $deviceId, $decryptedCardId, 'Java API error or no data');
-    //     return;
-    // }
-
-    // $apiData = $javaResponse['data'];
+    $apiData = $javaResponse['data'];
     
-    // // Extract Staff No from visitor data
-    // $staffNo = $apiData['staffNo'] ?? null;
+    // Extract IC No from API response
+    $icNo = $apiData['icNo'] ?? null;
     
-    // if (!$staffNo) {
-    //     echo "[" . date('H:i:s') . "] ❌ Staff No not found in API response\n";
-    //     $this->sendAlarm($sock, $deviceId, $decryptedCardId, 'Staff No not found');
-    //     return;
-    // }
+    if (!$icNo) {
+        echo "[" . date('H:i:s') . "] ❌ IC No not found in API response\n";
+        $this->sendAlarm($sock, $deviceId, $decryptedCardId, 'IC No not found');
+        return;
+    }
     
-    // $visitorData = $apiData['visitorData'] ?? [];
-    // $visitorTypeId = $visitorData['visitorTypeId'] ?? null;
-    // $icNo = $apiData['icNo'] ?? null;
+    $staffNo = $apiData['staffNo'] ?? null;
+    $visitorData = $apiData['visitorData'] ?? [];
+    $visitorTypeId = $visitorData['visitorTypeId'] ?? null;
     
-    // echo "[" . date('H:i:s') . "] 👤 Staff No: $staffNo, IC No: $icNo, Visitor Type ID: $visitorTypeId\n";
-    // echo "[" . date('H:i:s') . "] 👤 Full Name: " . ($visitorData['fullName'] ?? 'N/A') . "\n";
-    // echo "[" . date('H:i:s') . "] 👤 Company: " . ($visitorData['companyName'] ?? 'N/A') . "\n";
+    echo "[" . date('H:i:s') . "] 👤 IC No: $icNo, Staff No: $staffNo, Visitor Type ID: $visitorTypeId\n";
 
-    // // ✅ Step 3: Get location from device assignment
-    // $locationInfo = $this->getDeviceLocationInfo($deviceId);
+    // ✅ Step 3: Get location from device assignment
+    $locationInfo = $this->getDeviceLocationInfo($deviceId);
     
-    // if (!$locationInfo) {
-    //     echo "[" . date('H:i:s') . "] ❌ Device location not found\n";
-    //     $this->sendAlarm($sock, $deviceId, $decryptedCardId, 'Device location not assigned', $staffNo);
-    //     return;
-    // }
+    if (!$locationInfo) {
+        echo "[" . date('H:i:s') . "] ❌ Device location not found\n";
+        $this->sendAlarm($sock, $deviceId, $decryptedCardId, 'Device location not assigned', $icNo);
+        return;
+    }
 
-    // $locationName = $locationInfo['location_name'];
-    // $isType = $locationInfo['is_type']; // check_in or check_out
+    $locationName = $locationInfo['location_name'];
+    $isType = $locationInfo['is_type']; // check_in or check_out
 
-    // echo "[" . date('H:i:s') . "] 📍 Location: $locationName, Type: $isType\n";
+    echo "[" . date('H:i:s') . "] 📍 Location: $locationName, Type: $isType\n";
 
-    // // ✅ Step 4: Check if location is Turnstile (skip sequence check)
-    // if (strtolower($locationName) === 'turnstile') {
-    //     echo "[" . date('H:i:s') . "] ⏭️ Turnstile location - skipping sequence check\n";
-    //     $this->grantAccess($sock, $deviceId, $decryptedCardId, $staffNo, $locationName, $isType, [
-    //         'icNo' => $icNo,
-    //         'fullName' => $visitorData['fullName'] ?? null,
-    //         'companyName' => $visitorData['companyName'] ?? null
-    //     ]);
-    //     return;
-    // }
-
-    // // ✅ Step 5: Get visitor type and path
-    // if (!$visitorTypeId) {
-    //     echo "[" . date('H:i:s') . "] ❌ No visitor type ID found\n";
-    //     $this->sendAlarm($sock, $deviceId, $decryptedCardId, 'No visitor type ID', $staffNo, $locationName);
-    //     return;
-    // }
-
-    //     $visitorType = DB::table('visitor_types')->where('id', $visitorTypeId)->first();
+    // ✅ IMPORTANT: Turnstile check-in verification (SIMPLIFIED)
+    if (strtolower($locationName) === 'turnstile') {
+        if ($isType === 'check_out') {
+            echo "[" . date('H:i:s') . "] 🚪 Processing Turnstile Check-Out\n";
+            // Allow check-out without requiring check-in first
+        } else {
+            echo "[" . date('H:i:s') . "] 🚪 Processing Turnstile Check-In\n";
+            // Log Turnstile check-in
+        }
+    } else {
+        // For non-Turnstile locations, check if user has checked in at Turnstile first
+        echo "[" . date('H:i:s') . "] 🔍 Checking if user checked in at Turnstile first\n";
         
-    //     if (!$visitorType || !$visitorType->path_id) {
-    //         echo "[" . date('H:i:s') . "] ❌ Visitor type not found or no path assigned\n";
-    //         $this->sendAlarm($sock, $deviceId, $decryptedCardId, 'No path assigned to visitor type', $staffNo, $locationName);
-    //         return;
-    //     }
-
-    //     $path = DB::table('paths')->where('id', $visitorType->path_id)->first();
+        // ✅ SIMPLIFIED CHECK: Only check if user has any successful access at Turnstile today
+        $hasCheckedIn = DB::table('device_access_logs')
+            ->where('staff_no', $icNo)
+            ->where('location_name', 'Turnstile')
+            ->where('access_granted', 1)
+            ->whereDate('created_at', now()->toDateString())
+            ->exists();
         
-    //     if (!$path) {
-    //         echo "[" . date('H:i:s') . "] ❌ Path not found\n";
-    //         $this->sendAlarm($sock, $deviceId, $decryptedCardId, 'Path not found', $staffNo, $locationName);
-    //         return;
-    //     }
-
-    //     // ✅ Step 5: Check door sequence
-    //     $doorSequence = explode(',', $path->doors);
-    //     $doorSequence = array_map('trim', $doorSequence);
+        echo "[" . date('H:i:s') . "] 📊 Simple check query executed\n";
         
-    //     echo "[" . date('H:i:s') . "] 🚪 Path sequence: " . implode(' → ', $doorSequence) . "\n";
-
-    //     // Check if current door is in the sequence
-    //     if (!in_array($locationName, $doorSequence)) {
-    //         echo "[" . date('H:i:s') . "] ❌ Current door '$locationName' not in path sequence\n";
-    //         $this->sendAlarm($sock, $deviceId, $decryptedCardId, "Door '$locationName' not in path", $staffNo, $locationName);
-    //         return;
-    //     }
-
-    //     // ✅ Step 6: Check sequence flow if flag is ON
-    //     $isSequenceFlag = env('isSequenceFlag', 'Off');
+        // Debug: Show all Turnstile logs for this user today
+        $turnstileLogs = DB::table('device_access_logs')
+            ->where('staff_no', $icNo)
+            ->where('location_name', 'Turnstile')
+            ->whereDate('created_at', now()->toDateString())
+            ->orderBy('created_at', 'desc')
+            ->get();
         
-    //         if (strtolower($isSequenceFlag) === 'on') {
-    //             echo "[" . date('H:i:s') . "] 🔄 Sequence check is ENABLED\n";
+        echo "[" . date('H:i:s') . "] 📋 Turnstile logs for user $icNo:\n";
+        foreach ($turnstileLogs as $log) {
+            echo "  - " . $log->location_name . " at " . $log->created_at . 
+                 " (access: " . $log->access_granted . ", staff_no: " . $log->staff_no . ")\n";
+        }
+        
+        if (!$hasCheckedIn) {
+            echo "[" . date('H:i:s') . "] ❌ User has not checked in at Turnstile yet\n";
+            $this->sendAlarm(
+                $sock,
+                $deviceId,
+                $decryptedCardId,
+                "Must check in at Turnstile first before accessing $locationName",
+                $icNo,
+                $locationName
+            );
+            return;
+        }
+        
+        echo "[" . date('H:i:s') . "] ✅ User has checked in at Turnstile (found " . $turnstileLogs->count() . " logs)\n";
+    }
 
-    //             $previousLogs = DB::table('device_access_logs')
-    //                 ->where('staff_no', $staffNo)
-    //                 ->where('access_granted', 1)
-    //                 ->whereIn('location_name', $doorSequence)
-    //                 ->orderBy('created_at', 'desc')
-    //                 ->get();
+    // ✅ Step 4: Check visitor type and path
+    if (!$visitorTypeId) {
+        echo "[" . date('H:i:s') . "] ❌ No visitor type ID found\n";
+        $this->sendAlarm($sock, $deviceId, $decryptedCardId, 'No visitor type ID', $icNo, $locationName);
+        return;
+    }
 
-    //             if ($previousLogs->count() > 0) {
+    $visitorType = DB::table('visitor_types')->where('id', $visitorTypeId)->first();
+    
+    if (!$visitorType || !$visitorType->path_id) {
+        echo "[" . date('H:i:s') . "] ❌ Visitor type not found or no path assigned\n";
+        $this->sendAlarm($sock, $deviceId, $decryptedCardId, 'No path assigned to visitor type', $icNo, $locationName);
+        return;
+    }
 
-    //                 $lastAccessedDoor = $previousLogs->first()->location_name;
-    //                 echo "[" . date('H:i:s') . "] 📍 Last accessed door: $lastAccessedDoor\n";
+    $path = DB::table('paths')->where('id', $visitorType->path_id)->first();
+    
+    if (!$path) {
+        echo "[" . date('H:i:s') . "] ❌ Path not found\n";
+        $this->sendAlarm($sock, $deviceId, $decryptedCardId, 'Path not found', $icNo, $locationName);
+        return;
+    }
 
-    //                 $currentIndex = array_search($locationName, $doorSequence);
-    //                 $lastIndex = array_search($lastAccessedDoor, $doorSequence);
+    // ✅ Step 5: Get door sequence
+    $doorSequence = explode(',', $path->doors);
+    $doorSequence = array_map('trim', $doorSequence);
+    
+    echo "[" . date('H:i:s') . "] 🚪 Path sequence: " . implode(' → ', $doorSequence) . "\n";
 
-    //                 echo "[" . date('H:i:s') . "] 📊 Current index: $currentIndex, Last index: $lastIndex\n";
+    // Check if current door is in the sequence
+    if (!in_array($locationName, $doorSequence)) {
+        echo "[" . date('H:i:s') . "] ❌ Current door '$locationName' not in path sequence\n";
+        $this->sendAlarm($sock, $deviceId, $decryptedCardId, "Door '$locationName' not in path", $icNo, $locationName);
+        return;
+    }
 
-    //                 // ✅ SAFE restart logic
-    //                 $lastDoorInPath = $doorSequence[count($doorSequence) - 1];
+    // ✅ Step 6: Sequence check
+    $isSequenceFlag = env('isSequenceFlag', 'Off');
+    
+    if (strtolower($isSequenceFlag) === 'on') {
+        echo "[" . date('H:i:s') . "] 🔄 Sequence check is ENABLED\n";
 
-    //                 if ($lastAccessedDoor === $lastDoorInPath && $currentIndex === 0) {
-    //                     echo "[" . date('H:i:s') . "] 🔁 New visit detected, restarting sequence from first door\n";
-    //                     // allow Gate B
-    //                 }
-    //                 elseif ($currentIndex !== $lastIndex + 1) {
-    //                     echo "[" . date('H:i:s') . "] ❌ Sequence violation! Expected: " .
-    //                         ($doorSequence[$lastIndex + 1] ?? 'END') . ", Got: $locationName\n";
+        $previousLogs = DB::table('device_access_logs')
+            ->where('staff_no', $icNo)
+            ->where('access_granted', 1)
+            ->whereIn('location_name', $doorSequence)
+            ->orderBy('created_at', 'desc')
+            ->get();
 
-    //                     $this->sendAlarm(
-    //                         $sock,
-    //                         $deviceId,
-    //                         $decryptedCardId,
-    //                         "User valid but sequence not followed. Expected: " .
-    //                         ($doorSequence[$lastIndex + 1] ?? 'END') . ", Got: $locationName",
-    //                         $staffNo,
-    //                         $locationName
-    //                     );
-    //                     return;
-    //                 }
+        if ($previousLogs->count() > 0) {
+            $lastAccessedDoor = $previousLogs->first()->location_name;
+            echo "[" . date('H:i:s') . "] 📍 Last accessed door: $lastAccessedDoor\n";
 
-    //             } else {
-    //                 // First ever door must be first in sequence
-    //                 $firstDoor = $doorSequence[0];
-    //                 if ($locationName !== $firstDoor) {
-    //                     echo "[" . date('H:i:s') . "] ❌ Must start with first door: $firstDoor\n";
-    //                     $this->sendAlarm(
-    //                         $sock,
-    //                         $deviceId,
-    //                         $decryptedCardId,
-    //                         "Must start with first door: $firstDoor",
-    //                         $staffNo,
-    //                         $locationName
-    //                     );
-    //                     return;
-    //                 }
-    //             }
+            // Case-insensitive array_search
+            $currentIndex = $this->caseInsensitiveArraySearch($locationName, $doorSequence);
+            $lastIndex = $this->caseInsensitiveArraySearch($lastAccessedDoor, $doorSequence);
 
-    //         } else {
-    //             echo "[" . date('H:i:s') . "] ⏭️ Sequence check is DISABLED\n";
-    //         }
+            echo "[" . date('H:i:s') . "] 📊 Current index: $currentIndex, Last index: $lastIndex\n";
 
-    //             // ✅ Step 7: Grant access
-    //         $this->grantAccess($sock, $deviceId, $decryptedCardId, $staffNo, $locationName, $isType, [
-    //             'icNo' => $icNo,
-    //             'fullName' => $visitorData['fullName'] ?? null,
-    //             'companyName' => $visitorData['companyName'] ?? null
-    //         ]);
-    // }
+            if ($currentIndex === false) {
+                echo "[" . date('H:i:s') . "] ❌ Current location not found in sequence\n";
+                $this->sendAlarm($sock, $deviceId, $decryptedCardId, 
+                    "Location not in sequence", $icNo, $locationName);
+                return;
+            }
 
+            // ✅ IMPORTANT: Allow special cases
+            $firstDoor = $doorSequence[0];
+            $lastDoor = $doorSequence[count($doorSequence) - 1];
+            
+            // Case 1: User finished complete sequence and wants to re-enter from Turnstile
+            if (strtolower($lastAccessedDoor) === strtolower($lastDoor) && 
+                strtolower($locationName) === strtolower($firstDoor) && 
+                strtolower($firstDoor) === 'turnstile') {
+                echo "[" . date('H:i:s') . "] 🔄 Sequence completed, restarting from Turnstile\n";
+            }
+            // Case 2: If current location is Turnstile (first door) and user hasn't started sequence yet
+            elseif (strtolower($locationName) === strtolower($firstDoor) && $lastIndex === false) {
+                echo "[" . date('H:i:s') . "] ✅ Starting sequence from first door: $firstDoor\n";
+            }
+            // Case 3: Normal sequence check
+            elseif ($currentIndex !== $lastIndex + 1) {
+                echo "[" . date('H:i:s') . "] ❌ Sequence violation! Expected: " .
+                    ($doorSequence[$lastIndex + 1] ?? 'END') . ", Got: $locationName\n";
+
+                $this->sendAlarm(
+                    $sock,
+                    $deviceId,
+                    $decryptedCardId,
+                    "User valid but sequence not followed. Expected: " .
+                    ($doorSequence[$lastIndex + 1] ?? 'END') . ", Got: $locationName",
+                    $icNo,
+                    $locationName
+                );
+                return;
+            }
+        } else {
+            // First door must be first in sequence - CASE INSENSITIVE COMPARISON
+            $firstDoor = $doorSequence[0];
+            
+            // Case-insensitive comparison
+            if (strtolower($locationName) !== strtolower($firstDoor)) {
+                echo "[" . date('H:i:s') . "] ❌ Must start with first door: $firstDoor (case-insensitive check)\n";
+                $this->sendAlarm(
+                    $sock,
+                    $deviceId,
+                    $decryptedCardId,
+                    "Must start with first door: $firstDoor",
+                    $icNo,
+                    $locationName
+                );
+                return;
+            }
+            
+            echo "[" . date('H:i:s') . "] ✅ Starting sequence from first door: $firstDoor\n";
+            
+            // ✅ ALSO CHECK: If this is check_in Turnstile, allow access
+            if (strtolower($locationName) === 'turnstile' && $isType === 'check_in') {
+                echo "[" . date('H:i:s') . "] ✅ Check-in Turnstile - allowing access\n";
+            }
+        }
+    } else {
+        echo "[" . date('H:i:s') . "] ⏭️ Sequence check is DISABLED\n";
+    }
+
+    // ✅ Step 7: Grant access
+    $this->grantAccess($sock, $deviceId, $decryptedCardId, $icNo, $locationName, $isType, [
+        'staffNo' => $staffNo,
+        'fullName' => $visitorData['fullName'] ?? null,
+        'companyName' => $visitorData['companyName'] ?? null
+    ]);
+}
+
+    private function caseInsensitiveArraySearch($needle, $haystack)
+    {
+        $needle = strtolower($needle);
+        foreach ($haystack as $key => $value) {
+            if (strtolower($value) === $needle) {
+                return $key;
+            }
+        }
+        return false;
+    }
     private function getDeviceLocationInfo($deviceId)
     {
         try {
@@ -666,7 +545,7 @@ class SocketServerService
     DB::table('device_access_logs')->insert([
         'device_id' => $deviceId,
         'card_no' => $cardId,
-        'staff_no' => $icNo, // Staff No bhi save kar sakte hain agar chahiye
+        'staff_no' => $icNo, 
         'location_name' => $locationName,
         'access_granted' => 1,
         'reason' => 'Access granted',
@@ -675,29 +554,6 @@ class SocketServerService
     
     echo "[" . date('H:i:s') . "] 💾 Log stored - Card ID: $cardId, IC No: $icNo\n";
 }
-
-
-
-// private function grantAccess($sock, $deviceId, $cardId, $staffNo, $locationName, $isType, $additionalData = [])
-// {
-//     echo "[" . date('H:i:s') . "] ✅ Access granted for Staff No: $staffNo at $locationName ($isType)\n";
-//     echo "[" . date('H:i:s') . "] 💳 Card ID used: $cardId\n";
-    
-//     $this->sendOpenDoorCommand($sock, $deviceId);
-
-//     // ✅ Log successful access with BOTH card_id and staff_no
-//     DB::table('device_access_logs')->insert([
-//         'device_id' => $deviceId,
-//         'card_no' => $cardId,      // ✅ Decrypted Card ID
-//         'staff_no' => $staffNo,    // ✅ Staff No from API
-//         'location_name' => $locationName,
-//         'access_granted' => 1,
-//         'reason' => 'Access granted',
-//         'created_at' => now(),
-//     ]);
-    
-//     echo "[" . date('H:i:s') . "] 💾 Log stored - Card ID: $cardId, Staff No: $staffNo\n";
-// }
 
 
 private function sendAlarm($sock, $deviceId, $cardId = null, $reason = null, $icNo = null, $locationName = null)
@@ -719,26 +575,6 @@ private function sendAlarm($sock, $deviceId, $cardId = null, $reason = null, $ic
         'created_at' => now(),
     ]);
 }
-
-// private function sendAlarm($sock, $deviceId, $cardId = null, $reason = null, $staffNo = null, $locationName = null)
-// {
-//     echo "[" . date('H:i:s') . "] 🚨 Triggering alarm for device $deviceId - Reason: $reason\n";
-//     echo "[" . date('H:i:s') . "] 💳 Card ID: $cardId, Staff No: $staffNo\n";
-    
-//     // Trigger device alarm
-//     $this->triggerDeviceAlarm($sock, $deviceId);
-
-//     // ✅ Log denied access with BOTH card_id and staff_no
-//     DB::table('device_access_logs')->insert([
-//         'device_id' => $deviceId,
-//         'card_no' => $cardId,      // ✅ Decrypted Card ID (or null)
-//         'staff_no' => $staffNo,    // ✅ Staff No (or null)
-//         'location_name' => $locationName,
-//         'access_granted' => 0,
-//         'reason' => $reason,
-//         'created_at' => now(),
-//     ]);
-// }
 
     private function sendOpenDoorCommand($sock, $deviceId)
     {

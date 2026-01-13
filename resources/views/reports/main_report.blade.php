@@ -883,7 +883,7 @@ function displayMovementHistory(movementHistory, visitorDetails) {
                 </span>
             </td>
             <td>
-                <span class="badge bg-info">Entered</span>
+                <span class="badge bg-info">Allowed</span>
             </td>
         `;
         tableBody.appendChild(row);
