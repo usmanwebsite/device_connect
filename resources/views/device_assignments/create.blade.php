@@ -71,7 +71,8 @@
                     <button type="submit" class="btn btn-primary">
                         <i class="fas fa-save"></i> Assign Device
                     </button>
-                    <a href="{{ route('device-assignments.index') }}" class="btn btn-secondary">
+                    <a href="{{ route('device-assignments.index') }}" class="btn btn-secondary" style="width: 
+                    145px; height: 44px; line-height: 25px">
                         Cancel
                     </a>
                 </div>

@@ -621,14 +621,44 @@ $(document).ready(function() {
     const autoSearch = urlParams.get('autoSearch');
     const staffNo = urlParams.get('staffNo');
     const icNo = urlParams.get('icNo');
+    const searchBy = urlParams.get('searchBy');
+    const forceIcNo = urlParams.get('forceIcNo');
     
-    if (autoSearch === 'true' && staffNo) {
+    console.log('URL Parameters:', {
+        autoSearch,
+        staffNo,
+        icNo,
+        searchBy,
+        forceIcNo
+    });
+    
+    if (autoSearch === 'true') {
         // Hide all sections initially
         hideAllSections();
         
-        // Set search type and value
-        $('#searchType').val('staffNo');
-        $('#searchInput').val(staffNo);
+        // forceIcNo پر مبنی انتخاب کریں
+        if (forceIcNo === 'true' && icNo) {
+            $('#searchType').val('icNo');
+            $('#searchInput').val(icNo);
+            console.log('Using IC Number (forced):', icNo);
+        } 
+        // اگر searchBy پارامیٹر موجود ہے
+        else if (searchBy === 'icNo' && icNo) {
+            $('#searchType').val('icNo');
+            $('#searchInput').val(icNo);
+            console.log('Using IC Number:', icNo);
+        }
+        else if (searchBy === 'staffNo' && staffNo) {
+            $('#searchType').val('staffNo');
+            $('#searchInput').val(staffNo);
+            console.log('Using Staff No:', staffNo);
+        }
+        // Default: staffNo استعمال کریں
+        else if (staffNo) {
+            $('#searchType').val('staffNo');
+            $('#searchInput').val(staffNo);
+            console.log('Using Staff No (default):', staffNo);
+        }
         
         // Trigger search after a short delay
         setTimeout(() => {

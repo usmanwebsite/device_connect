@@ -6,7 +6,7 @@
 {{-- Critical Alert Section --}}
 <div class="row mb-4" id="criticalAlertSection">
     @if($criticalAlert)
-    <div class="col-12">
+    <div class="col-12" style="width: 1210px; margin-left: 12px">
         <div class="critical-alert-box" 
             id="currentCriticalAlert" 
             data-alert-id="{{ $criticalAlert['log_id'] }}"

@@ -1,6 +1,9 @@
 @extends('layout.main_layout')
 
 @section('content')
+@php
+    $domain = request()->getSchemeAndHttpHost();
+@endphp
 
 <button class="mobile-menu-toggle" id="mobileMenuToggle">
     <i class="fas fa-bars"></i>
@@ -193,12 +196,20 @@
 
 @section('scripts')
 <script>
+    const API_BASE = window.location.protocol + '//' + window.location.hostname + ':8080';
+</script>
+<script>
 // Global Variables
 let dataTable = null;
 let allStaffData = [];
 let visitorDetailsCache = {};
 let currentModalStaffNo = null;
 let currentModalVisitorDetails = null;
+
+// Request tracking variables
+let pendingRequests = new Map();
+let lastDrawTime = 0;
+const DRAW_COOLDOWN = 1000; // 1 second cooldown between draw calls
 
 // Custom Dropdown Functionality
 document.addEventListener('DOMContentLoaded', function() {
@@ -460,6 +471,13 @@ function initializeDataTable() {
             }
         },
         "drawCallback": function(settings) {
+            // Debounce the draw callback
+            const now = Date.now();
+            if (now - lastDrawTime < DRAW_COOLDOWN) {
+                return;
+            }
+            lastDrawTime = now;
+            
             // Update visitor details for current page
             updateVisitorDetailsForCurrentPage();
             
@@ -473,42 +491,178 @@ function initializeDataTable() {
 }
 
 async function updateVisitorDetailsForCurrentPage() {
-    const rows = dataTable.rows({ page: 'current' }).nodes();
-    
-    for (let i = 0; i < rows.length; i++) {
-        const row = rows[i];
-        const staffNo = dataTable.cell(row, 1).data(); // staff_no column
+    try {
+        const rows = dataTable.rows({ page: 'current' }).nodes();
         
-        if (!visitorDetailsCache[staffNo]) {
-            try {
-                const response = await fetch(`http://127.0.0.1:8080/api/vendorpass/get-visitor-details?icNo=${staffNo}`);
-                const data = await response.json();
-                
-                if (data.status === 'success') {
-                    visitorDetailsCache[staffNo] = data.data;
-                    updateRowDetails(row, data.data);
+        if (!rows || rows.length === 0) {
+            return;
+        }
+        
+        // Collect all staff numbers that need to be fetched
+        const staffNosToFetch = [];
+        const rowStaffMap = new Map();
+        
+        for (let i = 0; i < rows.length; i++) {
+            const row = rows[i];
+            
+            if (!row || !$(row).is('tr')) {
+                continue;
+            }
+            
+            // Get staff_no from the row (second column)
+            const staffNoCell = $(row).find('td:nth-child(2)');
+            if (!staffNoCell.length) {
+                continue;
+            }
+            
+            const staffNo = staffNoCell.text().trim();
+            
+            if (!staffNo || staffNo === 'N/A' || staffNo === 'Loading...') {
+                continue;
+            }
+            
+            // Check if we already have the details
+            if (!visitorDetailsCache[staffNo]) {
+                // Check if a request is already pending for this staffNo
+                if (!pendingRequests.has(staffNo)) {
+                    staffNosToFetch.push(staffNo);
+                    pendingRequests.set(staffNo, true);
                 }
-            } catch (error) {
-                console.error(`Error fetching details for ${staffNo}:`, error);
+                rowStaffMap.set(row, staffNo);
+            } else {
+                // We already have the details, update the row
+                updateRowDetails(row, visitorDetailsCache[staffNo]);
+            }
+        }
+        
+        // If there are staff numbers to fetch, do it in a single batch
+        if (staffNosToFetch.length > 0) {
+            await fetchVisitorDetailsBatch(staffNosToFetch, rowStaffMap);
+        }
+        
+    } catch (error) {
+        console.error('Error in updateVisitorDetailsForCurrentPage:', error);
+    }
+}
+
+async function fetchVisitorDetailsBatch(staffNos, rowStaffMap) {
+    try {
+        // Create a batch request URL
+        const batchUrl = `${API_BASE}/api/vendorpass/get-visitor-details?icNo=${staffNo}`;
+        
+        // Check if batch endpoint exists, otherwise fall back to individual requests
+        const response = await fetch(batchUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ staffNos: staffNos })
+        });
+        
+        if (response.ok) {
+            const data = await response.json();
+            
+            if (data.status === 'success' && data.data) {
+                // Process batch response
+                data.data.forEach(visitorData => {
+                    if (visitorData && visitorData.icNo) {
+                        visitorDetailsCache[visitorData.icNo] = visitorData;
+                    }
+                });
             }
         } else {
-            updateRowDetails(row, visitorDetailsCache[staffNo]);
+            // Fall back to individual requests
+            await fetchVisitorDetailsIndividually(staffNos);
         }
+        
+        // Update all rows with fetched data
+        rowStaffMap.forEach((staffNo, row) => {
+            if (visitorDetailsCache[staffNo]) {
+                updateRowDetails(row, visitorDetailsCache[staffNo]);
+            }
+        });
+        
+    } catch (error) {
+        console.error('Error in fetchVisitorDetailsBatch:', error);
+        // Fall back to individual requests
+        await fetchVisitorDetailsIndividually(staffNos, rowStaffMap);
+    } finally {
+        // Clear pending requests
+        staffNos.forEach(staffNo => {
+            pendingRequests.delete(staffNo);
+        });
+    }
+}
+
+async function fetchVisitorDetailsIndividually(staffNos, rowStaffMap) {
+    const fetchPromises = staffNos.map(async (staffNo) => {
+        try {
+            const response = await fetch(`${API_BASE}/api/vendorpass/get-visitor-details?icNo=${staffNo}`);
+            
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            
+            const data = await response.json();
+            
+            if (data.status === 'success' && data.data) {
+                visitorDetailsCache[staffNo] = data.data;
+            } else {
+                // Cache a default object
+                visitorDetailsCache[staffNo] = {
+                    fullName: 'N/A',
+                    personVisited: 'N/A',
+                    contactNo: 'N/A',
+                    icNo: staffNo
+                };
+            }
+        } catch (error) {
+            console.error(`Error fetching details for ${staffNo}:`, error);
+            // Cache a default object to prevent repeated failed requests
+            visitorDetailsCache[staffNo] = {
+                fullName: 'N/A',
+                personVisited: 'N/A',
+                contactNo: 'N/A',
+                icNo: staffNo
+            };
+        } finally {
+            pendingRequests.delete(staffNo);
+        }
+    });
+    
+    await Promise.all(fetchPromises);
+    
+    // Update rows with fetched data
+    if (rowStaffMap) {
+        rowStaffMap.forEach((staffNo, row) => {
+            if (visitorDetailsCache[staffNo]) {
+                updateRowDetails(row, visitorDetailsCache[staffNo]);
+            }
+        });
     }
 }
 
 function updateRowDetails(row, visitorDetails) {
-    // Update columns 2, 3, 4, 5 with visitor details
-    dataTable.cell(row, 2).data(visitorDetails.fullName || 'N/A');
-    dataTable.cell(row, 3).data(visitorDetails.personVisited || 'N/A');
-    dataTable.cell(row, 4).data(visitorDetails.contactNo || 'N/A');
-    dataTable.cell(row, 5).data(visitorDetails.icNo || 'N/A');
-    
-    // Draw the updated cell
-    dataTable.cells(row, 2).draw();
-    dataTable.cells(row, 3).draw();
-    dataTable.cells(row, 4).draw();
-    dataTable.cells(row, 5).draw();
+    try {
+        // Update using jQuery selectors
+        const cells = $(row).find('td');
+        
+        if (cells.length >= 6) {
+            // Update column 3 (index 2) - Visitor Name
+            $(cells[2]).text(visitorDetails.fullName || 'N/A');
+            
+            // Update column 4 (index 3) - Person Visited
+            $(cells[3]).text(visitorDetails.personVisited || 'N/A');
+            
+            // Update column 5 (index 4) - Contact No
+            $(cells[4]).text(visitorDetails.contactNo || 'N/A');
+            
+            // Update column 6 (index 5) - IC No
+            $(cells[5]).text(visitorDetails.icNo || 'N/A');
+        }
+    } catch (error) {
+        console.error('Error updating row details:', error);
+    }
 }
 
 function loadReport() {
@@ -539,6 +693,9 @@ function loadReport() {
     document.getElementById('noDataMessage').classList.add('d-none');
     document.getElementById('reportSummary').classList.add('d-none');
 
+    // Clear pending requests
+    pendingRequests.clear();
+    
     // Reset visitor cache
     visitorDetailsCache = {};
     
@@ -586,109 +743,11 @@ function handleDataTableResponse(json, fromDateTime, toDateTime, selectedLocatio
     }
 }
 
-async function fetchAllVisitorDetails() {
-    const promises = allStaffData.map(async (staff) => {
-        if (visitorDetailsCache[staff.staffNo]) {
-            staff.visitorDetails = visitorDetailsCache[staff.staffNo];
-            return;
-        }
-
-        try {
-            const response = await fetch(`http://127.0.0.1:8080/api/vendorpass/get-visitor-details?icNo=${staff.staffNo}`);
-            const data = await response.json();
-            
-            if (data.status === 'success') {
-                staff.visitorDetails = data.data;
-                visitorDetailsCache[staff.staffNo] = data.data;
-            } else {
-                staff.visitorDetails = {
-                    fullName: 'N/A',
-                    personVisited: 'N/A',
-                    contactNo: 'N/A',
-                    icNo: 'N/A'
-                };
-            }
-        } catch (error) {
-            console.error(`Error fetching details for ${staff.staffNo}:`, error);
-            staff.visitorDetails = {
-                fullName: 'N/A',
-                personVisited: 'N/A',
-                contactNo: 'N/A',
-                icNo: 'N/A'
-            };
-        }
-    });
-
-    await Promise.all(promises);
-}
-
-function populateDataTable() {
-    const tableBody = document.getElementById('staffTableBody');
-    tableBody.innerHTML = '';
-
-    if (allStaffData.length === 0) {
-        const row = document.createElement('tr');
-        row.innerHTML = `<td colspan="10" class="text-center">No data available</td>`;
-        tableBody.appendChild(row);
-        
-        // DataTable initialize karein (empty table ke saath bhi)
-        setTimeout(() => {
-            initializeDataTable();
-        }, 100);
-        return;
-    }
-
-    // All data show karein, DataTable khud pagination handle karega
-    allStaffData.forEach((staff, index) => {
-        const rowNumber = index + 1;
-        const row = document.createElement('tr');
-        row.className = 'staff-row';
-        
-        const visitorDetails = staff.visitorDetails || {
-            fullName: 'Loading...',
-            personVisited: 'Loading...',
-            contactNo: 'Loading...',
-            icNo: 'Loading...'
-        };
-        
-        row.innerHTML = `
-            <td>${rowNumber}</td>
-            <td>${staff.staffNo || 'N/A'}</td>
-            <td>${visitorDetails.fullName || 'N/A'}</td>
-            <td>${visitorDetails.personVisited || 'N/A'}</td>
-            <td>${visitorDetails.contactNo || 'N/A'}</td>
-            <td>${visitorDetails.icNo || 'N/A'}</td>
-            <td>${staff.totalAccess}</td>
-            <td>${staff.firstAccess ? formatDateTime(staff.firstAccess) : 'N/A'}</td>
-            <td>${staff.lastAccess ? formatDateTime(staff.lastAccess) : 'N/A'}</td>
-            <td>
-                <button class="btn btn-sm btn-info staff-movement-btn" data-staff-no="${staff.staffNo}">
-                    <i class="fas fa-eye"></i>
-                </button>
-            </td>
-        `;
-        tableBody.appendChild(row);
-    });
-
-    // Short delay ke baad DataTable initialize karein
-    setTimeout(() => {
-        initializeDataTable();
-        document.getElementById('staffTableContainer').classList.remove('d-none');
-        
-        // Event listeners attach karein
-        $('.staff-movement-btn').off('click').on('click', function() {
-            const staffNo = $(this).data('staff-no');
-            viewStaffMovement(staffNo);
-        });
-    }, 100);
-}
-
 function showNoData() {
     document.getElementById('noDataMessage').classList.remove('d-none');
     document.getElementById('staffTableContainer').classList.add('d-none');
     document.getElementById('reportSummary').classList.add('d-none');
     
-    // DataTable clear karein
     if (dataTable) {
         dataTable.destroy();
         dataTable = null;
@@ -696,6 +755,11 @@ function showNoData() {
 }
 
 function viewStaffMovement(staffNo) {
+    if (!staffNo) {
+        alert('Staff number is required');
+        return;
+    }
+    
     const modal = new bootstrap.Modal(document.getElementById('staffMovementModal'));
     document.getElementById('movementModalTitle').textContent = `Movement History - ${staffNo}`;
     document.getElementById('modalStaffNo').textContent = staffNo;
@@ -705,7 +769,6 @@ function viewStaffMovement(staffNo) {
 
     modal.show();
 
-    // Reset View Chronology button
     const viewChronologyBtn = document.getElementById('modalViewChronologyBtn');
     viewChronologyBtn.disabled = true;
     viewChronologyBtn.textContent = 'View Chronology';
@@ -713,7 +776,6 @@ function viewStaffMovement(staffNo) {
         viewVisitorChronology(currentModalStaffNo, currentModalVisitorDetails?.icNo, currentModalVisitorDetails?.fullName);
     };
 
-    // Get visitor details
     const visitorDetails = visitorDetailsCache[staffNo];
     
     if (visitorDetails) {
@@ -724,17 +786,21 @@ function viewStaffMovement(staffNo) {
         fetchVisitorDetailsForModal(staffNo);
     }
 
-    // Fetch movement history
     document.getElementById('movementLoading').classList.remove('d-none');
     document.getElementById('movementContent').classList.add('d-none');
     document.getElementById('noMovementMessage').classList.add('d-none');
     
     fetch(`/reports/staff-movement/${staffNo}`)
-        .then(response => response.json())
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            return response.json();
+        })
         .then(data => {
             document.getElementById('movementLoading').classList.add('d-none');
 
-            if (data.success && data.movement_history.length > 0) {
+            if (data.success && data.movement_history && data.movement_history.length > 0) {
                 displayMovementHistory(data.movement_history, visitorDetails);
                 document.getElementById('movementContent').classList.remove('d-none');
             } else {
@@ -750,20 +816,26 @@ function viewStaffMovement(staffNo) {
 
 function displayVisitorInfoInModal(visitorDetails) {
     if (visitorDetails && visitorDetails.fullName && visitorDetails.fullName !== 'N/A') {
-        document.getElementById('modalVisitorName').textContent = visitorDetails.fullName;
+        document.getElementById('modalVisitorName').textContent = visitorDetails.fullName || 'N/A';
         document.getElementById('modalVisitorIC').textContent = visitorDetails.icNo || 'N/A';
         document.getElementById('visitorInfoSection').style.display = 'block';
         currentModalVisitorDetails = visitorDetails;
         
-        // Enable View Chronology button
         const viewChronologyBtn = document.getElementById('modalViewChronologyBtn');
         viewChronologyBtn.disabled = false;
     }
 }
 
 function fetchVisitorDetailsForModal(staffNo) {
-    fetch(`http://127.0.0.1:8080/api/vendorpass/get-visitor-details?icNo=${staffNo}`)
-        .then(response => response.json())
+    if (!staffNo) return;
+    
+    fetch(`${API_BASE}/api/vendorpass/get-visitor-details?icNo=${staffNo}`)
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            return response.json();
+        })
         .then(data => {
             if (data.status === 'success') {
                 const visitorDetails = data.data;
@@ -780,7 +852,13 @@ function displayMovementHistory(movementHistory, visitorDetails) {
     const tableBody = document.getElementById('movementTableBody');
     tableBody.innerHTML = '';
 
+    if (!movementHistory || !Array.isArray(movementHistory)) {
+        return;
+    }
+
     movementHistory.forEach(movement => {
+        if (!movement) return;
+        
         const row = document.createElement('tr');
         
         let badgeClass = 'badge bg-secondary';
@@ -824,7 +902,23 @@ function viewVisitorChronology(staffNo, icNo, fullName) {
         modal.hide();
     }
     
-    window.location.href = `/visitor-details?autoSearch=true&staffNo=${encodeURIComponent(staffNo)}&icNo=${encodeURIComponent(icNo || '')}`;
+    // یقینی بنائیں کہ icNo موجود ہے
+    let actualIcNo = icNo;
+    if (!actualIcNo || actualIcNo === 'N/A' || actualIcNo === 'undefined') {
+        // visitorDetailsCache سے icNo لے لیں
+        const visitorDetails = visitorDetailsCache[staffNo];
+        if (visitorDetails && visitorDetails.icNo) {
+            actualIcNo = visitorDetails.icNo;
+        } else {
+            actualIcNo = staffNo; // fallback
+        }
+    }
+    
+    // FORCE IC Number as default
+    const url = `/visitor-details?autoSearch=true&staffNo=${encodeURIComponent(staffNo)}&icNo=${encodeURIComponent(actualIcNo)}&searchBy=icNo&forceIcNo=true`;
+    console.log('Redirecting to:', url);
+    
+    window.location.href = url;
 }
 </script>
 <script>
