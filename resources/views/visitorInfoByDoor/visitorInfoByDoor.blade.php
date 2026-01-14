@@ -76,12 +76,12 @@
                                 <thead class="table-dark">
                                     <tr>
                                         <th>#</th>
-                                        <th>Staff No</th>
-                                        <th>Visitor Name</th>
-                                        <th>Person Visited</th>
-                                        <th>Contact No</th>
-                                        <th>Check-in Time</th>
-                                        <th>Location</th>
+                                        <th>Visitor Name</th> <!-- Column 1 -->
+                                        <th>Contact No</th> <!-- Column 2 -->
+                                        <th>Staff No</th> <!-- Column 3 -->
+                                        <th>Person Visited</th> <!-- Column 4 -->
+                                        <th>Check-in Time</th> <!-- Column 5 -->
+                                        <th>Location</th> <!-- Column 6 -->
                                         <th>Actions</th>
                                     </tr>
                                 </thead>
@@ -294,45 +294,46 @@
         }
 
         // Populate visitors table
-        function populateVisitorsTable(visitors) {
-            const tbody = $('#visitorsTableBody');
-            tbody.empty();
+// Populate visitors table with NEW COLUMN ORDER
+function populateVisitorsTable(visitors) {
+    const tbody = $('#visitorsTableBody');
+    tbody.empty();
 
-            visitors.forEach((visitor, index) => {
-                const row = `
-                    <tr class="visitor-row" data-staff-no="${visitor.staff_no}">
-                        <td>${index + 1}</td>
-                        <td><span class="badge bg-info">${visitor.staff_no}</span></td>
-                        <td>${visitor.visitor_name}</td>
-                        <td>${visitor.person_visited}</td>
-                        <td>${visitor.contact_no}</td>
-                        <td>${visitor.check_in_time}</td>
-                        <td><span class="badge bg-secondary">${visitor.location_name}</span></td>
-                        <td>
-                            <button class="btn btn-sm btn-info view-details-btn" 
-                                    data-staff-no="${visitor.staff_no}"
-                                    title="View Details">
-                                <i class="fas fa-eye"></i>
-                            </button>
-                        </td>
-                    </tr>
-                `;
-                tbody.append(row);
-            });
+    visitors.forEach((visitor, index) => {
+        const row = `
+            <tr class="visitor-row" data-staff-no="${visitor.staff_no}">
+                <td>${index + 1}</td>
+                <td>${visitor.visitor_name}</td> <!-- Visitor Name - Column 1 -->
+                <td>${visitor.contact_no}</td> <!-- Contact No - Column 2 -->
+                <td><span class="badge bg-info">${visitor.staff_no}</span></td> <!-- Staff No - Column 3 -->
+                <td>${visitor.person_visited}</td> <!-- Person Visited - Column 4 -->
+                <td>${visitor.check_in_time}</td> <!-- Check-in Time - Column 5 -->
+                <td><span class="badge bg-secondary">${visitor.location_name}</span></td> <!-- Location - Column 6 -->
+                <td>
+                    <button class="btn btn-sm btn-info view-details-btn" 
+                            data-staff-no="${visitor.staff_no}"
+                            title="View Details">
+                        <i class="fas fa-eye"></i>
+                    </button>
+                </td>
+            </tr>
+        `;
+        tbody.append(row);
+    });
 
-            // Add click event for view details
-            $('.view-details-btn').click(function(e) {
-                e.stopPropagation();
-                const staffNo = $(this).data('staff-no');
-                showVisitorDetails(staffNo);
-            });
+    // Add click event for view details
+    $('.view-details-btn').click(function(e) {
+        e.stopPropagation();
+        const staffNo = $(this).data('staff-no');
+        showVisitorDetails(staffNo);
+    });
 
-            // Add click event for entire row
-            $('.visitor-row').click(function() {
-                const staffNo = $(this).data('staff-no');
-                showVisitorDetails(staffNo);
-            });
-        }
+    // Add click event for entire row
+    $('.visitor-row').click(function() {
+        const staffNo = $(this).data('staff-no');
+        showVisitorDetails(staffNo);
+    });
+}
 
         // Show visitor details in modal
         function showVisitorDetails(staffNo) {
@@ -383,107 +384,95 @@
             });
         }
 
-        // Render visitor details in modal (WITHOUT Access History Table)
-        function renderVisitorDetails(response) {
-            const visitor = response.visitor;
-            
-            let content = `
-                <div class="detail-section">
-                    <h6 class="mb-3"><i class="fas fa-user me-2"></i>Visitor Information</h6>
-                    <div class="row">
-                        <div class="col-md-6 detail-item">
-                            <div class="detail-label">Staff No</div>
-                            <div class="detail-value"><span class="badge bg-primary">${visitor.staff_no}</span></div>
-                        </div>
-                        <div class="col-md-6 detail-item">
-                            <div class="detail-label">Full Name</div>
-                            <div class="detail-value">${visitor.full_name}</div>
-                        </div>
-                        <div class="col-md-6 detail-item">
-                            <div class="detail-label">Person Visited</div>
-                            <div class="detail-value">${visitor.person_visited}</div>
-                        </div>
-                        <div class="col-md-6 detail-item">
-                            <div class="detail-label">Contact No</div>
-                            <div class="detail-value">${visitor.contact_no}</div>
-                        </div>
-                        <div class="col-md-6 detail-item">
-                            <div class="detail-label">IC No</div>
-                            <div class="detail-value">${visitor.ic_no}</div>
-                        </div>
-                        <div class="col-md-6 detail-item">
-                            <div class="detail-label">Sex</div>
-                            <div class="detail-value">${visitor.sex}</div>
-                        </div>
-                        <div class="col-md-6 detail-item">
-                            <div class="detail-label">Visit From</div>
-                            <div class="detail-value">${visitor.date_of_visit_from}</div>
-                        </div>
-                        <div class="col-md-6 detail-item">
-                            <div class="detail-label">Visit To</div>
-                            <div class="detail-value">${visitor.date_of_visit_to}</div>
-                        </div>
-            `;
-            
-            // Conditionally add email if exists
-            if (visitor.email && visitor.email !== 'N/A') {
-                content += `
-                        <div class="col-md-6 detail-item">
-                            <div class="detail-label">Email</div>
-                            <div class="detail-value">${visitor.email}</div>
-                        </div>
-                `;
-            }
-            
-            // Conditionally add company name if exists
-            if (visitor.company_name && visitor.company_name !== 'N/A') {
-                content += `
-                        <div class="col-md-6 detail-item">
-                            <div class="detail-label">Company</div>
-                            <div class="detail-value">${visitor.company_name}</div>
-                        </div>
-                `;
-            }
-            
-            // Conditionally add purpose of visit if exists
-            if (visitor.purpose_of_visit && visitor.purpose_of_visit !== 'N/A') {
-                content += `
-                        <div class="col-md-12 detail-item">
-                            <div class="detail-label">Purpose of Visit</div>
-                            <div class="detail-value">${visitor.purpose_of_visit}</div>
-                        </div>
-                `;
-            }
-            
-            content += `
-                    </div>
+// Render visitor details in modal with NEW ORDER
+function renderVisitorDetails(response) {
+    const visitor = response.visitor;
+    
+    let content = `
+        <div class="detail-section">
+            <h6 class="mb-3"><i class="fas fa-user me-2"></i>Visitor Information</h6>
+            <div class="row">
+                <div class="col-md-6 detail-item">
+                    <div class="detail-label">Visitor Name</div>
+                    <div class="detail-value">${visitor.full_name || visitor.visitor_name}</div>
                 </div>
-
-                <!--
-                <div class="detail-section">
-                    <h6 class="mb-3"><i class="fas fa-history me-2"></i>Access History (0 records)</h6>
-                    <div class="table-responsive">
-                        <table class="table table-sm table-bordered">
-                            <thead>
-                                <tr>
-                                    <th>Time</th>
-                                    <th>Location</th>
-                                    <th>Device ID</th>
-                                    <th>Access</th>
-                                    <th>Reason</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <!-- Access logs rendering code will go here when needed -->
-                            </tbody>
-                        </table>
-                    </div>
+                <div class="col-md-6 detail-item">
+                    <div class="detail-label">Contact No</div>
+                    <div class="detail-value">${visitor.contact_no}</div>
                 </div>
-                -->
-            `;
+                <div class="col-md-6 detail-item">
+                    <div class="detail-label">Staff No</div>
+                    <div class="detail-value"><span class="badge bg-primary">${visitor.staff_no}</span></div>
+                </div>
+                <div class="col-md-6 detail-item">
+                    <div class="detail-label">Person Visited</div>
+                    <div class="detail-value">${visitor.person_visited}</div>
+                </div>
+                <div class="col-md-6 detail-item">
+                    <div class="detail-label">IC No</div>
+                    <div class="detail-value">${visitor.ic_no}</div>
+                </div>
+                <div class="col-md-6 detail-item">
+                    <div class="detail-label">Sex</div>
+                    <div class="detail-value">${visitor.sex}</div>
+                </div>
+                <div class="col-md-6 detail-item">
+                    <div class="detail-label">Visit From</div>
+                    <div class="detail-value">${visitor.date_of_visit_from}</div>
+                </div>
+                <div class="col-md-6 detail-item">
+                    <div class="detail-label">Visit To</div>
+                    <div class="detail-value">${visitor.date_of_visit_to}</div>
+                </div>
+    `;
+    
+    // Conditionally add email if exists
+    if (visitor.email && visitor.email !== 'N/A') {
+        content += `
+                <div class="col-md-6 detail-item">
+                    <div class="detail-label">Email</div>
+                    <div class="detail-value">${visitor.email}</div>
+                </div>
+        `;
+    }
+    
+    // Conditionally add company name if exists
+    if (visitor.company_name && visitor.company_name !== 'N/A') {
+        content += `
+                <div class="col-md-6 detail-item">
+                    <div class="detail-label">Company</div>
+                    <div class="detail-value">${visitor.company_name}</div>
+                </div>
+        `;
+    }
+    
+    // Conditionally add purpose of visit if exists
+    if (visitor.purpose_of_visit && visitor.purpose_of_visit !== 'N/A') {
+        content += `
+                <div class="col-md-12 detail-item">
+                    <div class="detail-label">Purpose of Visit</div>
+                    <div class="detail-value">${visitor.purpose_of_visit}</div>
+                </div>
+        `;
+    }
+    
+    // Check-in time add karein agar available ho
+    if (visitor.check_in_time && visitor.check_in_time !== 'N/A') {
+        content += `
+                <div class="col-md-6 detail-item">
+                    <div class="detail-label">Check-in Time</div>
+                    <div class="detail-value">${visitor.check_in_time}</div>
+                </div>
+        `;
+    }
+    
+    content += `
+            </div>
+        </div>
+    `;
 
-            $('#visitorDetailsContent').html(content);
-        }
+    $('#visitorDetailsContent').html(content);
+}
 
         // Auto-refresh data every 30 seconds if data is loaded
         let refreshInterval;

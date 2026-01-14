@@ -9,12 +9,6 @@
             <div class="col-sm-6">
                 <h1 class="m-0" style="font-weight: 600; font-size: 1.8rem; margin-left: 20px !important">Visitor Details</h1>
             </div>
-            {{-- <div class="col-sm-6">
-                <ol class="breadcrumb float-sm-right">
-                    <li class="breadcrumb-item"><a href="{{ route('dashboard') }}">Home</a></li>
-                    <li class="breadcrumb-item active">Visitor Details</li>
-                </ol>
-            </div> --}}
         </div>
     </div>
 </div>
@@ -182,61 +176,72 @@
                 </button>
             </div>
             <div class="modal-body">
-                <div class="row">
+                <!-- Row 1: Full Name | Reason for Visit -->
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label class="font-weight-bold">Full Name:</label>
+                            <p id="modalFullName" class="border p-2 rounded bg-light">-</p>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label class="font-weight-bold">Reason for Visit:</label>
+                            <p id="modalReason" class="border p-2 rounded bg-light">-</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Row 2: IC No | Staff No -->
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label class="font-weight-bold">IC No:</label>
+                            <p id="modalIcNo">-</p>
+                        </div>
+                    </div>
                     <div class="col-md-6">
                         <div class="form-group">
                             <label class="font-weight-bold">Staff No:</label>
                             <p id="modalStaffNo">-</p>
                         </div>
+                    </div>
+                </div>
+                
+                <!-- Row 3: Person Visited | Contact No -->
+                <div class="row mb-3">
+                    <div class="col-md-6">
                         <div class="form-group">
-                            <label class="font-weight-bold">Full Name:</label>
-                            <p id="modalFullName">-</p>
+                            <label class="font-weight-bold">Person Visited:</label>
+                            <p id="modalPersonVisited" class="border p-2 rounded bg-light">-</p>
                         </div>
-                        <div class="form-group">
-                            <label class="font-weight-bold">IC No:</label>
-                            <p id="modalIcNo">-</p>
-                        </div>
-                        <div class="form-group">
-                            <label class="font-weight-bold">Sex:</label>
-                            <p id="modalSex">-</p>
-                        </div>
+                    </div>
+                    <div class="col-md-6">
                         <div class="form-group">
                             <label class="font-weight-bold">Contact No:</label>
                             <p id="modalContactNo">-</p>
                         </div>
                     </div>
+                </div>
+                
+                <!-- Row 4: Visit From | Visit To -->
+                <div class="row mb-3">
                     <div class="col-md-6">
-                        <div class="form-group">
-                            <label class="font-weight-bold">Company Name:</label>
-                            <p id="modalCompanyName">-</p>
-                        </div>
-                        <div class="form-group">
-                            <label class="font-weight-bold">Person Visited:</label>
-                            <p id="modalPersonVisited">-</p>
-                        </div>
                         <div class="form-group">
                             <label class="font-weight-bold">Visit From:</label>
                             <p id="modalDateOfVisitFrom">-</p>
                         </div>
+                    </div>
+                    <div class="col-md-6">
                         <div class="form-group">
                             <label class="font-weight-bold">Visit To:</label>
                             <p id="modalDateOfVisitTo">-</p>
                         </div>
-                        <div class="form-group">
-                            <label class="font-weight-bold">Visit Duration:</label>
-                            <p id="modalVisitDuration">-</p>
-                        </div>
                     </div>
                 </div>
-                <div class="row">
-                    <div class="col-md-12">
-                        <div class="form-group">
-                            <label class="font-weight-bold">Reason for Visit:</label>
-                            <p id="modalReason" class="border p-2 rounded">-</p>
-                        </div>
-                    </div>
-                </div>
-                <div class="row mt-3">
+                
+                <!-- Row 5: Search Type | Last Updated -->
+                <div class="row mb-3">
                     <div class="col-md-6">
                         <div class="form-group">
                             <label class="font-weight-bold">Search Type:</label>
@@ -247,6 +252,28 @@
                         <div class="form-group">
                             <label class="font-weight-bold">Last Updated:</label>
                             <p id="modalLastUpdated">-</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Visit Duration (Single row) -->
+                <div class="row mb-3">
+                    <div class="col-md-12">
+                        <div class="form-group">
+                            <label class="font-weight-bold">Visit Duration:</label>
+                            <p id="modalVisitDuration" class="text-primary font-weight-bold">-</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Company Name (Single row at bottom) -->
+                <div class="row">
+                    <div class="col-md-12">
+                        <div class="card bg-light">
+                            <div class="card-body">
+                                <h6 class="font-weight-bold mb-1">Company Name:</h6>
+                                <p class="mb-0" id="modalCompanyName">-</p>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -778,10 +805,24 @@ $(document).ready(function() {
     $('#closeViewDetailsModal').click(function() {
         $('#viewDetailsModal').modal('hide');
     });
-    
-    // Close View Details Modal (Close button)
+
     $('#closeViewDetailsModalBtn').click(function() {
         $('#viewDetailsModal').modal('hide');
+    });
+
+    
+    // // Close View Details Modal (Close button)
+    // $('#closeViewDetailsModalBtn').click(function() {
+    //     $('#viewDetailsModal').modal('hide');
+    // });
+
+    $('#closeChronologyModal').click(function() {
+        $('#chronologyModal').modal('hide');
+    });
+    
+    // Close Chronology Modal (Close button)
+    $('#closeChronologyModalBtn').click(function() {
+        $('#chronologyModal').modal('hide');
     });
     
     // Close Chronology Modal (X button)
@@ -1654,162 +1695,175 @@ function formatDateTime(dateString) {
         return dateString;
     }
 }
+// View Details Modal Functions
+function showVisitorDetailsModal(data) {
+    // Format dates for modal
+    const formatModalDate = (dateString) => {
+        if (!dateString || dateString === 'N/A') return '-';
+        try {
+            const date = new Date(dateString);
+            return date.toLocaleDateString('en-US', {
+                weekday: 'long',
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit'
+            });
+        } catch (e) {
+            return dateString;
+        }
+    };
     
-    // View Details Modal Functions
-    function showVisitorDetailsModal(data) {
-        // Format dates for modal
-        const formatModalDate = (dateString) => {
-            if (!dateString || dateString === 'N/A') return '-';
-            try {
-                const date = new Date(dateString);
-                return date.toLocaleDateString('en-US', {
-                    weekday: 'long',
-                    year: 'numeric',
-                    month: 'long',
-                    day: 'numeric',
-                    hour: '2-digit',
-                    minute: '2-digit',
-                    second: '2-digit'
-                });
-            } catch (e) {
-                return dateString;
+    // Calculate visit duration
+    const calculateDuration = (from, to) => {
+        if (!from || !to || from === 'N/A' || to === 'N/A') return '-';
+        try {
+            const fromDate = new Date(from);
+            const toDate = new Date(to);
+            const diffMs = toDate - fromDate;
+            const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+            const diffHours = Math.floor((diffMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+            const diffMinutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+            
+            if (diffDays > 0) {
+                return `${diffDays} day(s) ${diffHours} hour(s) ${diffMinutes} minute(s)`;
+            } else if (diffHours > 0) {
+                return `${diffHours} hour(s) ${diffMinutes} minute(s)`;
+            } else {
+                return `${diffMinutes} minute(s)`;
             }
-        };
-        
-        // Calculate visit duration
-        const calculateDuration = (from, to) => {
-            if (!from || !to || from === 'N/A' || to === 'N/A') return '-';
-            try {
-                const fromDate = new Date(from);
-                const toDate = new Date(to);
-                const diffMs = toDate - fromDate;
-                const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-                const diffHours = Math.floor((diffMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-                const diffMinutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+        } catch (e) {
+            return '-';
+        }
+    };
+    
+    // Get search type display text
+    const getSearchTypeText = (type) => {
+        switch(type) {
+            case 'STAFFNO': return 'Staff Number';
+            case 'ICNO': return 'IC Number';
+            default: return type || 'Auto Detect';
+        }
+    };
+    
+    // Set modal values with new layout
+    $('#modalFullName').text(data.fullname || '-');
+    $('#modalReason').text(data.reason || '-');
+    $('#modalIcNo').text(data.icno || '-');
+    $('#modalStaffNo').text(data.staffno || '-');
+    $('#modalPersonVisited').text(data.personvisited || '-');
+    $('#modalContactNo').text(data.contactno || '-');
+    $('#modalDateOfVisitFrom').text(formatModalDate(data.visitfrom) || '-');
+    $('#modalDateOfVisitTo').text(formatModalDate(data.visitto) || '-');
+    $('#modalSearchType').text(getSearchTypeText(data.searchtype));
+    $('#modalLastUpdated').text(new Date().toLocaleString());
+    $('#modalVisitDuration').text(calculateDuration(data.visitfrom, data.visitto));
+    $('#modalCompanyName').text(data.company || '-');
+    
+    // Show modal
+    $('#viewDetailsModal').modal('show');
+}
+    
+// Print details button
+$('#printDetailsBtn').click(function() {
+    const printContent = `
+        <html>
+        <head>
+            <title>Visitor Details - ${$('#modalFullName').text()}</title>
+            <style>
+                body { font-family: Arial, sans-serif; margin: 20px; }
+                .header { text-align: center; margin-bottom: 30px; border-bottom: 2px solid #333; padding-bottom: 10px; }
+                .details-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+                .details-table th, .details-table td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+                .details-table th { background-color: #f2f2f2; width: 30%; }
+                .footer { margin-top: 30px; text-align: center; font-size: 12px; color: #666; }
+                .two-column-layout { display: flex; gap: 20px; margin-bottom: 15px; }
+                .column { flex: 1; }
+                .field-row { margin-bottom: 10px; }
+                .field-label { font-weight: bold; display: block; margin-bottom: 5px; }
+                .field-value { padding: 8px; border: 1px solid #ddd; background-color: #f9f9f9; }
+                .highlight-box { background-color: #f0f8ff; padding: 10px; border: 1px solid #cce5ff; border-radius: 4px; }
+            </style>
+        </head>
+        <body>
+            <div class="header">
+                <h2>Visitor Details Report</h2>
+                <p>Generated on: ${new Date().toLocaleString()}</p>
+            </div>
+            
+            <div class="two-column-layout">
+                <div class="column">
+                    <div class="field-row">
+                        <span class="field-label">Full Name:</span>
+                        <div class="field-value">${$('#modalFullName').text()}</div>
+                    </div>
+                    <div class="field-row">
+                        <span class="field-label">IC No:</span>
+                        <div class="field-value">${$('#modalIcNo').text()}</div>
+                    </div>
+                    <div class="field-row">
+                        <span class="field-label">Person Visited:</span>
+                        <div class="field-value highlight-box">${$('#modalPersonVisited').text()}</div>
+                    </div>
+                    <div class="field-row">
+                        <span class="field-label">Visit From:</span>
+                        <div class="field-value">${$('#modalDateOfVisitFrom').text()}</div>
+                    </div>
+                    <div class="field-row">
+                        <span class="field-label">Search Type:</span>
+                        <div class="field-value">${$('#modalSearchType').text()}</div>
+                    </div>
+                </div>
                 
-                if (diffDays > 0) {
-                    return `${diffDays} day(s) ${diffHours} hour(s) ${diffMinutes} minute(s)`;
-                } else if (diffHours > 0) {
-                    return `${diffHours} hour(s) ${diffMinutes} minute(s)`;
-                } else {
-                    return `${diffMinutes} minute(s)`;
-                }
-            } catch (e) {
-                return '-';
-            }
-        };
-        
-        // Get search type display text
-        const getSearchTypeText = (type) => {
-            switch(type) {
-                case 'STAFFNO': return 'Staff Number';
-                case 'ICNO': return 'IC Number';
-                default: return type || 'Auto Detect';
-            }
-        };
-        
-        // Set modal values
-        $('#modalStaffNo').text(data.staffno || '-');
-        $('#modalFullName').text(data.fullname || '-');
-        $('#modalIcNo').text(data.icno || '-');
-        $('#modalSex').text(data.sex || '-');
-        $('#modalContactNo').text(data.contactno || '-');
-        $('#modalCompanyName').text(data.company || '-');
-        $('#modalPersonVisited').text(data.personvisited || '-');
-        $('#modalDateOfVisitFrom').text(formatModalDate(data.visitfrom) || '-');
-        $('#modalDateOfVisitTo').text(formatModalDate(data.visitto) || '-');
-        $('#modalReason').text(data.reason || '-');
-        $('#modalVisitDuration').text(calculateDuration(data.visitfrom, data.visitto));
-        $('#modalLastUpdated').text(new Date().toLocaleString());
-        $('#modalSearchType').text(getSearchTypeText(data.searchtype));
-        
-        // Show modal
-        $('#viewDetailsModal').modal('show');
-    }
+                <div class="column">
+                    <div class="field-row">
+                        <span class="field-label">Reason for Visit:</span>
+                        <div class="field-value highlight-box">${$('#modalReason').text()}</div>
+                    </div>
+                    <div class="field-row">
+                        <span class="field-label">Staff No:</span>
+                        <div class="field-value">${$('#modalStaffNo').text()}</div>
+                    </div>
+                    <div class="field-row">
+                        <span class="field-label">Contact No:</span>
+                        <div class="field-value">${$('#modalContactNo').text()}</div>
+                    </div>
+                    <div class="field-row">
+                        <span class="field-label">Visit To:</span>
+                        <div class="field-value">${$('#modalDateOfVisitTo').text()}</div>
+                    </div>
+                    <div class="field-row">
+                        <span class="field-label">Last Updated:</span>
+                        <div class="field-value">${$('#modalLastUpdated').text()}</div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="field-row">
+                <span class="field-label">Visit Duration:</span>
+                <div class="field-value" style="font-weight: bold; color: #007bff;">${$('#modalVisitDuration').text()}</div>
+            </div>
+            
+            <div class="field-row">
+                <span class="field-label">Company Name:</span>
+                <div class="field-value highlight-box">${$('#modalCompanyName').text()}</div>
+            </div>
+            
+            <div class="footer">
+                <p>This is a computer-generated document. No signature required.</p>
+                <p>© ${new Date().getFullYear()} Visitor Management System</p>
+            </div>
+        </body>
+        </html>
+    `;
     
-    // Print details button
-    $('#printDetailsBtn').click(function() {
-        const printContent = `
-            <html>
-            <head>
-                <title>Visitor Details - ${$('#modalStaffNo').text()}</title>
-                <style>
-                    body { font-family: Arial, sans-serif; margin: 20px; }
-                    .header { text-align: center; margin-bottom: 30px; border-bottom: 2px solid #333; padding-bottom: 10px; }
-                    .details-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
-                    .details-table th, .details-table td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-                    .details-table th { background-color: #f2f2f2; width: 30%; }
-                    .footer { margin-top: 30px; text-align: center; font-size: 12px; color: #666; }
-                </style>
-            </head>
-            <body>
-                <div class="header">
-                    <h2>Visitor Details Report</h2>
-                    <p>Generated on: ${new Date().toLocaleString()}</p>
-                </div>
-                <table class="details-table">
-                    <tr>
-                        <th>Staff No:</th>
-                        <td>${$('#modalStaffNo').text()}</td>
-                    </tr>
-                    <tr>
-                        <th>Full Name:</th>
-                        <td>${$('#modalFullName').text()}</td>
-                    </tr>
-                    <tr>
-                        <th>IC No:</th>
-                        <td>${$('#modalIcNo').text()}</td>
-                    </tr>
-                    <tr>
-                        <th>Sex:</th>
-                        <td>${$('#modalSex').text()}</td>
-                    </tr>
-                    <tr>
-                        <th>Contact No:</th>
-                        <td>${$('#modalContactNo').text()}</td>
-                    </tr>
-                    <tr>
-                        <th>Company:</th>
-                        <td>${$('#modalCompanyName').text()}</td>
-                    </tr>
-                    <tr>
-                        <th>Person Visited:</th>
-                        <td>${$('#modalPersonVisited').text()}</td>
-                    </tr>
-                    <tr>
-                        <th>Visit From:</th>
-                        <td>${$('#modalDateOfVisitFrom').text()}</td>
-                    </tr>
-                    <tr>
-                        <th>Visit To:</th>
-                        <td>${$('#modalDateOfVisitTo').text()}</td>
-                    </tr>
-                    <tr>
-                        <th>Reason:</th>
-                        <td>${$('#modalReason').text()}</td>
-                    </tr>
-                    <tr>
-                        <th>Visit Duration:</th>
-                        <td>${$('#modalVisitDuration').text()}</td>
-                    </tr>
-                    <tr>
-                        <th>Search Type:</th>
-                        <td>${$('#modalSearchType').text()}</td>
-                    </tr>
-                </table>
-                <div class="footer">
-                    <p>This is a computer-generated document. No signature required.</p>
-                    <p>© ${new Date().getFullYear()} Visitor Management System</p>
-                </div>
-            </body>
-            </html>
-        `;
-        
-        const printWindow = window.open('', '_blank');
-        printWindow.document.write(printContent);
-        printWindow.document.close();
-        printWindow.print();
-    });
+    const printWindow = window.open('', '_blank');
+    printWindow.document.write(printContent);
+    printWindow.document.close();
+    printWindow.print();
+});
     
     // Export to CSV function
     function exportToCSV() {

@@ -13,7 +13,6 @@
     <div class="row mb-4">
         <div class="col-12">
             <div class="content-card" style="height: 100%">
-                {{-- Header --}}
                 <div class="row mb-4">
                     <div class="col-12">
                         <h2 class="mb-1">ACCESS LOGS REPORT</h2>
@@ -22,7 +21,6 @@
                 </div>
 
                 <div class="row mb-4 filter-form-mobile">
-                    {{-- From Date with Time --}}
                     <div class="col-12 col-sm-6 col-md-3 mb-3 mb-md-0">
                         <label for="fromDate" class="form-label">From Date & Time</label>
                         <input type="datetime-local" class="form-control datetime-picker" id="fromDate" 
@@ -30,7 +28,6 @@
                         <small class="text-muted">Start date and time</small>
                     </div>
                     
-                    {{-- To Date with Time --}}
                     <div class="col-12 col-sm-6 col-md-3 mb-3 mb-md-0">
                         <label for="toDate" class="form-label">To Date & Time</label>
                         <input type="datetime-local" class="form-control datetime-picker" id="toDate" 
@@ -38,7 +35,6 @@
                         <small class="text-muted">End date and time</small>
                     </div>
                     
-                    {{-- Locations Dropdown (Same as before) --}}
                     <div class="col-12 col-md-4 mb-3 mb-md-0">
                         <label class="form-label">Select Locations</label>
                         <div class="custom-dropdown" id="locationDropdownContainer">
@@ -50,7 +46,6 @@
                             </button>
                             <div class="dropdown-menu" id="locationDropdownMenu">
                                 <div class="dropdown-content-report p-3">
-                                    {{-- Select All Option --}}
                                     <div class="form-check mb-2">
                                         <input class="form-check-input" type="checkbox" id="selectAllLocations">
                                         <label class="form-check-label fw-bold" for="selectAllLocations">
@@ -59,7 +54,6 @@
                                     </div>
                                     <hr class="my-2">
                                     
-                                    {{-- Location Checkboxes --}}
                                     <div id="locationCheckboxes">
                                         @foreach($locations as $loc)
                                             <div class="form-check">
@@ -76,7 +70,6 @@
                                 </div>
                             </div>
                         </div>
-                        {{-- Selected Locations Display --}}
                         <div id="selectedLocations" class="mt-2 small text-muted" style="min-height: 20px;"></div>
                     </div>
                     
@@ -86,14 +79,12 @@
                         </button>
                     </div>
                 </div>
-                {{-- Loading Spinner --}}
                 <div id="loadingSpinner" class="text-center d-none">
                     <div class="spinner-border text-primary" role="status">
                         <span class="visually-hidden">Loading...</span>
                     </div>
                     <p class="mt-2">Loading report data...</p>
                 </div>
-                {{-- Report Summary Cards - RESPONSIVE --}}
                 <div id="reportSummary" class="row mb-4 d-none">
                     <div class="col-12 col-sm-6 col-md-3 mb-3 mb-md-0">
                         <div class="stat-card">
@@ -105,18 +96,16 @@
                         <p class="mb-0 text-center text-md-start" id="reportInfo"></p>
                     </div>
                 </div>
-                {{-- Main Table with DataTable --}}
                 <div class="table-container-wrapper d-none" id="staffTableContainer">
                     <div class="table-responsive" style="height: 1500px !important">
                         <table class="table table-hover table-striped" id="staffTable">
                             <thead class="table-light">
                                 <tr>
                                     <th>No</th>
-                                    <th>Code</th>
                                     <th>Visitor Name</th>
-                                    <th>Person Visited</th>
                                     <th>Contact No</th>
                                     <th>IC No</th>
+                                    <th>Person Visited</th>
                                     <th>Total Access</th>
                                     <th>First Access</th>
                                     <th>Last Access</th>
@@ -129,7 +118,6 @@
                         </table>
                     </div>
                 </div>
-                {{-- No Data Message --}}
                 <div id="noDataMessage" class="text-center d-none">
                     <div class="alert alert-info">
                         <h5>No data found</h5>
@@ -139,7 +127,6 @@
             </div>
         </div>
     </div>
-
 {{-- Staff Movement Modal --}}
 <div class="modal fade" id="staffMovementModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-lg">
@@ -190,7 +177,6 @@
         </div>
     </div>
 </div>
-
 </div>
 @endsection
 
@@ -199,7 +185,6 @@
     const API_BASE = window.location.protocol + '//' + window.location.hostname + ':8080';
 </script>
 <script>
-// Global Variables
 let dataTable = null;
 let allStaffData = [];
 let visitorDetailsCache = {};
@@ -209,9 +194,7 @@ let currentModalVisitorDetails = null;
 // Request tracking variables
 let pendingRequests = new Map();
 let lastDrawTime = 0;
-const DRAW_COOLDOWN = 1000; // 1 second cooldown between draw calls
-
-// Custom Dropdown Functionality
+const DRAW_COOLDOWN = 1000; 
 document.addEventListener('DOMContentLoaded', function() {
     const dropdownBtn = document.getElementById('locationDropdownBtn');
     const dropdownMenu = document.getElementById('locationDropdownMenu');
@@ -382,7 +365,6 @@ function initializeDataTable() {
             "url": '{{ route("reports.access-logs.data") }}',
             "type": "POST",
             "data": function (d) {
-                // Add your custom filters
                 d.from_date = document.getElementById('fromDate').value;
                 d.to_date = document.getElementById('toDate').value;
                 d.locations = getSelectedLocations();
@@ -398,52 +380,72 @@ function initializeDataTable() {
                 "data": "DT_RowIndex",
                 "name": "DT_RowIndex",
                 "orderable": false,
-                "searchable": false 
-            },
-            { 
-                "data": "staff_no",
-                "name": "staff_no" 
+                "searchable": false,
+                "className": "text-center",
+                "width": "50px"
             },
             { 
                 "data": "full_name",
                 "name": "full_name",
                 "orderable": false,
-                "searchable": false 
-            },
-            { 
-                "data": "person_visited",
-                "name": "person_visited",
-                "orderable": false,
-                "searchable": false 
+                "searchable": false,
+                "className": "text-left",
+                "width": "200px"
             },
             { 
                 "data": "contact_no",
                 "name": "contact_no",
                 "orderable": false,
-                "searchable": false 
+                "searchable": false,
+                "className": "text-center",
+                "width": "120px"
             },
             { 
                 "data": "ic_no",
                 "name": "ic_no",
+                "orderable": true,
+                "searchable": true,
+                "className": "text-center",
+                "width": "150px"
+            },
+            { 
+                "data": "person_visited",
+                "name": "person_visited",
                 "orderable": false,
-                "searchable": false 
+                "searchable": false,
+                "className": "text-left",
+                "width": "180px"
             },
             { 
                 "data": "total_access",
-                "name": "total_access" 
+                "name": "total_access",
+                "orderable": true,
+                "searchable": false,
+                "className": "text-center",
+                "width": "100px"
             },
             { 
                 "data": "first_access",
-                "name": "first_access" 
+                "name": "first_access",
+                "orderable": true,
+                "searchable": false,
+                "className": "text-center",
+                "width": "150px"
             },
             { 
                 "data": "last_access",
-                "name": "last_access" 
+                "name": "last_access",
+                "orderable": true,
+                "searchable": false,
+                "className": "text-center",
+                "width": "150px"
             },
             { 
                 "data": null,
                 "orderable": false,
                 "searchable": false,
+                "className": "text-center",
+                "width": "80px",
                 "render": function (data, type, row) {
                     return `
                         <button class="btn btn-sm btn-info staff-movement-btn" data-staff-no="${row.staff_no}">
@@ -455,7 +457,13 @@ function initializeDataTable() {
         ],
         "pageLength": 10,
         "lengthMenu": [[10, 25, 50, 100], [10, 25, 50, 100]],
-        "order": [[1, 'asc']],
+        "order": [[3, 'asc']], // IC No (column index 3) سے sort کریں
+        "scrollX": true, // Horizontal scroll enable کریں
+        "scrollCollapse": true,
+        "fixedColumns": {
+            "leftColumns": 1, // No column fixed رکھیں
+            "rightColumns": 1 // Actions column fixed رکھیں
+        },
         "language": {
             "search": "Search records:",
             "lengthMenu": "Show _MENU_ entries",
@@ -471,21 +479,22 @@ function initializeDataTable() {
             }
         },
         "drawCallback": function(settings) {
-            // Debounce the draw callback
             const now = Date.now();
             if (now - lastDrawTime < DRAW_COOLDOWN) {
                 return;
             }
             lastDrawTime = now;
             
-            // Update visitor details for current page
             updateVisitorDetailsForCurrentPage();
             
-            // Re-attach event listeners
             $('.staff-movement-btn').off('click').on('click', function() {
                 const staffNo = $(this).data('staff-no');
                 viewStaffMovement(staffNo);
             });
+        },
+        "initComplete": function() {
+            // Table کو responsive بنانے کے لیے
+            this.api().columns.adjust();
         }
     });
 }
@@ -497,10 +506,9 @@ async function updateVisitorDetailsForCurrentPage() {
         if (!rows || rows.length === 0) {
             return;
         }
-        
-        // Collect all staff numbers that need to be fetched
-        const staffNosToFetch = [];
-        const rowStaffMap = new Map();
+
+        const icNosToFetch = [];
+        const rowIcMap = new Map();
         
         for (let i = 0; i < rows.length; i++) {
             const row = rows[i];
@@ -508,36 +516,32 @@ async function updateVisitorDetailsForCurrentPage() {
             if (!row || !$(row).is('tr')) {
                 continue;
             }
-            
-            // Get staff_no from the row (second column)
-            const staffNoCell = $(row).find('td:nth-child(2)');
-            if (!staffNoCell.length) {
+
+            // IC No والا سیل تلاش کریں (column index 3)
+            const icNoCell = $(row).find('td:nth-child(4)'); // چوتھا کالم IC No ہے
+            if (!icNoCell.length) {
                 continue;
             }
             
-            const staffNo = staffNoCell.text().trim();
+            const icNo = icNoCell.text().trim();
             
-            if (!staffNo || staffNo === 'N/A' || staffNo === 'Loading...') {
+            if (!icNo || icNo === 'N/A' || icNo === 'Loading...') {
                 continue;
             }
             
-            // Check if we already have the details
-            if (!visitorDetailsCache[staffNo]) {
-                // Check if a request is already pending for this staffNo
-                if (!pendingRequests.has(staffNo)) {
-                    staffNosToFetch.push(staffNo);
-                    pendingRequests.set(staffNo, true);
+            if (!visitorDetailsCache[icNo]) {
+                if (!pendingRequests.has(icNo)) {
+                    icNosToFetch.push(icNo);
+                    pendingRequests.set(icNo, true);
                 }
-                rowStaffMap.set(row, staffNo);
+                rowIcMap.set(row, icNo);
             } else {
-                // We already have the details, update the row
-                updateRowDetails(row, visitorDetailsCache[staffNo]);
+                updateRowDetails(row, visitorDetailsCache[icNo]);
             }
         }
-        
-        // If there are staff numbers to fetch, do it in a single batch
-        if (staffNosToFetch.length > 0) {
-            await fetchVisitorDetailsBatch(staffNosToFetch, rowStaffMap);
+
+        if (icNosToFetch.length > 0) {
+            await fetchVisitorDetailsIndividually(icNosToFetch, rowIcMap);
         }
         
     } catch (error) {
@@ -549,8 +553,7 @@ async function fetchVisitorDetailsBatch(staffNos, rowStaffMap) {
     try {
         // Create a batch request URL
         const batchUrl = `${API_BASE}/api/vendorpass/get-visitor-details?icNo=${staffNo}`;
-        
-        // Check if batch endpoint exists, otherwise fall back to individual requests
+
         const response = await fetch(batchUrl, {
             method: 'POST',
             headers: {
@@ -560,8 +563,7 @@ async function fetchVisitorDetailsBatch(staffNos, rowStaffMap) {
         });
         
         if (response.ok) {
-            const data = await response.json();
-            
+            const data = await response.json();            
             if (data.status === 'success' && data.data) {
                 // Process batch response
                 data.data.forEach(visitorData => {
@@ -571,11 +573,9 @@ async function fetchVisitorDetailsBatch(staffNos, rowStaffMap) {
                 });
             }
         } else {
-            // Fall back to individual requests
             await fetchVisitorDetailsIndividually(staffNos);
         }
         
-        // Update all rows with fetched data
         rowStaffMap.forEach((staffNo, row) => {
             if (visitorDetailsCache[staffNo]) {
                 updateRowDetails(row, visitorDetailsCache[staffNo]);
@@ -584,16 +584,13 @@ async function fetchVisitorDetailsBatch(staffNos, rowStaffMap) {
         
     } catch (error) {
         console.error('Error in fetchVisitorDetailsBatch:', error);
-        // Fall back to individual requests
         await fetchVisitorDetailsIndividually(staffNos, rowStaffMap);
     } finally {
-        // Clear pending requests
         staffNos.forEach(staffNo => {
             pendingRequests.delete(staffNo);
         });
     }
 }
-
 async function fetchVisitorDetailsIndividually(staffNos, rowStaffMap) {
     const fetchPromises = staffNos.map(async (staffNo) => {
         try {
@@ -644,21 +641,17 @@ async function fetchVisitorDetailsIndividually(staffNos, rowStaffMap) {
 
 function updateRowDetails(row, visitorDetails) {
     try {
-        // Update using jQuery selectors
         const cells = $(row).find('td');
         
-        if (cells.length >= 6) {
-            // Update column 3 (index 2) - Visitor Name
-            $(cells[2]).text(visitorDetails.fullName || 'N/A');
-            
-            // Update column 4 (index 3) - Person Visited
-            $(cells[3]).text(visitorDetails.personVisited || 'N/A');
-            
-            // Update column 5 (index 4) - Contact No
-            $(cells[4]).text(visitorDetails.contactNo || 'N/A');
-            
-            // Update column 6 (index 5) - IC No
-            $(cells[5]).text(visitorDetails.icNo || 'N/A');
+        if (cells.length >= 9) { // اب 9 کالم ہیں
+            // Column 2: Visitor Name (index 1)
+            $(cells[1]).text(visitorDetails.fullName || 'N/A');
+            // Column 3: Contact No (index 2)
+            $(cells[2]).text(visitorDetails.contactNo || 'N/A');
+            // Column 4: IC No (index 3) - یہ پہلے ہی icNo ہونا چاہیے
+            $(cells[3]).text(visitorDetails.icNo || 'N/A');
+            // Column 5: Person Visited (index 4)
+            $(cells[4]).text(visitorDetails.personVisited || 'N/A');
         }
     } catch (error) {
         console.error('Error updating row details:', error);
@@ -679,7 +672,6 @@ function loadReport() {
         alert('Please select at least one location');
         return;
     }
-
     const fromDateObj = new Date(fromDateTime);
     const toDateObj = new Date(toDateTime);
 
@@ -693,13 +685,10 @@ function loadReport() {
     document.getElementById('noDataMessage').classList.add('d-none');
     document.getElementById('reportSummary').classList.add('d-none');
 
-    // Clear pending requests
     pendingRequests.clear();
-    
-    // Reset visitor cache
+
     visitorDetailsCache = {};
-    
-    // اگر DataTable پہلے سے موجود ہے تو صرف reload کریں
+
     if (dataTable) {
         dataTable.ajax.reload(function(json) {
             handleDataTableResponse(json, fromDateTime, toDateTime, selectedLocations);

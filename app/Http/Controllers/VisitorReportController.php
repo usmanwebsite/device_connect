@@ -139,7 +139,7 @@ class VisitorReportController extends Controller
                                         if ($deviceLocationAssign->is_type == 'check_in') {
                                             $currentLocation = 'Turnstile';
                                         } elseif ($deviceLocationAssign->is_type == 'check_out') {
-                                            $currentLocation = '--';
+                                            $currentLocation = 'Out';
                                         }
                                     } else {
                                         // Agar match na mile toh alternative check
@@ -242,7 +242,7 @@ class VisitorReportController extends Controller
             if ($deviceLocationAssign->is_type == 'check_in') {
                 return 'Turnstile';
             } elseif ($deviceLocationAssign->is_type == 'check_out') {
-                return '--';
+                return 'Out';
             } else {
                 return $locationName;
             }

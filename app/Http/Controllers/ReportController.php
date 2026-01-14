@@ -60,17 +60,16 @@ class ReportController extends Controller
             $orderColumn = $request->input('order.0.column', 0);
             $orderDirection = $request->input('order.0.dir', 'asc');
 
-            // Column mapping for ordering
+            // Column mapping for ordering - صرف ان columns کے لیے جو database میں موجود ہیں
             $columns = [
-                0 => 'staff_no',
-                1 => 'staff_no',
-                2 => 'full_name',
-                3 => 'person_visited',
-                4 => 'contact_no',
-                5 => 'ic_no',
-                6 => 'total_access',
-                7 => 'first_access',
-                8 => 'last_access'
+                0 => 'staff_no', // No - staff_no سے order کریں
+                1 => 'staff_no', // Visitor Name - بھی staff_no سے order کریں (frontend میں update ہوگا)
+                2 => 'staff_no', // Contact No - بھی staff_no سے order کریں
+                3 => 'staff_no', // IC No - یہ staff_no ہی ہے
+                4 => 'staff_no', // Person Visited - بھی staff_no سے order کریں
+                5 => 'total_access', // Total Access - یہ موجود ہے
+                6 => 'first_access', // First Access - یہ موجود ہے
+                7 => 'last_access'  // Last Access - یہ موجود ہے
             ];
 
             // Get unique staff numbers with pagination
@@ -96,7 +95,14 @@ class ReportController extends Controller
 
             // Apply ordering
             if (isset($columns[$orderColumn])) {
-                $query->orderBy($columns[$orderColumn], $orderDirection);
+                if ($columns[$orderColumn] === 'total_access' || 
+                    $columns[$orderColumn] === 'first_access' || 
+                    $columns[$orderColumn] === 'last_access') {
+                    $query->orderBy($columns[$orderColumn], $orderDirection);
+                } else {
+                    // باقی سب کے لیے staff_no سے order کریں
+                    $query->orderBy('staff_no', $orderDirection);
+                }
             } else {
                 $query->orderBy('staff_no', 'asc');
             }
@@ -127,11 +133,11 @@ class ReportController extends Controller
                 
                 $formattedData[] = [
                     'DT_RowIndex' => $start + $index + 1,
-                    'staff_no' => $staff->staff_no,
-                    'full_name' => 'Loading...', // Will be filled by frontend
-                    'person_visited' => 'Loading...',
-                    'contact_no' => 'Loading...',
-                    'ic_no' => 'Loading...',
+                    'staff_no' => $staff->staff_no, // یہ icNo ہے اور frontend میں استعمال ہوگا
+                    'full_name' => 'Loading...', // Java API سے آئے گا
+                    'contact_no' => 'Loading...', // Java API سے آئے گا
+                    'ic_no' => $staff->staff_no, // یہ staff_no ہی ہے (icNo)
+                    'person_visited' => 'Loading...', // Java API سے آئے گا
                     'total_access' => $staff->total_access,
                     'first_access' => $staff->first_access ? Carbon::parse($staff->first_access)->format('d/m/Y H:i') : 'N/A',
                     'last_access' => $staff->last_access ? Carbon::parse($staff->last_access)->format('d/m/Y H:i') : 'N/A',

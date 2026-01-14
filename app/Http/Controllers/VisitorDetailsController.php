@@ -491,41 +491,41 @@ public function getVisitorChronology(Request $request)
         
         Log::info("Getting chronology for: StaffNo=$staffNo, ICNo=$icNo");
         
-        // 1. Get all access logs for this visitor
-        $accessLogs = $this->getAccessLogs($staffNo);
+        // 1. Get all access logs for this visitor - IC No use karein
+        $accessLogs = $this->getAccessLogs($icNo); // IC No pass karein
         Log::info("Total access logs: " . $accessLogs->count());
         
         // 2. Get location timeline
         $locationTimeline = $this->getLocationTimeline($accessLogs);
         Log::info("Location timeline items: " . count($locationTimeline));
         
-        // 3. Get visit dates based on sessions
-        $visitDates = $this->getVisitDates($staffNo);
+        // 3. Get visit dates based on sessions - IC No use karein
+        $visitDates = $this->getVisitDates($icNo); // IC No pass karein
         Log::info("Visit dates found: " . json_encode($visitDates));
         
-        // 4. Group logs by visit session
-        $logsByVisitDate = $this->groupLogsByVisitSession($accessLogs, $staffNo);
+        // 4. Group logs by visit session - IC No use karein
+        $logsByVisitDate = $this->groupLogsByVisitSession($accessLogs, $icNo);
         
-        // 5. Group timeline by visit session
-        $timelineByVisitDate = $this->groupTimelineByVisitSession($locationTimeline, $staffNo);
+        // 5. Group timeline by visit session - IC No use karein
+        $timelineByVisitDate = $this->groupTimelineByVisitSession($locationTimeline, $icNo);
         
-        // 6. Get visit sessions info
-        $visitSessions = $this->getVisitSessions($staffNo);
+        // 6. Get visit sessions info - IC No use karein
+        $visitSessions = $this->getVisitSessions($icNo);
         
-        // 7. Check if visitor is currently in building
-        $currentStatus = $this->getCurrentStatus($staffNo);
+        // 7. Check if visitor is currently in building - IC No use karein
+        $currentStatus = $this->getCurrentStatus($icNo);
         
-        // 8. Calculate total time spent - USE THE CORRECTED METHOD
-        $totalTimeSpent = $this->calculateTotalTimeFromSessions($staffNo);
+        // 8. Calculate total time spent - IC No use karein
+        $totalTimeSpent = $this->calculateTotalTimeFromSessions($icNo);
         
-        // 9. Get Turnstile entry/exit information
-        $turnstileInfo = $this->getTurnstileInfo($staffNo);
+        // 9. Get Turnstile entry/exit information - IC No use karein
+        $turnstileInfo = $this->getTurnstileInfo($icNo);
         
-        // 10. Generate summary
-        $summary = $this->generateSummary($staffNo, $accessLogs);
+        // 10. Generate summary - IC No use karein
+        $summary = $this->generateSummary($icNo, $accessLogs);
         
-        // 11. Get time since last check-in (for visitors still in building)
-        $timeSinceLastCheckIn = $this->calculateTimeSinceLastCheckIn($staffNo);
+        // 11. Get time since last check-in - IC No use karein
+        $timeSinceLastCheckIn = $this->calculateTimeSinceLastCheckIn($icNo);
         
         return response()->json([
             'success' => true,
@@ -558,10 +558,11 @@ public function getVisitorChronology(Request $request)
 /**
  * Get all access logs for visitor (ordered by latest first)
  */
-private function getAccessLogs($staffNo)
+private function getAccessLogs($icNo)
 {
+    // StaffNo ki jagah IC No se search karein
     $logs = DB::table('device_access_logs as dal')
-        ->where('dal.staff_no', $staffNo)
+        ->where('dal.staff_no', $icNo) // Yahan IC No use ho raha hai
         ->orderBy('dal.created_at', 'desc')
         ->select(
             'dal.id',
@@ -578,9 +579,12 @@ private function getAccessLogs($staffNo)
         )
         ->get();
     
-    Log::info("getAccessLogs: Found " . $logs->count() . " logs for staff: $staffNo");
+    Log::info("getAccessLogs: Found " . $logs->count() . " logs for IC Number: $icNo");
+    
+    // Debug ke liye logs print karein
     foreach ($logs as $log) {
-        Log::info("Log ID: {$log->id}, Date: " . date('d-M-Y', strtotime($log->created_at)) . ", Location: {$log->location_name}");
+        Log::info("Log ID: {$log->id}, Date: " . date('d-M-Y', strtotime($log->created_at)) . 
+                 ", Location: {$log->location_name}, Staff/IC No: {$log->staff_no}");
     }
     
     return $logs;

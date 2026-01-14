@@ -1414,6 +1414,132 @@ input[type="datetime-local"]:focus {
 
 
 /* Vistor Report css */
+#staffTable {
+    table-layout: fixed;
+    width: 100%;
+    min-width: 1200px; /* Minimum width set کریں */
+}
+
+#staffTable th,
+#staffTable td {
+    vertical-align: middle;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+#staffTable th {
+    background-color: #f8f9fa;
+    font-weight: 600;
+    border-bottom: 2px solid #dee2e6;
+    padding: 12px 8px;
+}
+
+#staffTable td {
+    padding: 10px 8px;
+    border-bottom: 1px solid #dee2e6;
+}
+
+/* Column specific styling */
+#staffTable th:nth-child(1), /* No */
+#staffTable td:nth-child(1) {
+    width: 50px !important;
+    min-width: 50px !important;
+    max-width: 50px !important;
+}
+
+#staffTable th:nth-child(2), /* Visitor Name */
+#staffTable td:nth-child(2) {
+    width: 200px !important;
+    min-width: 200px !important;
+    max-width: 200px !important;
+}
+
+#staffTable th:nth-child(3), /* Contact No */
+#staffTable td:nth-child(3) {
+    width: 120px !important;
+    min-width: 120px !important;
+    max-width: 120px !important;
+}
+
+#staffTable th:nth-child(4), /* IC No */
+#staffTable td:nth-child(4) {
+    width: 150px !important;
+    min-width: 150px !important;
+    max-width: 150px !important;
+}
+
+#staffTable th:nth-child(5), /* Person Visited */
+#staffTable td:nth-child(5) {
+    width: 180px !important;
+    min-width: 180px !important;
+    max-width: 180px !important;
+}
+
+#staffTable th:nth-child(6), /* Total Access */
+#staffTable td:nth-child(6) {
+    width: 100px !important;
+    min-width: 100px !important;
+    max-width: 100px !important;
+}
+
+#staffTable th:nth-child(7), /* First Access */
+#staffTable td:nth-child(7),
+#staffTable th:nth-child(8), /* Last Access */
+#staffTable td:nth-child(8) {
+    width: 150px !important;
+    min-width: 150px !important;
+    max-width: 150px !important;
+}
+
+#staffTable th:nth-child(9), /* Actions */
+#staffTable td:nth-child(9) {
+    width: 80px !important;
+    min-width: 80px !important;
+    max-width: 80px !important;
+}
+
+/* Text alignment */
+.text-left {
+    text-align: left !important;
+}
+
+.text-center {
+    text-align: center !important;
+}
+
+.text-right {
+    text-align: right !important;
+}
+
+/* Horizontal scrollbar styling */
+.dataTables_scrollBody {
+    overflow-x: auto !important;
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+    #staffTable {
+        min-width: 800px;
+    }
+    
+    #staffTable th,
+    #staffTable td {
+        font-size: 12px;
+        padding: 8px 4px;
+    }
+    
+    .table-responsive {
+        border: 1px solid #dee2e6;
+    }
+}
+
+/* Hover effect */
+#staffTable tbody tr:hover {
+    background-color: rgba(0, 123, 255, 0.05);
+}
+
+
 
 .visitor-report-header {
     background-color: #f8f9fa !important;

@@ -437,7 +437,7 @@
                     <table class="table table-hover">
                         <thead>
                             <tr>
-                                <th>Staff No</th>
+                                {{-- <th>Staff No</th> --}}
                                 <th>Visitor Name</th>
                                 <th>Host</th>
                                 <th>Contact No</th>
@@ -450,7 +450,7 @@
                         <tbody>
                             @foreach($enrichedDeniedAccessLogs as $enrichedLog)
                             <tr>
-                                <td>{{ $enrichedLog['log']->staff_no }}</td>
+                                {{-- <td>{{ $enrichedLog['log']->staff_no }}</td> --}}
                                 <td>{{ $enrichedLog['visitor_details']['fullName'] }}</td>
                                 <td>{{ $enrichedLog['visitor_details']['personVisited'] }}</td>
                                 <td>{{ $enrichedLog['visitor_details']['contactNo'] }}</td>
@@ -489,7 +489,7 @@
                     <table class="table table-hover">
                         <thead>
                             <tr>
-                                <th>Staff No</th>
+                                {{-- <th>Staff No</th> --}}
                                 <th>Visitor Name</th>
                                 <th>Host</th>
                                 <th>Contact No</th>
@@ -502,7 +502,7 @@
                         <tbody>
                             @foreach($enrichedDeniedAccessLogs as $enrichedLog)
                             <tr>
-                                <td>{{ $enrichedLog['log']->staff_no }}</td>
+                                {{-- <td>{{ $enrichedLog['log']->staff_no }}</td> --}}
                                 <td>{{ $enrichedLog['visitor_details']['fullName'] }}</td>
                                 <td>{{ $enrichedLog['visitor_details']['personVisited'] }}</td>
                                 <td>{{ $enrichedLog['visitor_details']['contactNo'] }}</td>
@@ -542,7 +542,7 @@
                         <thead>
                             <tr>
                                 <th>Visitor Name</th>
-                                <th>Staff No</th>
+                                {{-- <th>Staff No</th> --}}
                                 <th>Host</th>
                                 <th>Contact No</th>
                                 <th>IC No</th>
@@ -557,7 +557,7 @@
                             @foreach($enrichedOverstayAlerts as $alert)
                             <tr>
                                 <td>{{ $alert['visitor_name'] }}</td>
-                                <td>{{ $alert['staff_no'] }}</td>
+                                {{-- <td>{{ $alert['staff_no'] }}</td> --}}
                                 <td>{{ $alert['host'] }}</td>
                                 <td>{{ $alert['contact_no'] ?? 'N/A' }}</td>
                                 <td>{{ $alert['ic_no'] ?? 'N/A' }}</td>
@@ -1181,7 +1181,6 @@ function showSecurityAlertsModal() {
                     <tbody>
                         @foreach($enrichedDeniedAccessLogs as $enrichedLog)
                         <tr>
-                            <td>{{ $enrichedLog['log']->staff_no }}</td>
                             <td>{{ $enrichedLog['visitor_details']['fullName'] }}</td>
                             <td>{{ $enrichedLog['visitor_details']['personVisited'] }}</td>
                             <td>{{ $enrichedLog['visitor_details']['contactNo'] }}</td>
