@@ -30,7 +30,7 @@ class SocketServerService
 
         echo "✅ RD008 Socket Server listening on 0.0.0.0:$port\n";
 
-        //   $this->runTestFlow('lK98+suwMhrtbbebbrU85Q==:cp2WJfAUpfR9q6qA:wm/S7Q==:6YcYBuylypwFanhDe9rxig==', '123456789');
+          $this->runTestFlow('lK98+suwMhrtbbebbrU85Q==:cp2WJfAUpfR9q6qA:wm/S7Q==:6YcYBuylypwFanhDe9rxig==', '008825038133');
 
         while (true) {
             $read = [$this->server];
@@ -178,6 +178,68 @@ private function handleOpenDoorRequest($sock, $data, $ip)
     $visitorTypeId = $visitorData['visitorTypeId'] ?? null;
     
     echo "[" . date('H:i:s') . "] 👤 IC No: $icNo, Staff No: $staffNo, Visitor Type ID: $visitorTypeId\n";
+
+    // ✅ NEW STEP: Check visit date/time validity
+$dateOfVisitFrom = $visitorData['dateOfVisitFrom'] ?? null;
+$dateOfVisitTo   = $visitorData['dateOfVisitTo'] ?? null;
+
+if (empty($dateOfVisitFrom) || empty($dateOfVisitTo)) {
+    $reason = 'Visit period not defined for visitor';
+
+    echo "[" . date('H:i:s') . "] ❌ $reason\n";
+
+    $this->sendAlarm(
+        $sock,
+        $deviceId,
+        $decryptedCardId,
+        $reason,
+        $icNo,
+        'N/A'
+    );
+    return; // ⛔ STOP FLOW HERE
+}
+
+try {
+    $fromDate = \Carbon\Carbon::parse($dateOfVisitFrom);
+    $toDate   = \Carbon\Carbon::parse($dateOfVisitTo);
+    $now      = now();
+
+    echo "[" . date('H:i:s') . "] 📅 Visit Window: {$fromDate} → {$toDate}\n";
+    echo "[" . date('H:i:s') . "] 🕒 Current Time: {$now}\n";
+
+    if ($now->lt($fromDate) || $now->gt($toDate)) {
+        $reason = "Visit period expired or not yet started";
+
+        echo "[" . date('H:i:s') . "] ❌ $reason\n";
+
+        $this->sendAlarm(
+            $sock,
+            $deviceId,
+            $decryptedCardId,
+            $reason,
+            $icNo,
+            'N/A'
+        );
+        return; // ⛔ STOP FLOW HERE
+    }
+
+    echo "[" . date('H:i:s') . "] ✅ Visit period is valid\n";
+
+} catch (\Exception $e) {
+    $reason = 'Invalid visit date format';
+
+    echo "[" . date('H:i:s') . "] ❌ {$reason}: {$e->getMessage()}\n";
+
+    $this->sendAlarm(
+        $sock,
+        $deviceId,
+        $decryptedCardId,
+        $reason,
+        $icNo,
+        'N/A'
+    );
+    return; // ⛔ STOP FLOW HERE
+}
 
     // ✅ Step 3: Get location from device assignment
     $locationInfo = $this->getDeviceLocationInfo($deviceId);
@@ -699,7 +761,6 @@ private function sendAlarm($sock, $deviceId, $cardId = null, $reason = null, $ic
 
         $this->sendCommandToDeviceProtocol($sock, $deviceId, 'open_door');
     }
-
 
     // ✅ Existing methods (unchanged)
     private function sockId($sock)
