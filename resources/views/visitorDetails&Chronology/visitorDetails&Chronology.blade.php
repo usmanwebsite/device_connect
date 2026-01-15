@@ -1091,57 +1091,78 @@ function displayVisitorData(data) {
     }
     
     // Function to load chronology data
-    function loadVisitorChronology(staffNo, icNo) {
-        $.ajax({
-            url: '{{ route("visitor-details.chronology") }}',
-            type: 'POST',
-            data: {
-                _token: '{{ csrf_token() }}',
-                staff_no: staffNo || '', // Ensure staff_no is sent (even if empty)
-                ic_no: icNo || '' 
-            },
-            success: function(response) {
-                $('#chronologyLoading').hide();
+function loadVisitorChronology(staffNo, icNo) {
+    console.log("Loading chronology for IC No:", icNo);
+    
+    $.ajax({
+        url: '{{ route("visitor-details.chronology") }}',
+        type: 'POST',
+        data: {
+            _token: '{{ csrf_token() }}',
+            staff_no: staffNo || '',
+            ic_no: icNo
+        },
+        success: function(response) {
+            $('#chronologyLoading').hide();
+            
+            console.log("Chronology API Response:", response);
+            
+            if (response.success) {
+                const data = response.data;
                 
-                if (response.success) {
-                    displayChronologyData(response.data);
-                    $('#chronologyContent').show();
-                } else {
-                    $('#chronologyErrorMessage').text(response.message || 'Error loading chronology');
+                // Debug logging
+                console.log("Dates available:", data.dates);
+                console.log("Logs by date keys:", Object.keys(data.logs_by_date));
+                console.log("Timeline by date keys:", Object.keys(data.timeline_by_date));
+                
+                // Check if we have data
+                if (!data.dates || data.dates.length === 0) {
+                    console.warn("No dates found in response");
+                    $('#chronologyErrorMessage').text('No chronology data available for this visitor');
                     $('#chronologyError').show();
-                }
-            },
-            error: function(xhr, status, error) {
-                $('#chronologyLoading').hide();
-                let errorMessage = 'An error occurred while loading chronology';
-                
-                if (xhr.responseJSON && xhr.responseJSON.message) {
-                    errorMessage = xhr.responseJSON.message;
+                    return;
                 }
                 
-                $('#chronologyErrorMessage').text(errorMessage);
+                displayChronologyData(data);
+                $('#chronologyContent').show();
+            } else {
+                console.error("API error:", response.message);
+                $('#chronologyErrorMessage').text(response.message || 'Error loading chronology');
                 $('#chronologyError').show();
             }
-        });
-    }
+        },
+        error: function(xhr, status, error) {
+            $('#chronologyLoading').hide();
+            console.error("AJAX Error:", error, xhr.responseText);
+            
+            let errorMessage = 'An error occurred while loading chronology';
+            if (xhr.responseJSON && xhr.responseJSON.message) {
+                errorMessage = xhr.responseJSON.message;
+            }
+            
+            $('#chronologyErrorMessage').text(errorMessage);
+            $('#chronologyError').show();
+        }
+    });
+}
     
-    // Function to display chronology data
 function displayChronologyData(data) {
+    console.log("Displaying chronology data:", data);
+    
     // 1. Update summary cards
     if (data.current_status) {
         $('#currentStatus').text(data.current_status.status.toUpperCase());
         $('#currentStatusMsg').text(data.current_status.message);
         
-        // Color code based on status
         const statusCard = $('#currentStatus').closest('.card');
-        statusCard.removeClass('bg-primary bg-success bg-secondary');
+        statusCard.removeClass('bg-primary bg-success bg-secondary bg-warning');
         
         if (data.current_status.status === 'in_building') {
             statusCard.addClass('bg-success');
         } else if (data.current_status.status === 'out_of_building') {
             statusCard.addClass('bg-secondary');
         } else {
-            statusCard.addClass('bg-primary');
+            statusCard.addClass('bg-warning');
         }
     }
     
@@ -1153,26 +1174,30 @@ function displayChronologyData(data) {
         $('#totalVisits').text(data.dates ? data.dates.length : '0');
         $('#totalAccesses').text(data.summary.total_visits || '0');
         
-        const successRate = data.summary.total_visits > 0 
-            ? Math.round((data.summary.successful_accesses / data.summary.total_visits) * 100) 
-            : 0;
-        $('#accessSuccessRate').text(`${successRate}% successful`);
+        if (data.summary.total_visits > 0) {
+            const successRate = Math.round((data.summary.successful_accesses / data.summary.total_visits) * 100);
+            $('#accessSuccessRate').text(`${successRate}% successful`);
+        } else {
+            $('#accessSuccessRate').text('No visits');
+        }
     }
     
-    // 2. Display turnstile entries/exits if available
-    if (data.turnstile_info) {
-        displayTurnstileEntries(data.turnstile_info);
-    }
-    
-    // 3. Display date buttons if dates available
+    // 2. Display date buttons
+    console.log("Processing dates for buttons:", data.dates);
     if (data.dates && data.dates.length > 0) {
         displayDateButtons(data.dates, data.logs_by_date, data.timeline_by_date);
+        $('#dateSelectionSection').show();
     } else {
-        // If no dates, hide date selection and show all data
         $('#dateSelectionSection').hide();
         $('#selectedDateInfo').hide();
-        // displayAllAccessLogs(data.all_access_logs);
-        displayAllLocationTimeline(data.all_location_timeline);
+        
+        // Show all data if no dates
+        if (data.all_access_logs) {
+            displayAccessLogsForDate(data.all_access_logs);
+        }
+        if (data.all_location_timeline) {
+            displayTimelineForDate(data.all_location_timeline);
+        }
     }
 }
 
@@ -1198,69 +1223,300 @@ function displayTurnstileEntries(turnstileInfo) {
     }
 }
 
-    function displayDateButtons(dates, logsByDate, timelineByDate) {
-        let dateButtonsHtml = '';
+function displayDateButtons(dates, logsByDate, timelineByDate) {
+    console.log("=== DISPLAY DATE BUTTONS DEBUG ===");
+    console.log("Dates array:", dates);
+    console.log("Logs by date object:", logsByDate);
+    console.log("Timeline by date object:", timelineByDate);
+    
+    let dateButtonsHtml = '';
+    
+    dates.forEach((date, index) => {
+        // Try different key formats
+        const possibleKeys = [
+            date, // original format
+            date.trim(), // trimmed version
+            date.replace(/ /g, ''), // without spaces
+            formatDateForKey(date) // formatted key
+        ];
         
-        dates.forEach((date, index) => {
-            // Get date key from formatted date (assuming format: dd-MMM-yyyy)
-            const dateKey = getDateKeyFromFormatted(date);
-            const logsCount = logsByDate[dateKey] ? logsByDate[dateKey].length : 0;
-            const timelineCount = timelineByDate[dateKey] ? timelineByDate[dateKey].length : 0;
-            
-            const isActive = index === 0 ? 'active' : '';
-            dateButtonsHtml += `
-                <button type="button" class="btn btn-outline-primary date-btn ${isActive}" 
-                        data-date="${date}" data-date-key="${dateKey}">
-                    ${date}
-                </button>
-            `;
-        });
+        let logsCount = 0;
+        let timelineCount = 0;
         
-        $('#dateButtons').html(dateButtonsHtml);
-        
-        // Set first date as selected by default
-        if (dates.length > 0) {
-            const firstDate = dates[0];
-            const firstDateKey = getDateKeyFromFormatted(firstDate);
-            displayDataForDate(firstDate, firstDateKey, logsByDate, timelineByDate);
+        // Try each possible key
+        for (let key of possibleKeys) {
+            if (logsByDate && logsByDate[key]) {
+                logsCount = logsByDate[key].length;
+                console.log(`Found logs for key: "${key}" with ${logsCount} logs`);
+                break;
+            }
         }
         
-        // Add click event to date buttons
-        $('.date-btn').click(function() {
-            // Remove active class from all buttons
-            $('.date-btn').removeClass('active');
-            // Add active class to clicked button
-            $(this).addClass('active');
-            
-            const selectedDate = $(this).data('date');
-            const selectedDateKey = $(this).data('date-key');
-            displayDataForDate(selectedDate, selectedDateKey, logsByDate, timelineByDate);
-        });
+        for (let key of possibleKeys) {
+            if (timelineByDate && timelineByDate[key]) {
+                timelineCount = timelineByDate[key].length;
+                console.log(`Found timeline for key: "${key}" with ${timelineCount} items`);
+                break;
+            }
+        }
+        
+        const isActive = index === 0 ? 'active' : '';
+        dateButtonsHtml += `
+            <button type="button" class="btn btn-outline-primary date-btn ${isActive}" 
+                    data-date="${date}">
+                ${date}
+                <span class="badge badge-light ml-1">${logsCount} logs</span>
+            </button>
+        `;
+    });
+    
+    $('#dateButtons').html(dateButtonsHtml);
+    
+    // Set first date as selected by default
+    if (dates.length > 0) {
+        const firstDate = dates[0];
+        displayDataForDate(firstDate, logsByDate, timelineByDate);
     }
+    
+    // Add click event to date buttons
+    $('.date-btn').click(function() {
+        // Remove active class from all buttons
+        $('.date-btn').removeClass('active');
+        // Add active class to clicked button
+        $(this).addClass('active');
+        
+        const selectedDate = $(this).data('date');
+        displayDataForDate(selectedDate, logsByDate, timelineByDate);
+    });
+    
+    console.log("=== END DATE BUTTONS DEBUG ===");
+}
 
-    function displayDataForDate(date, dateKey, logsByDate, timelineByDate) {
-        // Update selected date info
-        $('#selectedDateText').text(date);
-        $('#selectedDateInfo').show();
-        
-        // Update indicators
-        $('#logsDateIndicator').text(date);
-        $('#timelineDateIndicator').text(date);
-        
-        console.log("Displaying data for date:", date);
-        console.log("Date key:", dateKey);
-        console.log("Logs by date:", logsByDate);
-        
-        // Display access logs for selected date
-        // const accessLogs = logsByDate[date] || [];
-        // console.log("Access logs for", date, ":", accessLogs.length, "logs");
-        // displayAccessLogsForDate(accessLogs);
-        
-        // Display timeline for selected date
-        const timeline = timelineByDate[date] || [];
-        console.log("Timeline for", date, ":", timeline.length, "items");
-        displayTimelineForDate(timeline);
+// Helper function to format date for key matching
+function formatDateForKey(dateString) {
+    try {
+        // Try to parse the date and format it
+        const parts = dateString.split('-');
+        if (parts.length === 3) {
+            const day = parts[0];
+            const month = parts[1];
+            const year = parts[2];
+            
+            // Create a standard date format
+            const date = new Date(`${month} ${day}, ${year}`);
+            if (!isNaN(date.getTime())) {
+                return date.toLocaleDateString('en-US', {
+                    day: 'numeric',
+                    month: 'short',
+                    year: 'numeric'
+                });
+            }
+        }
+    } catch (e) {
+        console.error("Error formatting date:", e);
     }
+    
+    // Return original if parsing fails
+    return dateString;
+}
+
+function displayDataForDate(date, logsByDate, timelineByDate) {
+    console.log("=== DISPLAY DATA FOR DATE DEBUG ===");
+    console.log("Selected date:", date);
+    console.log("All logsByDate keys:", logsByDate ? Object.keys(logsByDate) : 'No logsByDate');
+    console.log("All timelineByDate keys:", timelineByDate ? Object.keys(timelineByDate) : 'No timelineByDate');
+    
+    // Try different key formats
+    const possibleKeys = [
+        date, // original format
+        date.trim(), // trimmed version
+        date.replace(/ /g, ''), // without spaces
+        formatDateForKey(date) // formatted key
+    ];
+    
+    let accessLogs = [];
+    let timeline = [];
+    
+    // Find logs for the date
+    for (let key of possibleKeys) {
+        if (logsByDate && logsByDate[key]) {
+            accessLogs = logsByDate[key];
+            console.log(`Found logs for key: "${key}"`);
+            break;
+        }
+    }
+    
+    // Find timeline for the date
+    for (let key of possibleKeys) {
+        if (timelineByDate && timelineByDate[key]) {
+            timeline = timelineByDate[key];
+            console.log(`Found timeline for key: "${key}"`);
+            break;
+        }
+    }
+    
+    console.log(`Access logs found: ${accessLogs.length}`);
+    console.log(`Timeline items found: ${timeline.length}`);
+    
+    // Update selected date info
+    $('#selectedDateText').text(date);
+    $('#selectedDateInfo').show();
+    
+    // Update indicators
+    $('#logsDateIndicator').text(date);
+    $('#timelineDateIndicator').text(date);
+    
+    // Display data
+    displayAccessLogsForDate(accessLogs);
+    displayTimelineForDate(timeline);
+    
+    console.log("=== END DISPLAY DATA DEBUG ===");
+}
+
+function displayAccessLogsForDate(accessLogs) {
+    let logsHtml = '';
+    
+    if (accessLogs && accessLogs.length > 0) {
+        logsHtml = accessLogs.map((log, index) => {
+            const accessBadge = log.access_granted == 1 
+                ? '<span class="badge badge-success">GRANTED</span>' 
+                : '<span class="badge badge-danger">DENIED</span>';
+            
+            // Format time to next location
+            let timeToNext = '-';
+            if (log.next_time && log.created_at) {
+                const timeDiff = Math.abs(new Date(log.next_time) - new Date(log.created_at));
+                const hours = Math.floor(timeDiff / (1000 * 60 * 60));
+                const minutes = Math.floor((timeDiff % (1000 * 60 * 60)) / (1000 * 60));
+                const seconds = Math.floor((timeDiff % (1000 * 60)) / 1000);
+                
+                if (hours > 0) {
+                    timeToNext = `${hours}h ${minutes}m`;
+                } else if (minutes > 0) {
+                    timeToNext = `${minutes}m ${seconds}s`;
+                } else {
+                    timeToNext = `${seconds}s`;
+                }
+            }
+            
+            return `
+                <tr>
+                    <td>${index + 1}</td>
+                    <td>${formatDateTime(log.created_at)}</td>
+                    <td>${log.location_name || 'Unknown'}</td>
+                    <td>${accessBadge}</td>
+                    <td>${log.next_location || '-'}</td>
+                    <td>${timeToNext}</td>
+                </tr>
+            `;
+        }).join('');
+    } else {
+        logsHtml = '<tr><td colspan="6" class="text-center">No access logs found for this date</td></tr>';
+    }
+    
+    $('#accessLogsTable').html(logsHtml);
+}
+
+function displayTimelineForDate(timeline) {
+    console.log("Timeline items received:", timeline);
+    console.log("Number of timeline items:", timeline ? timeline.length : 0);
+    
+    if (timeline && timeline.length > 0) {
+        console.log("First timeline item:", timeline[0]);
+        console.log("Last timeline item:", timeline[timeline.length - 1]);
+    }
+    let timelineHtml = '';
+    
+    if (timeline && timeline.length > 0) {
+        console.log("Timeline items to display:", timeline);
+        
+        timelineHtml = timeline.map((item, index) => {
+            // Calculate time spent
+            let timeSpentText = '-';
+            if (item.time_spent) {
+                const hours = item.time_spent.hours || 0;
+                const minutes = item.time_spent.minutes || 0;
+                const seconds = item.time_spent.seconds || 0;
+                
+                if (hours > 0) {
+                    timeSpentText = `${hours}h ${minutes}m ${seconds}s`;
+                } else if (minutes > 0) {
+                    timeSpentText = `${minutes}m ${seconds}s`;
+                } else {
+                    timeSpentText = `${seconds}s`;
+                }
+            }
+            
+            const accessBadge = item.access_granted == 1 
+                ? '<span class="badge badge-success">GRANTED</span>' 
+                : '<span class="badge badge-danger">DENIED</span>';
+            
+            return `
+                <div class="timeline-item mb-3">
+                    <div class="timeline-header d-flex justify-content-between align-items-center">
+                        <span class="font-weight-bold">
+                            <i class="fas fa-route mr-1"></i>
+                            Movement ${index + 1}
+                        </span>
+                        <small class="text-muted">${formatDateTime(item.entry_time)}</small>
+                    </div>
+                    <div class="timeline-body p-3 border rounded bg-light">
+                        <div class="row">
+                            <div class="col-md-3 mb-2">
+                                <strong>From:</strong><br>
+                                <div class="mt-1 p-2 bg-white rounded border">
+                                    ${item.from_location || 'Unknown'}
+                                </div>
+                            </div>
+                            <div class="col-md-3 mb-2">
+                                <strong>To:</strong><br>
+                                <div class="mt-1 p-2 bg-white rounded border">
+                                    ${item.to_location || 'Unknown'}
+                                </div>
+                            </div>
+                            <div class="col-md-3 mb-2">
+                                <strong>Time Spent:</strong><br>
+                                <div class="mt-1 p-2 bg-white rounded border">
+                                    <i class="fas fa-clock mr-1"></i>${timeSpentText}
+                                </div>
+                            </div>
+                            <div class="col-md-3 mb-2">
+                                <strong>Access Status:</strong><br>
+                                <div class="mt-1 p-2 bg-white rounded border">
+                                    ${accessBadge}
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row mt-2">
+                            <div class="col-md-6">
+                                <small class="text-muted">
+                                    <i class="fas fa-sign-in-alt mr-1"></i>
+                                    <strong>Entry:</strong> ${formatDateTime(item.entry_time)}
+                                </small>
+                            </div>
+                            <div class="col-md-6">
+                                <small class="text-muted">
+                                    <i class="fas fa-sign-out-alt mr-1"></i>
+                                    <strong>Exit:</strong> ${formatDateTime(item.exit_time)}
+                                </small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    } else {
+        timelineHtml = `
+            <div class="alert alert-info">
+                <i class="fas fa-info-circle mr-1"></i>
+                No movement data available for the selected date.
+            </div>
+        `;
+    }
+    
+    $('#locationTimeline').html(timelineHtml);
+    console.log("Timeline HTML set for", timeline.length, "items");
+}
 
     function displayAccessLogsForDate(accessLogs) {
     let logsHtml = '<tr><td colspan="7" class="text-center">No access logs found for this date</td></tr>';

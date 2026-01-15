@@ -271,14 +271,24 @@ private function getVisitSessions($staffNo)
 /**
  * Get dates for visit sessions (latest first)
  */
-private function getVisitDates($staffNo)
+/**
+ * Get dates for visit sessions (latest first)
+ */
+private function getVisitDates($icNo)
 {
-    $visitSessions = $this->getVisitSessions($staffNo);
+    // First get all logs for this IC number
+    $logs = DB::table('device_access_logs')
+        ->where('staff_no', $icNo) // Remember, staff_no column stores IC number
+        ->where('access_granted', 1)
+        ->orderBy('created_at', 'desc')
+        ->get();
+    
     $visitDates = [];
     
-    foreach ($visitSessions as $session) {
-        $dateKey = $session['visit_date'];
-        $formattedDate = $session['formatted_date'];
+    // Extract unique dates from all logs
+    foreach ($logs as $log) {
+        $dateKey = date('Y-m-d', strtotime($log->created_at));
+        $formattedDate = date('d-M-Y', strtotime($log->created_at));
         
         if (!isset($visitDates[$dateKey])) {
             $visitDates[$dateKey] = $formattedDate;
@@ -288,7 +298,8 @@ private function getVisitDates($staffNo)
     // Sort in descending order (latest first)
     krsort($visitDates);
     
-    Log::info("Visit dates found: " . json_encode(array_values($visitDates)));
+    Log::info("Extracted " . count($visitDates) . " unique dates for IC: $icNo");
+    
     return array_values($visitDates);
 }
 
@@ -305,6 +316,9 @@ private function groupLogsByVisitSession($accessLogs, $staffNo)
         $sessionEnd = $session['check_out_time'];
         $formattedDate = $session['formatted_date'];
         
+        // Normalize the date key
+        $dateKey = $this->normalizeDateKey($formattedDate);
+        
         $sessionLogs = [];
         
         foreach ($accessLogs as $log) {
@@ -319,12 +333,31 @@ private function groupLogsByVisitSession($accessLogs, $staffNo)
         }
         
         if (!empty($sessionLogs)) {
-            $groupedLogs[$formattedDate] = $sessionLogs;
-            Log::info("Session $formattedDate has " . count($sessionLogs) . " logs");
+            // Use normalized key
+            $groupedLogs[$dateKey] = $sessionLogs;
+            Log::info("Session $formattedDate (key: $dateKey) has " . count($sessionLogs) . " logs");
         }
     }
     
     return $groupedLogs;
+}
+
+private function normalizeDateKey($dateString)
+{
+    // Try to parse the date
+    try {
+        $date = \Carbon\Carbon::createFromFormat('d-M-Y', $dateString);
+        return $date->format('d-M-Y'); // Ensure consistent format
+    } catch (\Exception $e) {
+        // If parsing fails, try alternative formats
+        try {
+            $date = \Carbon\Carbon::parse($dateString);
+            return $date->format('d-M-Y');
+        } catch (\Exception $e) {
+            // Return original if all parsing fails
+            return $dateString;
+        }
+    }
 }
 
 /**
@@ -340,6 +373,9 @@ private function groupTimelineByVisitSession($locationTimeline, $staffNo)
         $sessionEnd = $session['check_out_time'];
         $formattedDate = $session['formatted_date'];
         
+        // Normalize the date key
+        $dateKey = $this->normalizeDateKey($formattedDate);
+        
         $sessionTimeline = [];
         
         foreach ($locationTimeline as $item) {
@@ -354,7 +390,8 @@ private function groupTimelineByVisitSession($locationTimeline, $staffNo)
         }
         
         if (!empty($sessionTimeline)) {
-            $groupedTimeline[$formattedDate] = $sessionTimeline;
+            // Use normalized key
+            $groupedTimeline[$dateKey] = $sessionTimeline;
         }
     }
     
@@ -486,51 +523,48 @@ public function getVisitorChronology(Request $request)
     ]);
 
     try {
+
+    
+
         $staffNo = $request->input('staff_no');
         $icNo = $request->input('ic_no');
         
         Log::info("Getting chronology for: StaffNo=$staffNo, ICNo=$icNo");
         
-        // 1. Get all access logs for this visitor - IC No use karein
-        $accessLogs = $this->getAccessLogs($icNo); // IC No pass karein
+        // 1. Get all access logs for this visitor
+        $accessLogs = $this->getAccessLogs($icNo);
         Log::info("Total access logs: " . $accessLogs->count());
         
         // 2. Get location timeline
         $locationTimeline = $this->getLocationTimeline($accessLogs);
         Log::info("Location timeline items: " . count($locationTimeline));
         
-        // 3. Get visit dates based on sessions - IC No use karein
-        $visitDates = $this->getVisitDates($icNo); // IC No pass karein
+        // 3. Get visit dates
+        $visitDates = $this->getVisitDates($icNo);
         Log::info("Visit dates found: " . json_encode($visitDates));
         
-        // 4. Group logs by visit session - IC No use karein
+        // 4. Group logs by visit session with normalized keys
         $logsByVisitDate = $this->groupLogsByVisitSession($accessLogs, $icNo);
         
-        // 5. Group timeline by visit session - IC No use karein
+        // 5. Group timeline by visit session with normalized keys
         $timelineByVisitDate = $this->groupTimelineByVisitSession($locationTimeline, $icNo);
         
-        // 6. Get visit sessions info - IC No use karein
+        // 6. Also ensure dates array has normalized keys
+        $normalizedDates = array_map([$this, 'normalizeDateKey'], $visitDates);
+        
+        // 7. Get other data
         $visitSessions = $this->getVisitSessions($icNo);
-        
-        // 7. Check if visitor is currently in building - IC No use karein
         $currentStatus = $this->getCurrentStatus($icNo);
-        
-        // 8. Calculate total time spent - IC No use karein
         $totalTimeSpent = $this->calculateTotalTimeFromSessions($icNo);
-        
-        // 9. Get Turnstile entry/exit information - IC No use karein
         $turnstileInfo = $this->getTurnstileInfo($icNo);
-        
-        // 10. Generate summary - IC No use karein
         $summary = $this->generateSummary($icNo, $accessLogs);
-        
-        // 11. Get time since last check-in - IC No use karein
         $timeSinceLastCheckIn = $this->calculateTimeSinceLastCheckIn($icNo);
         
+        // 8. Return response with normalized keys
         return response()->json([
             'success' => true,
             'data' => [
-                'dates' => $visitDates,
+                'dates' => array_values(array_unique($normalizedDates)), // Unique normalized dates
                 'logs_by_date' => $logsByVisitDate,
                 'timeline_by_date' => $timelineByVisitDate,
                 'visit_sessions' => $visitSessions,
@@ -629,88 +663,83 @@ private function getLocationTimeline($accessLogs)
     return $timeline;
 }
 
-    /**
-     * Get all access logs for visitor
-     */
-
-
-    private function getCurrentStatus($staffNo)
-    {
-        // Get the last access log
-        $lastLog = DB::table('device_access_logs')
-            ->where('staff_no', $staffNo)
-            ->orderBy('created_at', 'desc')
-            ->first();
+    // private function getCurrentStatus($staffNo)
+    // {
+    //     // Get the last access log
+    //     $lastLog = DB::table('device_access_logs')
+    //         ->where('staff_no', $staffNo)
+    //         ->orderBy('created_at', 'desc')
+    //         ->first();
             
-        if (!$lastLog) {
-            return [
-                'status' => 'unknown',
-                'message' => 'No access logs found'
-            ];
-        }
+    //     if (!$lastLog) {
+    //         return [
+    //             'status' => 'unknown',
+    //             'message' => 'No access logs found'
+    //         ];
+    //     }
         
-        // First, try to get device type from vendor_locations based on location name
-        $locationType = $this->getLocationTypeFromName($lastLog->location_name);
+    //     // First, try to get device type from vendor_locations based on location name
+    //     $locationType = $this->getLocationTypeFromName($lastLog->location_name);
         
-        if ($locationType === 'check_in') {
-            return [
-                'status' => 'in_building',
-                'last_location' => $lastLog->location_name,
-                'last_access_time' => $lastLog->created_at,
-                'message' => 'Visitor is currently in the building'
-            ];
-        } elseif ($locationType === 'check_out') {
-            return [
-                'status' => 'out_of_building',
-                'last_location' => $lastLog->location_name,
-                'last_access_time' => $lastLog->created_at,
-                'message' => 'Visitor has exited the building'
-            ];
-        }
+    //     if ($locationType === 'check_in') {
+    //         return [
+    //             'status' => 'in_building',
+    //             'last_location' => $lastLog->location_name,
+    //             'last_access_time' => $lastLog->created_at,
+    //             'message' => 'Visitor is currently in the building'
+    //         ];
+    //     } elseif ($locationType === 'check_out') {
+    //         return [
+    //             'status' => 'out_of_building',
+    //             'last_location' => $lastLog->location_name,
+    //             'last_access_time' => $lastLog->created_at,
+    //             'message' => 'Visitor has exited the building'
+    //         ];
+    //     }
         
-        // If location type not found in database, try to determine from location name
-        $locationName = strtolower($lastLog->location_name);
+    //     // If location type not found in database, try to determine from location name
+    //     $locationName = strtolower($lastLog->location_name);
         
-        if (strpos($locationName, 'entry') !== false || 
-            strpos($locationName, 'enter') !== false || 
-            strpos($locationName, 'in') !== false ||
-            strpos($locationName, 'checkin') !== false) {
+    //     if (strpos($locationName, 'entry') !== false || 
+    //         strpos($locationName, 'enter') !== false || 
+    //         strpos($locationName, 'in') !== false ||
+    //         strpos($locationName, 'checkin') !== false) {
             
-            return [
-                'status' => 'in_building',
-                'last_location' => $lastLog->location_name,
-                'last_access_time' => $lastLog->created_at,
-                'message' => 'Visitor is currently in the building (based on location name)'
-            ];
-        } elseif (strpos($locationName, 'exit') !== false || 
-                  strpos($locationName, 'out') !== false ||
-                  strpos($locationName, 'checkout') !== false) {
+    //         return [
+    //             'status' => 'in_building',
+    //             'last_location' => $lastLog->location_name,
+    //             'last_access_time' => $lastLog->created_at,
+    //             'message' => 'Visitor is currently in the building (based on location name)'
+    //         ];
+    //     } elseif (strpos($locationName, 'exit') !== false || 
+    //               strpos($locationName, 'out') !== false ||
+    //               strpos($locationName, 'checkout') !== false) {
             
-            return [
-                'status' => 'out_of_building',
-                'last_location' => $lastLog->location_name,
-                'last_access_time' => $lastLog->created_at,
-                'message' => 'Visitor has exited the building (based on location name)'
-            ];
-        }
+    //         return [
+    //             'status' => 'out_of_building',
+    //             'last_location' => $lastLog->location_name,
+    //             'last_access_time' => $lastLog->created_at,
+    //             'message' => 'Visitor has exited the building (based on location name)'
+    //         ];
+    //     }
         
-        // Default: if last access was granted, assume in building
-        if ($lastLog->access_granted == 1) {
-            return [
-                'status' => 'in_building',
-                'last_location' => $lastLog->location_name,
-                'last_access_time' => $lastLog->created_at,
-                'message' => 'Visitor is in the building (last access granted)'
-            ];
-        }
+    //     // Default: if last access was granted, assume in building
+    //     if ($lastLog->access_granted == 1) {
+    //         return [
+    //             'status' => 'in_building',
+    //             'last_location' => $lastLog->location_name,
+    //             'last_access_time' => $lastLog->created_at,
+    //             'message' => 'Visitor is in the building (last access granted)'
+    //         ];
+    //     }
         
-        return [
-            'status' => 'unknown',
-            'last_location' => $lastLog->location_name,
-            'last_access_time' => $lastLog->created_at,
-            'message' => 'Could not determine current status'
-        ];
-    }
+    //     return [
+    //         'status' => 'unknown',
+    //         'last_location' => $lastLog->location_name,
+    //         'last_access_time' => $lastLog->created_at,
+    //         'message' => 'Could not determine current status'
+    //     ];
+    // }
     
     /**
      * Helper method to get location type from vendor_locations
@@ -937,9 +966,245 @@ private function getTurnstileInfo($staffNo)
     /**
      * Get chronology from Java API (if available)
      */
+    // public function getChronology(Request $request)
+    // {
+    //     return $this->getVisitorChronology($request);
+    // }
+
     public function getChronology(Request $request)
     {
-        return $this->getVisitorChronology($request);
+        $staffNo = $request->input('staff_no');
+        $icNo = $request->input('ic_no');
+        
+        // ✅ IMPORTANT: IC No ko staff_no se match karna hai
+        $searchTerm = $icNo ?: $staffNo;
+        
+        if (!$searchTerm) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Please provide IC No or Staff No'
+            ]);
+        }
+        
+        try {
+            // ✅ Step 1: Database se logs fetch karein - IC No ke according
+            $accessLogs = DB::table('device_access_logs')
+                ->where('staff_no', $searchTerm) // staff_no column mein IC No hai
+                ->where('access_granted', 1) // Sirf successful accesses
+                ->orderBy('created_at', 'asc')
+                ->get();
+            
+            // ✅ Step 2: Unique dates extract karein
+            $dates = [];
+            $logsByDate = [];
+            $timelineByDate = [];
+            
+            foreach ($accessLogs as $log) {
+                $date = \Carbon\Carbon::parse($log->created_at)->format('d-M-Y');
+                
+                if (!in_array($date, $dates)) {
+                    $dates[] = $date;
+                }
+                
+                // Group logs by date
+                $logsByDate[$date][] = $log;
+            }
+            
+            // ✅ Step 3: Timeline generate karein har date ke liye
+            foreach ($dates as $date) {
+                $dateLogs = $logsByDate[$date] ?? [];
+                $timelineByDate[$date] = $this->generateTimelineForDate($dateLogs);
+            }
+            
+            // ✅ Step 4: Summary calculate karein
+            $summary = [
+                'total_visits' => $accessLogs->count(),
+                'successful_accesses' => $accessLogs->where('access_granted', 1)->count(),
+                'unique_dates' => count($dates)
+            ];
+            
+            // ✅ Step 5: Current status determine karein
+            $currentStatus = $this->getCurrentStatus($searchTerm);
+            
+            // ✅ Step 6: Total time spent calculate karein
+            $totalTimeSpent = $this->calculateTotalTimeSpent($accessLogs);
+            
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'dates' => $dates,
+                    'summary' => $summary,
+                    'current_status' => $currentStatus,
+                    'total_time_spent' => $totalTimeSpent,
+                    'logs_by_date' => $logsByDate,
+                    'timeline_by_date' => $timelineByDate,
+                    'all_access_logs' => $accessLogs,
+                    'all_location_timeline' => $this->generateCompleteTimeline($accessLogs)
+                ]
+            ]);
+            
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Error fetching chronology: ' . $e->getMessage()
+            ]);
+        }
     }
+
+    private function generateTimelineForDate($logs)
+    {
+        $timeline = [];
+        
+        // Sort logs by time
+        $sortedLogs = collect($logs)->sortBy('created_at');
+        
+        for ($i = 1; $i < $sortedLogs->count(); $i++) {
+            $currentLog = $sortedLogs->get($i);
+            $previousLog = $sortedLogs->get($i - 1);
+            
+            // Check if both logs are valid
+            if (!$currentLog || !$previousLog) {
+                continue;
+            }
+            
+            // Calculate time difference
+            $timeSpent = \Carbon\Carbon::parse($currentLog->created_at)
+                ->diff(\Carbon\Carbon::parse($previousLog->created_at));
+            
+            // Always create timeline item regardless of time gap
+            $timeline[] = [
+                'from_location' => $previousLog->location_name,
+                'to_location' => $currentLog->location_name,
+                'entry_time' => $previousLog->created_at,
+                'exit_time' => $currentLog->created_at,
+                'time_spent' => [
+                    'hours' => $timeSpent->h,
+                    'minutes' => $timeSpent->i,
+                    'seconds' => $timeSpent->s,
+                    'total_seconds' => $timeSpent->h * 3600 + $timeSpent->i * 60 + $timeSpent->s
+                ],
+                'access_granted' => $currentLog->access_granted
+            ];
+        }
+        
+        return $timeline;
+    }
+
+private function generateCompleteTimeline($allLogs)
+{
+    $timeline = [];
+    
+    $sortedLogs = collect($allLogs)->sortBy('created_at');
+    
+    for ($i = 1; $i < $sortedLogs->count(); $i++) {
+        $currentLog = $sortedLogs->get($i);
+        $previousLog = $sortedLogs->get($i - 1);
+        
+        if (!$currentLog || !$previousLog) {
+            continue;
+        }
+        
+        // Calculate time gap
+        $timeGap = \Carbon\Carbon::parse($currentLog->created_at)
+            ->diffInMinutes(\Carbon\Carbon::parse($previousLog->created_at));
+        
+        // اگر 2 گھنٹے سے زیادہ کا gap ہے تو نیا session شروع کریں
+        if ($timeGap > 120) {
+            // یہاں صرف اس pair کو skip کریں، لیکن next iteration جاری رکھیں
+            continue;
+        }
+        
+        $timeSpent = \Carbon\Carbon::parse($currentLog->created_at)
+            ->diff(\Carbon\Carbon::parse($previousLog->created_at));
+        
+        $timeline[] = [
+            'from_location' => $previousLog->location_name,
+            'to_location' => $currentLog->location_name,
+            'entry_time' => $previousLog->created_at,
+            'exit_time' => $currentLog->created_at,
+            'time_spent' => [
+                'hours' => $timeSpent->h,
+                'minutes' => $timeSpent->i,
+                'seconds' => $timeSpent->s
+            ],
+            'access_granted' => $currentLog->access_granted,
+            'time_gap_minutes' => $timeGap // ڈیبگنگ کے لیے
+        ];
+    }
+    
+    return $timeline;
+}
+
+    private function getCurrentStatus($icNo)
+    {
+        // Check last access log
+        $lastLog = DB::table('device_access_logs')
+            ->where('staff_no', $icNo)
+            ->where('access_granted', 1)
+            ->orderBy('created_at', 'desc')
+            ->first();
+        
+        if (!$lastLog) {
+            return [
+                'status' => 'never_visited',
+                'message' => 'Never visited the building'
+            ];
+        }
+        
+        $lastLocation = strtolower($lastLog->location_name ?? '');
+        $isInBuilding = ($lastLocation === 'turnstile') ? false : true;
+        
+        if ($isInBuilding) {
+            return [
+                'status' => 'in_building',
+                'message' => 'Currently in building (last seen at: ' . $lastLog->location_name . ')'
+            ];
+        } else {
+            return [
+                'status' => 'out_of_building',
+                'message' => 'Currently out of building'
+            ];
+        }
+    }
+
+    private function calculateTotalTimeSpent($logs)
+    {
+        if ($logs->count() < 2) {
+            return [
+                'total_seconds' => 0,
+                'formatted' => '0h 0m 0s'
+            ];
+        }
+        
+        $sortedLogs = $logs->sortBy('created_at');
+        $totalSeconds = 0;
+        
+        for ($i = 1; $i < $sortedLogs->count(); $i++) {
+            $current = $sortedLogs->get($i);
+            $previous = $sortedLogs->get($i - 1);
+            
+            // Calculate time difference between consecutive logs
+            $timeDiff = \Carbon\Carbon::parse($current->created_at)
+                ->diffInSeconds(\Carbon\Carbon::parse($previous->created_at));
+            
+            // Only add if reasonable time gap (less than 4 hours)
+            if ($timeDiff < 14400) { // 4 hours
+                $totalSeconds += $timeDiff;
+            }
+        }
+        
+        $hours = floor($totalSeconds / 3600);
+        $minutes = floor(($totalSeconds % 3600) / 60);
+        $seconds = $totalSeconds % 60;
+        
+        return [
+            'total_seconds' => $totalSeconds,
+            'formatted' => "{$hours}h {$minutes}m {$seconds}s"
+        ];
+    }
+
+
+
+
 }
 
