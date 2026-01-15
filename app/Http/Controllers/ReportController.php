@@ -166,84 +166,85 @@ class ReportController extends Controller
         }
     }
 
-    public function getStaffMovement($staffNo)
-    {
-        try {
-            // Get all movement history for specific staff
-            $movementHistory = DeviceAccessLog::where('staff_no', $staffNo)
-                ->orderBy('created_at', 'asc')
-                ->get()
-                ->map(function ($log) {
-                    // Determine reason based on access_granted
-                    $reason = $log->access_granted ? '--' : ($log->reason ?? 'N/A');
+public function getStaffMovement($staffNo)
+{
+    try {
+        // Get all movement history for specific staff
+        $movementHistory = DeviceAccessLog::where('staff_no', $staffNo)
+            ->orderBy('created_at', 'asc')
+            ->get()
+            ->map(function ($log) {
+                // اصل boolean value رکھیں
+                $accessGranted = (bool) $log->access_granted;
+                
+                $reason = $accessGranted ? '--' : ($log->reason ?? 'N/A');
+                
+                // Get type from device_location_assigns via device_connections
+                $isType = 'N/A';
+                
+                // Only proceed if device_id exists
+                if ($log->device_id) {
+                    // First get device_connections record by matching device_id
+                    $deviceConnection = DeviceConnection::where('device_id', $log->device_id)->first();
                     
-                    // Get type from device_location_assigns via device_connections
-                    $isType = 'N/A';
-                    
-                    // Only proceed if device_id exists
-                    if ($log->device_id) {
-                        // First get device_connections record by matching device_id
-                        $deviceConnection = DeviceConnection::where('device_id', $log->device_id)->first();
+                    if ($deviceConnection) {
+                        // Now use the id from device_connections to find device_location_assigns
+                        $deviceLocationAssign = DeviceLocationAssign::where('device_id', $deviceConnection->id)->first();
                         
-                        if ($deviceConnection) {
-                            // Now use the id from device_connections to find device_location_assigns
-                            $deviceLocationAssign = DeviceLocationAssign::where('device_id', $deviceConnection->id)->first();
-                            
-                            if ($deviceLocationAssign) {
-                                $isType = $deviceLocationAssign->is_type;
-                            }
+                        if ($deviceLocationAssign) {
+                            $isType = $deviceLocationAssign->is_type;
                         }
                     }
-                    
-                    // If still not found via device_id, fallback to location-based logic
-                    if ($isType === 'N/A') {
-                        // First try to get by exact location_id
-                        if ($log->location_id) {
-                            $deviceLocation = DeviceLocationAssign::where('location_id', $log->location_id)->first();
+                }
+                
+                // If still not found via device_id, fallback to location-based logic
+                if ($isType === 'N/A') {
+                    // First try to get by exact location_id
+                    if ($log->location_id) {
+                        $deviceLocation = DeviceLocationAssign::where('location_id', $log->location_id)->first();
+                        if ($deviceLocation) {
+                            $isType = $deviceLocation->is_type;
+                        }
+                    } 
+                    // If location_id not available, try by location name
+                    else if ($log->location_name) {
+                        // Try to find location by name
+                        $location = VendorLocation::where('name', $log->location_name)->first();
+                        if ($location) {
+                            $deviceLocation = DeviceLocationAssign::where('location_id', $location->id)->first();
                             if ($deviceLocation) {
                                 $isType = $deviceLocation->is_type;
                             }
-                        } 
-                        // If location_id not available, try by location name
-                        else if ($log->location_name) {
-                            // Try to find location by name
-                            $location = VendorLocation::where('name', $log->location_name)->first();
+                        } else {
+                            // Try partial match if exact not found
+                            $location = VendorLocation::where('name', 'like', '%' . $log->location_name . '%')->first();
                             if ($location) {
                                 $deviceLocation = DeviceLocationAssign::where('location_id', $location->id)->first();
                                 if ($deviceLocation) {
                                     $isType = $deviceLocation->is_type;
                                 }
-                            } else {
-                                // Try partial match if exact not found
-                                $location = VendorLocation::where('name', 'like', '%' . $log->location_name . '%')->first();
-                                if ($location) {
-                                    $deviceLocation = DeviceLocationAssign::where('location_id', $location->id)->first();
-                                    if ($deviceLocation) {
-                                        $isType = $deviceLocation->is_type;
-                                    }
-                                }
-                            }
-                        }
-                        
-                        // If still not found, check if location name contains "Turnstile" or similar
-                        if ($isType === 'N/A' && $log->location_name) {
-                            if (stripos($log->location_name, 'Turnstile') !== false || 
-                                stripos($log->location_name, 'Main Gate') !== false ||
-                                stripos($log->location_name, 'Entrance') !== false) {
-                                $isType = 'check_in'; // Default to check_in
                             }
                         }
                     }
                     
-                    return [
-                        'date_time' => Carbon::parse($log->created_at)->format('d M Y h:i A'),
-                        'location' => $log->location_name ?? 'Unknown',
-                        'access_granted' => $log->access_granted ? 'Yes' : 'No',
-                        'reason' => $reason,
-                        'action' => $log->access_granted ? 'Entered' : 'Denied Entry',
-                        'type' => $isType
-                    ];
-                });
+                    // If still not found, check if location name contains "Turnstile" or similar
+                    if ($isType === 'N/A' && $log->location_name) {
+                        if (stripos($log->location_name, 'Turnstile') !== false || 
+                            stripos($log->location_name, 'Main Gate') !== false ||
+                            stripos($log->location_name, 'Entrance') !== false) {
+                            $isType = 'check_in'; // Default to check_in
+                        }
+                    }
+                }
+                
+                return [
+                    'date_time' => Carbon::parse($log->created_at)->format('d M Y h:i A'),
+                    'location' => $log->location_name ?? 'Unknown',
+                    'access_granted' => $log->access_granted, // اصل value (1 یا 0)
+                    'reason' => $reason,
+                    'type' => $isType
+                ];
+            });
 
         return response()->json([
             'success' => true,

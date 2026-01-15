@@ -531,6 +531,53 @@ body {
 
 /* Dashboard Css */
 
+#criticalAlertSection {
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+}
+
+/* Remove all the viewport width styles */
+.critical-alert-box {
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 8px !important;
+    padding: 1.5rem !important;
+    box-sizing: border-box !important;
+    position: static !important; /* ✅ Remove positioning */
+    left: auto !important;
+    right: auto !important;
+}
+
+/* Make it exactly like other cards */
+#criticalAlertSection .col-12 {
+    padding-left: 8px !important; /* ✅ Same as other cards */
+    padding-right: 8px !important;
+}
+
+/* Container adjustment */
+.container-fluid.dashboard-wrapper {
+    overflow-x: hidden !important;
+    padding-left: 8px !important; /* ✅ Match other cards */
+    padding-right: 8px !important;
+    max-width: 100% !important;
+}
+#criticalAlertSection .col-12 {
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+}
+
+#criticalAlertSection .critical-alert-box {
+    width: calc(100% - 15px) !important;
+    margin-left: 8px !important;
+    margin-right: 8px !important;
+    margin-top: 0 !important;
+    margin-bottom: 0 !important;
+}
+
+
+
 .dashboard-wrapper {
     padding: 20px;
     max-width: 1400px; /* or any value that matches the design */

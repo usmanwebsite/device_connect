@@ -481,7 +481,7 @@ private function determineBySessionLogic($logRecord, $staffNo)
 public function getVisitorChronology(Request $request)
 {
     $request->validate([
-        'staff_no' => 'required|string',
+        'staff_no' => 'nullable|string',
         'ic_no' => 'required|string'
     ]);
 

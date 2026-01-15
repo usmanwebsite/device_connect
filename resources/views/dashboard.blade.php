@@ -6,7 +6,7 @@
 {{-- Critical Alert Section --}}
 <div class="row mb-4" id="criticalAlertSection">
     @if($criticalAlert)
-    <div class="col-12" style="width: 1210px; margin-left: 12px">
+    <div class="col-12" >
         <div class="critical-alert-box" 
             id="currentCriticalAlert" 
             data-alert-id="{{ $criticalAlert['log_id'] }}"
@@ -95,40 +95,40 @@
     @endif
 </div>
 
-    {{-- Recent Alerts Section - Horizontal Layout --}}
-    <div class="row mb-4">
-        <div class="col-12">
-            <div class="content-card" style="background-color: #F8f9fa;">
-                <h5 class="mb-3"><i class="fas fa-bell me-2"></i>Recent Alerts</h5>
-                
-                <div class="row g-3">
-                    {{-- Access Denied Card --}}
-                    <div class="col-12 col-md-6">
-                        <div class="stat-card clickable-card alert-card" onclick="showAccessDeniedModal()">
-                            <div class="d-flex justify-content-between align-items-center mb-2">
-                                <h2 class="text-danger">{{ $deniedAccessCount ?? 0 }}</h2>
-                                <span class="badge bg-danger">Access Denied</span>
-                            </div>
-                            <p class="mb-1 fw-medium">Access Denied Incidents</p>
-                            <small class="text-muted">Last 24 hours</small>
+{{-- Recent Alerts Section - Fixed Width --}}
+<div class="row mb-4">
+    <div class="col-12 px-0"> {{-- ✅ px-0 add karein --}}
+        <div class="content-card" style="background-color: #F8f9fa; padding: 1.5rem;">
+            <h5 class="mb-3"><i class="fas fa-bell me-2"></i>Recent Alerts</h5>
+            
+            <div class="row g-3 mx-0"> {{-- ✅ mx-0 add karein --}}
+                {{-- Access Denied Card --}}
+                <div class="col-12 col-md-6 px-2"> {{-- ✅ px-2 for proper spacing --}}
+                    <div class="stat-card clickable-card alert-card" onclick="showAccessDeniedModal()">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <h2 class="text-danger">{{ $deniedAccessCount ?? 0 }}</h2>
+                            <span class="badge bg-danger">Access Denied</span>
                         </div>
+                        <p class="mb-1 fw-medium">Access Denied Incidents</p>
+                        <small class="text-muted">Last 24 hours</small>
                     </div>
+                </div>
 
-                    {{-- Visitor Overstay Card --}}
-                    <div class="col-12 col-md-6">
-                        <div class="stat-card clickable-card alert-card" onclick="showVisitorOverstayModal()">
-                            <div class="d-flex justify-content-between align-items-center mb-2">
-                                <h2 class="text-warning">{{ $visitorOverstayCount ?? 0 }}</h2>
-                                <span class="badge bg-warning">Overstay</span>
-                            </div>
-                            <p class="mb-1 fw-medium">Visitor Overstay Alerts</p>
-                            <small class="text-muted">Active alerts</small>
+                {{-- Visitor Overstay Card --}}
+                <div class="col-12 col-md-6 px-2"> {{-- ✅ px-2 for proper spacing --}}
+                    <div class="stat-card clickable-card alert-card" onclick="showVisitorOverstayModal()">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <h2 class="text-warning">{{ $visitorOverstayCount ?? 0 }}</h2>
+                            <span class="badge bg-warning">Overstay</span>
                         </div>
+                        <p class="mb-1 fw-medium">Visitor Overstay Alerts</p>
+                        <small class="text-muted">Active alerts</small>
                     </div>
                 </div>
             </div>
         </div>
     </div>
+</div>
 
     <div class="row g-3 mb-4" style="width: 99%; margin-left: 8px !important;">
         <div class="col-md-3 col-6" >
@@ -1408,6 +1408,28 @@ document.addEventListener('DOMContentLoaded', function() {
         @json($hourlyTrafficData['data'])
     );
 });
+
+// Screen resize par width adjust karein
+function adjustCriticalAlertWidth() {
+    const criticalAlert = document.querySelector('.critical-alert-box');
+    if (criticalAlert) {
+        // Parent container ki width lein
+        const parentWidth = criticalAlert.parentElement.clientWidth;
+        
+        // Max width set karein (optional)
+        const maxWidth = Math.min(parentWidth, 1200); // 1200px max
+        
+        criticalAlert.style.width = '100%'; // Always 100%
+        criticalAlert.style.maxWidth = maxWidth + 'px';
+    }
+}
+
+// Window resize par function call karein
+window.addEventListener('resize', adjustCriticalAlertWidth);
+
+// Page load par bhi call karein
+document.addEventListener('DOMContentLoaded', adjustCriticalAlertWidth);
 </script>
+
 @endsection
 

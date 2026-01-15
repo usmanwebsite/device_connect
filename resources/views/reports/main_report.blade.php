@@ -837,47 +837,46 @@ function fetchVisitorDetailsForModal(staffNo) {
         });
 }
 
-function displayMovementHistory(movementHistory, visitorDetails) {
+function displayMovementHistory(movementHistory) {
     const tableBody = document.getElementById('movementTableBody');
     tableBody.innerHTML = '';
 
-    if (!movementHistory || !Array.isArray(movementHistory)) {
-        return;
-    }
-
     movementHistory.forEach(movement => {
         if (!movement) return;
+
+        const isAllowed = Number(movement.access_granted) === 1;
         
+        let typeBadge = 'badge bg-secondary';
+        let displayType = movement.type || 'N/A';
+        
+        if (displayType === 'check_in') displayType = 'Checkin';
+        if (displayType === 'check_out') displayType = 'Checkout';
+
         const row = document.createElement('tr');
-        
-        let badgeClass = 'badge bg-secondary';
-        if (movement.type === 'Checkin') {
-            badgeClass = 'badge bg-primary';
-        } else if (movement.type === 'Checkout') {
-            badgeClass = 'badge bg-warning text-dark';
-        }
-        
         row.innerHTML = `
             <td>${movement.date_time || 'N/A'}</td>
             <td>${movement.location || 'N/A'}</td>
             <td>
-                <span class="badge ${movement.access_granted === 'Yes' ? 'bg-success' : 'bg-danger'}">
-                    ${movement.access_granted || 'N/A'}
+                <span class="badge ${isAllowed ? 'bg-success' : 'bg-danger'}">
+                    ${movement.access_display || (isAllowed ? 'Yes' : 'No')}
                 </span>
             </td>
             <td>${movement.reason || 'N/A'}</td>
             <td>
-                <span class="${badgeClass}">
-                    ${movement.type || 'N/A'}
+                <span class="${typeBadge}">
+                    ${displayType}
                 </span>
             </td>
             <td>
-                <span class="badge bg-info">Allowed</span>
+                <span class="badge ${isAllowed ? 'bg-success' : 'bg-danger'}">
+                    ${movement.action_display || (isAllowed ? 'Allowed' : 'Not Allowed')}
+                </span>
             </td>
         `;
         tableBody.appendChild(row);
     });
 }
+
 
 function viewVisitorChronology(staffNo, icNo, fullName) {
     if (!staffNo) {

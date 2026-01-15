@@ -117,7 +117,6 @@
                                 <thead class="thead-dark">
                                     <tr>
                                         <th>#</th>
-                                        <th>Staff No</th>
                                         <th>Full Name</th>
                                         <th>IC No</th>
                                         <th>Company</th>
@@ -198,12 +197,6 @@
                         <div class="form-group">
                             <label class="font-weight-bold">IC No:</label>
                             <p id="modalIcNo">-</p>
-                        </div>
-                    </div>
-                    <div class="col-md-6">
-                        <div class="form-group">
-                            <label class="font-weight-bold">Staff No:</label>
-                            <p id="modalStaffNo">-</p>
                         </div>
                     </div>
                 </div>
@@ -321,9 +314,6 @@
                             <div class="card">
                                 <div class="card-body">
                                     <div class="row">
-                                        <div class="col-md-4">
-                                            <strong>Staff No:</strong> <span id="chronoStaffNo">-</span>
-                                        </div>
                                         <div class="col-md-4">
                                             <strong>Full Name:</strong> <span id="chronoFullName">-</span>
                                         </div>
@@ -726,10 +716,10 @@ $(document).ready(function() {
                 "zeroRecords": "No matching records found"
             },
             "columnDefs": [
-                { "orderable": false, "targets": [0, 9] },
-                { "className": "text-center", "targets": [0, 8, 9] },
+                { "orderable": false, "targets": [0, 8] },
+                { "className": "text-center", "targets": [0, 7, 8] },
                 { "width": "5%", "targets": 0 },
-                { "width": "15%", "targets": 9 }
+                { "width": "15%", "targets": 8 }
             ]
         });
     }
@@ -854,208 +844,227 @@ $(document).ready(function() {
         }
     });
     
-    function searchVisitor() {
-        const searchTerm = $('#searchInput').val().trim();
-        const searchType = $('#searchType').val();
-        
-        if (!searchTerm) {
-            showError('Please enter a search term');
-            return;
-        }
-        
-        if (searchTerm.length < 3) {
-            showError('Please enter at least 3 characters');
-            return;
-        }
-        
-        currentSearchTerm = searchTerm;
-        currentSearchType = searchType;
-        
-        // Show loading, hide other sections
-        showLoading();
-        hideAllSections();
-        
-        console.log('Searching for:', searchTerm, 'Type:', searchType);
-
-        // Add this at the top of your script if not already there
-        $.ajaxSetup({
-            headers: {
-                'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
-            }
-        });
-        
-        $.ajax({
-            url: "{{ route('visitor-details.search') }}",
-            type: 'POST',
-            data: {
-                _token: '{{ csrf_token() }}',
-                search_term: searchTerm,
-                search_type: searchType
-            },
-            success: function(response) {
-                console.log('API Response:', response);
-                hideLoading();
-                
-                if (response.success) {
-                    console.log('Data received:', response.data);
-                    currentData = response.data;
-                    displayVisitorData(response.data);
-                    showSuccess('Visitor details found successfully');
-                    $('#exportBtn').show();
-                } else {
-                    showError(response.message || 'Visitor not found');
-                    showNoDataSection();
-                    $('#exportBtn').hide();
-                }
-            },
-            error: function(xhr, status, error) {
-                console.error('AJAX Error:', status, error, xhr.responseText);
-                hideLoading();
-                let errorMessage = 'An error occurred while searching';
-                
-                if (xhr.responseJSON && xhr.responseJSON.message) {
-                    errorMessage = xhr.responseJSON.message;
-                } else if (xhr.status === 0) {
-                    errorMessage = 'Network error. Please check your connection.';
-                } else if (xhr.status === 500) {
-                    errorMessage = 'Server error. Please try again later.';
-                }
-                
-                showError(errorMessage);
+function searchVisitor() {
+    const searchTerm = $('#searchInput').val().trim();
+    const searchType = $('#searchType').val();
+    
+    if (!searchTerm) {
+        showError('Please enter a search term');
+        return;
+    }
+    
+    currentSearchTerm = searchTerm;
+    currentSearchType = searchType;
+    
+    showLoading();
+    hideAllSections();
+    
+    console.log('Searching for:', searchTerm, 'Type:', searchType);
+    
+    // TEMPORARY: Direct Java API call
+    const javaBaseUrl = 'http://127.0.0.1:8080';
+    let url = `${javaBaseUrl}/api/vendorpass/get-visitor-details?icNo=${searchTerm}`;
+    
+    if (searchType === 'staffNo') {
+        url = `${javaBaseUrl}/api/vendorpass/get-visitor-details?staffNo=${searchTerm}`;
+    }
+    
+    console.log('Direct API URL:', url);
+    
+    // Direct fetch to Java API
+    fetch(url)
+        .then(response => response.json())
+        .then(data => {
+            console.log('Direct API Response:', data);
+            hideLoading();
+            
+            if (data && data.status === 'success') {
+                currentData = data.data;
+                displayVisitorData(data.data);
+                showSuccess('Visitor details found successfully');
+                $('#exportBtn').show();
+            } else {
+                showError(data.message || 'Visitor not found');
                 showNoDataSection();
                 $('#exportBtn').hide();
             }
+        })
+        .catch(error => {
+            console.error('Direct API Error:', error);
+            hideLoading();
+            showError('Error connecting to API');
+            showNoDataSection();
+            $('#exportBtn').hide();
         });
+}
+    
+function displayVisitorData(data) {
+    console.log('========== DISPLAY VISITOR DATA START ==========');
+    console.log('Raw data received:', data);
+    
+    const visitors = Array.isArray(data) ? data : [data];
+    
+    console.log('Number of visitors found:', visitors.length);
+    
+    // Clear existing data
+    if (visitorDataTable) {
+        visitorDataTable.clear().draw();
     }
     
-    function displayVisitorData(data) {
-        // Check if data is array or single object
-        const visitors = Array.isArray(data) ? data : [data];
-        
-        console.log('Number of visitors found:', visitors.length);
-        
-        // Clear existing data
-        if (visitorDataTable) {
-            visitorDataTable.clear().draw();
+    // Improved Date Formatting Function
+    const formatDate = (dateString) => {
+        if (!dateString || 
+            dateString === 'N/A' || 
+            dateString === 'null' || 
+            dateString === null || 
+            dateString === undefined) {
+            return '-';
         }
         
-        // Format date function
-        const formatDate = (dateString) => {
-            if (!dateString || dateString === 'N/A') return '-';
-            try {
-                const date = new Date(dateString);
-                return date.toLocaleDateString('en-US', {
-                    year: 'numeric',
-                    month: 'short',
-                    day: 'numeric'
-                }) + ' ' + date.toLocaleTimeString('en-US', {
-                    hour: '2-digit',
-                    minute: '2-digit'
-                });
-            } catch (e) {
-                return dateString;
-            }
-        };
-        
-        // Calculate status badge
-        const getStatusBadge = (visitTo) => {
-            if (!visitTo || visitTo === 'N/A') return '<span class="badge badge-secondary">Unknown</span>';
+        try {
+            const date = new Date(dateString);
             
+            if (isNaN(date.getTime())) {
+                return '-';
+            }
+            
+            const formattedDate = date.toLocaleDateString('en-US', {
+                year: 'numeric',
+                month: 'short',
+                day: 'numeric'
+            });
+            
+            const formattedTime = date.toLocaleTimeString('en-US', {
+                hour: '2-digit',
+                minute: '2-digit',
+                hour12: true
+            });
+            
+            return `${formattedDate} ${formattedTime}`;
+            
+        } catch (e) {
+            return '-';
+        }
+    };
+    
+    // Calculate status badge
+    const getStatusBadge = (visitTo) => {
+        if (!visitTo || visitTo === 'N/A') {
+            return '<span class="badge badge-secondary">Unknown</span>';
+        }
+        
+        try {
             const now = new Date();
             const visitEnd = new Date(visitTo);
+            
+            if (isNaN(visitEnd.getTime())) {
+                return '<span class="badge badge-secondary">Unknown</span>';
+            }
             
             if (visitEnd > now) {
                 return '<span class="badge badge-success">Active</span>';
             } else {
                 return '<span class="badge badge-warning">Expired</span>';
             }
-        };
+        } catch (e) {
+            return '<span class="badge badge-secondary">Error</span>';
+        }
+    };
+    
+    // Add each visitor to the table
+    let validVisitorsCount = 0;
+    
+    visitors.forEach((visitor, index) => {
+        // Check if visitor has valid information
+        const hasValidData = visitor && 
+            ((visitor.fullName && visitor.fullName !== 'N/A') || 
+             (visitor.icNo && visitor.icNo !== 'N/A'));
         
-        // Add each visitor to the table
-        visitors.forEach((visitor, index) => {
-            // Check if visitor has valid information
-            const hasValidData = visitor && 
-                                (visitor.staffNo && visitor.staffNo !== 'N/A') || 
-                                (visitor.fullName && visitor.fullName !== 'N/A') || 
-                                (visitor.icNo && visitor.icNo !== 'N/A');
-            
-            if (!hasValidData) {
-                console.log('Skipping invalid visitor data:', visitor);
-                return;
-            }
-            
-            // Add data to table with both View and Chronology buttons
-            const rowData = [
-                index + 1,
-                visitor.staffNo || '-',
-                visitor.fullName || '-',
-                visitor.icNo || '-',
-                visitor.companyName || '-',
-                visitor.contactNo || '-',
-                formatDate(visitor.dateOfVisitFrom) || '-',
-                formatDate(visitor.dateOfVisitTo) || '-',
-                getStatusBadge(visitor.dateOfVisitTo),
-                `<div class="btn-group" role="group">
-                    <button class="btn btn-sm btn-info view-details" 
-                            data-staffno="${visitor.staffNo || ''}"
-                            data-fullname="${visitor.fullName || ''}"
-                            data-icno="${visitor.icNo || ''}"
-                            data-sex="${visitor.sex || ''}"
-                            data-contactno="${visitor.contactNo || ''}"
-                            data-company="${visitor.companyName || ''}"
-                            data-personvisited="${visitor.personVisited || ''}"
-                            data-visitfrom="${visitor.dateOfVisitFrom || ''}"
-                            data-visitto="${visitor.dateOfVisitTo || ''}"
-                            data-reason="${visitor.reason || ''}"
-                            data-searchtype="${visitor.searchType || ''}">
-                        <i class="fas fa-eye"></i> View
-                    </button>
-                    <button class="btn btn-sm btn-warning view-chronology" 
-                            data-staffno="${visitor.staffNo || ''}"
-                            data-fullname="${visitor.fullName || ''}"
-                            data-icno="${visitor.icNo || ''}">
-                        <i class="fas fa-history"></i> Chronology
-                    </button>
-                </div>`
-            ];
-            
-            if (visitorDataTable) {
-                visitorDataTable.row.add(rowData).draw();
-            }
-        });
-        
-        // If no valid data was added
-        if (visitors.length === 0 || visitorDataTable.data().count() === 0) {
-            showError('No visitor data found');
-            showNoDataSection();
+        if (!hasValidData) {
+            console.log('Skipping invalid visitor data:', visitor);
             return;
         }
         
-        // Show table section
-        $('#visitorTableSection').show();
-        $('#noDataSection').hide();
+        // Format dates for this visitor
+        const formattedFrom = formatDate(visitor.dateOfVisitFrom);
+        const formattedTo = formatDate(visitor.dateOfVisitTo);
         
-        // Update success message with count
-        showSuccess(`Found ${visitors.length} visitor(s) matching your search`);
+        // Add data to table with both View and Chronology buttons
+        // NOTE: Staff No removed from rowData array
+        const rowData = [
+            index + 1, // Serial number
+            visitor.fullName || '-',
+            visitor.icNo || '-',
+            visitor.companyName || '-',
+            visitor.contactNo || '-',
+            formattedFrom,
+            formattedTo,
+            getStatusBadge(visitor.dateOfVisitTo),
+            `<div class="btn-group" role="group">
+                <button class="btn btn-sm btn-info view-details" 
+                        data-staffno="${visitor.staffNo || ''}"
+                        data-fullname="${visitor.fullName || ''}"
+                        data-icno="${visitor.icNo || ''}"
+                        data-sex="${visitor.sex || ''}"
+                        data-contactno="${visitor.contactNo || ''}"
+                        data-company="${visitor.companyName || ''}"
+                        data-personvisited="${visitor.personVisited || ''}"
+                        data-visitfrom="${visitor.dateOfVisitFrom || ''}"
+                        data-visitto="${visitor.dateOfVisitTo || ''}"
+                        data-reason="${visitor.reason || ''}"
+                        data-searchtype="${visitor.searchType || ''}">
+                    <i class="fas fa-eye"></i> View
+                </button>
+                <button class="btn btn-sm btn-warning view-chronology" 
+                        data-staffno="${visitor.staffNo || ''}"
+                        data-fullname="${visitor.fullName || ''}"
+                        data-icno="${visitor.icNo || ''}">
+                    <i class="fas fa-history"></i> Chronology
+                </button>
+            </div>`
+        ];
         
-        // Add click event to view buttons
-        $('#visitorTable').off('click', '.view-details').on('click', '.view-details', function() {
-            showVisitorDetailsModal($(this).data());
-        });
-        
-        // Add click event to chronology buttons
-        $('#visitorTable').off('click', '.view-chronology').on('click', '.view-chronology', function() {
-            const staffNo = $(this).data('staffno');
-            const fullName = $(this).data('fullname');
-            const icNo = $(this).data('icno');
-            showChronologyModal(staffNo, fullName, icNo);
-        });
+        if (visitorDataTable) {
+            visitorDataTable.row.add(rowData).draw();
+            validVisitorsCount++;
+        }
+    });
+    
+    console.log('Valid visitors added to table:', validVisitorsCount);
+    console.log('DataTable row count:', visitorDataTable ? visitorDataTable.data().count() : 0);
+    console.log('========== DISPLAY VISITOR DATA END ==========');
+    
+    // If no valid data was added
+    if (visitors.length === 0 || (visitorDataTable && visitorDataTable.data().count() === 0)) {
+        showError('No visitor data found');
+        showNoDataSection();
+        return;
     }
+    
+    // Show table section
+    $('#visitorTableSection').show();
+    $('#noDataSection').hide();
+    
+    // Update success message with count
+    showSuccess(`Found ${validVisitorsCount} visitor(s) matching your search`);
+    
+    // Add click event to view buttons
+    $('#visitorTable').off('click', '.view-details').on('click', '.view-details', function() {
+        showVisitorDetailsModal($(this).data());
+    });
+    
+    // Add click event to chronology buttons
+    $('#visitorTable').off('click', '.view-chronology').on('click', '.view-chronology', function() {
+        const staffNo = $(this).data('staffno');
+        const fullName = $(this).data('fullname');
+        const icNo = $(this).data('icno');
+        showChronologyModal(staffNo, fullName, icNo);
+    });
+}
     
     // Chronology Modal Functions
     function showChronologyModal(staffNo, fullName, icNo) {
         // Set visitor info in modal
-        $('#chronoStaffNo').text(staffNo || '-');
         $('#chronoFullName').text(fullName || '-');
         $('#chronoIcNo').text(icNo || '-');
         
@@ -1088,8 +1097,8 @@ $(document).ready(function() {
             type: 'POST',
             data: {
                 _token: '{{ csrf_token() }}',
-                staff_no: staffNo,
-                ic_no: icNo
+                staff_no: staffNo || '', // Ensure staff_no is sent (even if empty)
+                ic_no: icNo || '' 
             },
             success: function(response) {
                 $('#chronologyLoading').hide();
@@ -1752,7 +1761,6 @@ function showVisitorDetailsModal(data) {
     $('#modalFullName').text(data.fullname || '-');
     $('#modalReason').text(data.reason || '-');
     $('#modalIcNo').text(data.icno || '-');
-    $('#modalStaffNo').text(data.staffno || '-');
     $('#modalPersonVisited').text(data.personvisited || '-');
     $('#modalContactNo').text(data.contactno || '-');
     $('#modalDateOfVisitFrom').text(formatModalDate(data.visitfrom) || '-');
@@ -1873,20 +1881,21 @@ $('#printDetailsBtn').click(function() {
         }
         
         const visitors = Array.isArray(currentData) ? currentData : [currentData];        
+        
         // Create CSV content
         let csvContent = "data:text/csv;charset=utf-8,";
         csvContent += "Visitor Details Export\n";
         csvContent += `Search Term: ${currentSearchTerm}\n`;
         csvContent += `Search Type: ${currentSearchType}\n`;
-        csvContent += `Export Date: ${new Date().toLocaleString()}\n\n`;        
-        // Add headers
-        csvContent += "Sr.No,Staff No,Full Name,IC No,Company,Contact No,Visit From,Visit To,Status,Reason\n";
+        csvContent += `Export Date: ${new Date().toLocaleString()}\n\n`;
         
-        // Add data rows
+        // Updated headers without Staff No
+        csvContent += "Sr.No,Full Name,IC No,Company,Contact No,Visit From,Visit To,Status,Reason\n";
+        
+        // Add data rows without Staff No
         visitors.forEach((visitor, index) => {
             const row = [
                 index + 1,
-                `"${visitor.staffNo || ''}"`,
                 `"${visitor.fullName || ''}"`,
                 `"${visitor.icNo || ''}"`,
                 `"${visitor.companyName || ''}"`,
