@@ -129,8 +129,8 @@
     </div>
 {{-- Staff Movement Modal --}}
 <div class="modal fade" id="staffMovementModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-lg">
-        <div class="modal-content">
+    <div class="modal-dialog modal-xl"> {{-- ✅ modal-lg se modal-xl kar diya --}}
+        <div class="modal-content" style="max-width: 1200px; margin: 0 auto;"> {{-- ✅ max-width add kiya --}}
             <div class="modal-header">
                 <h5 class="modal-title" id="movementModalTitle">Staff Movement History</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
@@ -143,21 +143,28 @@
                     <p class="mt-2">Loading movement history...</p>
                 </div>
                 <div id="movementContent" class="d-none">
-                    <p><strong>Staff No:</strong> <span id="modalStaffNo"></span></p>
-                    <div class="visitor-info-section mb-3" id="visitorInfoSection" style="display: none;">
-                        <p><strong>Full Name:</strong> <span id="modalVisitorName"></span></p>
-                        <p><strong>IC No:</strong> <span id="modalVisitorIC"></span></p>
+                    <div class="row mb-3">
+                        <div class="col-md-4">
+                            <p><strong>Staff No:</strong> <span id="modalStaffNo"></span></p>
+                        </div>
+                        <div class="col-md-8">
+                            <div class="visitor-info-section" id="visitorInfoSection" style="display: none;">
+                                <p><strong>Full Name:</strong> <span id="modalVisitorName"></span></p>
+                                <p><strong>IC No:</strong> <span id="modalVisitorIC"></span></p>
+                            </div>
+                        </div>
                     </div>
-                    <div class="table-responsive">
-                        <table class="table table-sm table-bordered">
-                            <thead class="table-dark">
+                    
+                    <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
+                        <table class="table table-sm table-bordered table-striped">
+                            <thead class="table-dark" style="position: sticky; top: 0; z-index: 1;">
                                 <tr>
-                                    <th>Date & Time</th>
-                                    <th>Location</th>
-                                    <th>Access</th>
-                                    <th>Reason</th>
-                                    <th>Type</th>
-                                    <th>Action</th>
+                                    <th style="min-width: 150px;">Date & Time</th>
+                                    <th style="min-width: 200px;">Location</th>
+                                    <th style="min-width: 100px;">Access</th>
+                                    <th style="min-width: 200px;">Reason</th>
+                                    <th style="min-width: 100px;">Type</th>
+                                    <th style="min-width: 120px;">Action</th>
                                 </tr>
                             </thead>
                             <tbody id="movementTableBody">
@@ -177,6 +184,7 @@
         </div>
     </div>
 </div>
+
 </div>
 @endsection
 
@@ -854,20 +862,20 @@ function displayMovementHistory(movementHistory) {
 
         const row = document.createElement('tr');
         row.innerHTML = `
-            <td>${movement.date_time || 'N/A'}</td>
+            <td class="text-nowrap">${movement.date_time || 'N/A'}</td>
             <td>${movement.location || 'N/A'}</td>
-            <td>
+            <td class="text-center">
                 <span class="badge ${isAllowed ? 'bg-success' : 'bg-danger'}">
                     ${movement.access_display || (isAllowed ? 'Yes' : 'No')}
                 </span>
             </td>
             <td>${movement.reason || 'N/A'}</td>
-            <td>
+            <td class="text-center">
                 <span class="${typeBadge}">
                     ${displayType}
                 </span>
             </td>
-            <td>
+            <td class="text-center">
                 <span class="badge ${isAllowed ? 'bg-success' : 'bg-danger'}">
                     ${movement.action_display || (isAllowed ? 'Allowed' : 'Not Allowed')}
                 </span>

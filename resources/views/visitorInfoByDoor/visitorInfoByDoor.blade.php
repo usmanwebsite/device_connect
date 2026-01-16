@@ -387,6 +387,10 @@ function populateVisitorsTable(visitors) {
 // Render visitor details in modal with NEW ORDER
 function renderVisitorDetails(response) {
     const visitor = response.visitor;
+
+    function upper(val) {
+        return val ? val.toString().toUpperCase() : 'N/A';
+    }
     
     let content = `
         <div class="detail-section">
@@ -394,19 +398,15 @@ function renderVisitorDetails(response) {
             <div class="row">
                 <div class="col-md-6 detail-item">
                     <div class="detail-label">Visitor Name</div>
-                    <div class="detail-value">${visitor.full_name || visitor.visitor_name}</div>
+                    <div class="detail-value">${upper(visitor.full_name || visitor.visitor_name)}</div>
                 </div>
                 <div class="col-md-6 detail-item">
                     <div class="detail-label">Contact No</div>
                     <div class="detail-value">${visitor.contact_no}</div>
                 </div>
                 <div class="col-md-6 detail-item">
-                    <div class="detail-label">Staff No</div>
-                    <div class="detail-value"><span class="badge bg-primary">${visitor.staff_no}</span></div>
-                </div>
-                <div class="col-md-6 detail-item">
                     <div class="detail-label">Person Visited</div>
-                    <div class="detail-value">${visitor.person_visited}</div>
+                    <div class="detail-value">${upper(visitor.person_visited)}</div>
                 </div>
                 <div class="col-md-6 detail-item">
                     <div class="detail-label">IC No</div>
@@ -414,7 +414,7 @@ function renderVisitorDetails(response) {
                 </div>
                 <div class="col-md-6 detail-item">
                     <div class="detail-label">Sex</div>
-                    <div class="detail-value">${visitor.sex}</div>
+                    <div class="detail-value">${upper(visitor.sex)}</div>
                 </div>
                 <div class="col-md-6 detail-item">
                     <div class="detail-label">Visit From</div>

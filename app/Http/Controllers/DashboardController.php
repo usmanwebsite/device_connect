@@ -178,131 +178,134 @@ class DashboardController extends Controller
     //     }
     // }
 
-    public function index(Request $request)
-    {
-        try {
-            Log::info('=== Dashboard Accessed ===');
+public function index(Request $request)
+{
+    try {
+        Log::info('=== Dashboard Accessed ===');
 
-            $token = session()->get('java_backend_token') ?? session()->get('java_auth_token');
-            
-            $angularMenu = [];
-            if ($token) {
-                try {
-                    $angularMenu = $this->menuService->getFilteredAngularMenuWithToken($token);
+        $token = session()->get('java_backend_token') ?? session()->get('java_auth_token');
+        
+        $angularMenu = [];
+        if ($token) {
+            try {
+                $angularMenu = $this->menuService->getFilteredAngularMenuWithToken($token);
 
-                    $userAccessData = $this->menuService->getUserAccessData();
-                    if ($userAccessData && isset($userAccessData['user_id'])) {
-                        session()->put('java_user_id', $userAccessData['user_id']);
-                        Log::info('User ID saved in dashboard session:', ['user_id' => $userAccessData['user_id']]);
-                    }
-                    
-                    if (empty($angularMenu) || (is_array($angularMenu) && count($angularMenu) === 0)) {
-                        Log::warning('Empty angularMenu returned. Redirecting user.');
-                        return redirect()->away(config('app.angular_url'))
-                            ->with('error', 'Session expired. Please login again.');
-                    }
-                    
-                } catch (\Exception $e) {
-                    Log::error('Menu error: ' . $e->getMessage());
-                    $angularMenu = [];
+                $userAccessData = $this->menuService->getUserAccessData();
+                if ($userAccessData && isset($userAccessData['user_id'])) {
+                    session()->put('java_user_id', $userAccessData['user_id']);
+                    Log::info('User ID saved in dashboard session:', ['user_id' => $userAccessData['user_id']]);
+                }
+                
+                if (empty($angularMenu) || (is_array($angularMenu) && count($angularMenu) === 0)) {
+                    Log::warning('Empty angularMenu returned. Redirecting user.');
                     return redirect()->away(config('app.angular_url'))
                         ->with('error', 'Session expired. Please login again.');
                 }
-            } else {
-                Log::error('NO TOKEN FOUND IN DASHBOARD!');
+                
+            } catch (\Exception $e) {
+                Log::error('Menu error: ' . $e->getMessage());
+                $angularMenu = [];
                 return redirect()->away(config('app.angular_url'))
                     ->with('error', 'Session expired. Please login again.');
             }
-            
-            $userAccessData = $this->menuService->getUserAccessData();
+        } else {
+            Log::error('NO TOKEN FOUND IN DASHBOARD!');
+            return redirect()->away(config('app.angular_url'))
+                ->with('error', 'Session expired. Please login again.');
+        }
+        
+        $userAccessData = $this->menuService->getUserAccessData();
 
-            $todayAppointmentCount = 0;
-            $upcomingAppointments = [];
-            $todayAppointments = [];
-            
-            if ($userAccessData && isset($userAccessData['today_appointment_count'])) {
-                $todayAppointmentCount = $userAccessData['today_appointment_count'];
-                $todayAppointments = collect($userAccessData['today_appointments'] ?? [])
-                ->unique('staff_no')   // 👈 KEY POINT
+        $todayAppointmentCount = 0;
+        $upcomingAppointments = [];
+        $todayAppointments = [];
+        
+        if ($userAccessData && isset($userAccessData['today_appointment_count'])) {
+            $todayAppointments = collect($userAccessData['today_appointments'] ?? [])
+                ->unique('staff_no')
                 ->values()
                 ->toArray();
-                $upcomingAppointments = $userAccessData['upcoming_appointments'] ?? [];
-            }
             
-            $visitorsOnSite = $this->getCurrentVisitorsOnSite();
-            
-            // ✅ UPDATED: Get critical alert with new priority logic
-            $criticalAlert = $this->getCriticalSecurityAlertWithPriority();
-
-            // Counts for cards
-            $activeSecurityAlertsCount = DeviceAccessLog::where('access_granted', 0)
-                ->where('acknowledge', 0)
-                ->count();
-
-            $hourlyTrafficData = $this->getHourlyTrafficData();
-
-            // Get overstay alerts (unacknowledged only)
-            $allDeviceUsers = DeviceAccessLog::where('access_granted', 1)->get();
-            $visitorOverstayAlerts = $this->getUnacknowledgedOverstayAlerts($allDeviceUsers);
-            $visitorOverstayCount = count($visitorOverstayAlerts);
-
-            $deniedAccessCount = DeviceAccessLog::where('access_granted', 0)
-                ->where('acknowledge', 0)
-                ->count();
-
-            // Get enriched data for modals
-            $deniedAccessLogs = DeviceAccessLog::where('access_granted', 0)
-                ->where('acknowledge', 0)
-                ->orderBy('created_at', 'desc')
-                ->get();
-
-            $enrichedDeniedAccessLogs = $this->getEnrichedDeniedAccessLogs($deniedAccessLogs);
-            $enrichedOverstayAlerts = $this->getEnrichedOverstayAlerts($visitorOverstayAlerts);
-
-            $checkOutsTodayCount = $this->getCheckoutsTodayCount();
-            $checkoutsTodayModalData = $this->getCheckoutsTodayModalData();
-
-            return view('dashboard', compact(
-                'angularMenu', 
-                'todayAppointmentCount', 
-                'visitorsOnSite',
-                'todayAppointments',
-                'upcomingAppointments',
-                'activeSecurityAlertsCount',
-                'hourlyTrafficData',
-                'visitorOverstayCount',    
-                'deniedAccessCount',      
-                'deniedAccessLogs',        
-                'visitorOverstayAlerts',    
-                'enrichedDeniedAccessLogs', 
-                'enrichedOverstayAlerts',   
-                'checkOutsTodayCount',       
-                'checkoutsTodayModalData',    
-                'criticalAlert'
-            ));
-        } catch (\Exception $e) {
-            Log::error('Dashboard error: ' . $e->getMessage());
-            
-            return view('dashboard', [
-                'angularMenu' => [],
-                'todayAppointmentCount' => 0,
-                'visitorsOnSite' => [],
-                'todayAppointments' => [],
-                'upcomingAppointments' => [],
-                'activeSecurityAlertsCount' => 0,
-                'hourlyTrafficData' => $this->getDefaultHourlyTrafficData(),
-                'visitorOverstayCount' => 0,
-                'deniedAccessCount' => 0,
-                'checkOutsTodayCount' => 0,
-                'checkoutsTodayModalData' => [],
-                'deniedAccessLogs' => collect(),
-                'visitorOverstayAlerts' => [],
-                'enrichedDeniedAccessLogs' => [],
-                'enrichedOverstayAlerts' => [],
-                'criticalAlert' => null
-            ]);
+            // ✅ FIX 1: Count based on unique appointments
+            $todayAppointmentCount = count($todayAppointments);
+            $upcomingAppointments = $userAccessData['upcoming_appointments'] ?? [];
         }
+        
+        $visitorsOnSite = $this->getCurrentVisitorsOnSite();
+        
+        // ✅ UPDATED: Get critical alert with new priority logic
+        $criticalAlert = $this->getCriticalSecurityAlertWithPriority();
+
+        // Counts for cards
+        $activeSecurityAlertsCount = DeviceAccessLog::where('access_granted', 0)
+            ->where('acknowledge', 0)
+            ->count();
+
+        $hourlyTrafficData = $this->getHourlyTrafficData();
+
+        // Get overstay alerts (unacknowledged only)
+        $allDeviceUsers = DeviceAccessLog::where('access_granted', 1)->get();
+        $visitorOverstayAlerts = $this->getUnacknowledgedOverstayAlerts($allDeviceUsers);
+        $visitorOverstayCount = count($visitorOverstayAlerts);
+
+        $deniedAccessCount = DeviceAccessLog::where('access_granted', 0)
+            ->where('acknowledge', 0)
+            ->count();
+
+        // Get enriched data for modals
+        $deniedAccessLogs = DeviceAccessLog::where('access_granted', 0)
+            ->where('acknowledge', 0)
+            ->orderBy('created_at', 'desc')
+            ->get();
+
+        $enrichedDeniedAccessLogs = $this->getEnrichedDeniedAccessLogs($deniedAccessLogs);
+        $enrichedOverstayAlerts = $this->getEnrichedOverstayAlerts($visitorOverstayAlerts);
+
+        // ✅ FIX 2: Get checkouts data first, then count
+        $checkoutsTodayModalData = $this->getCheckoutsTodayModalData();
+        $checkOutsTodayCount = count($checkoutsTodayModalData);
+
+        return view('dashboard', compact(
+            'angularMenu', 
+            'todayAppointmentCount', 
+            'visitorsOnSite',
+            'todayAppointments',
+            'upcomingAppointments',
+            'activeSecurityAlertsCount',
+            'hourlyTrafficData',
+            'visitorOverstayCount',    
+            'deniedAccessCount',      
+            'deniedAccessLogs',        
+            'visitorOverstayAlerts',    
+            'enrichedDeniedAccessLogs', 
+            'enrichedOverstayAlerts',   
+            'checkOutsTodayCount',       
+            'checkoutsTodayModalData',    
+            'criticalAlert'
+        ));
+    } catch (\Exception $e) {
+        Log::error('Dashboard error: ' . $e->getMessage());
+        
+        return view('dashboard', [
+            'angularMenu' => [],
+            'todayAppointmentCount' => 0,
+            'visitorsOnSite' => [],
+            'todayAppointments' => [],
+            'upcomingAppointments' => [],
+            'activeSecurityAlertsCount' => 0,
+            'hourlyTrafficData' => $this->getDefaultHourlyTrafficData(),
+            'visitorOverstayCount' => 0,
+            'deniedAccessCount' => 0,
+            'checkOutsTodayCount' => 0,
+            'checkoutsTodayModalData' => [],
+            'deniedAccessLogs' => collect(),
+            'visitorOverstayAlerts' => [],
+            'enrichedDeniedAccessLogs' => [],
+            'enrichedOverstayAlerts' => [],
+            'criticalAlert' => null
+        ]);
     }
+}
 
 
 private function getCriticalSecurityAlertWithPriority()
@@ -404,6 +407,7 @@ private function getCriticalSecurityAlertWithPriority()
                     'original_location' => $topAlert['original_location'],
                     'created_at' => $createdAt->format('h:i A'),
                     'time_ago' => $timeAgo,
+                    'malaysia_time' => Carbon::now('Asia/Kuala_Lumpur')->format('h:i A'), 
                     'reason' => $alert->reason ?? 'Other Reason',
                     'visitor_name' => $visitorDetails['fullName'] ?? 'Unknown Visitor',
                     'incident_type' => 'Unauthorized Access Attempt',
@@ -412,6 +416,8 @@ private function getCriticalSecurityAlertWithPriority()
             } else {
                 // Visitor Overstay alert
                 $alert = $topAlert['data'];
+
+                $currentTime = Carbon::now('Asia/Kuala_Lumpur'); 
                 
                 return [
                     'log_id' => $alert['log_id'] ?? $alert['staff_no'] . '_overstay',
@@ -421,6 +427,8 @@ private function getCriticalSecurityAlertWithPriority()
                     'location' => $topAlert['display_location'],
                     'original_location' => $topAlert['original_location'],
                     'created_at' => Carbon::parse($alert['check_in_time'])->format('h:i A'),
+                    'malaysia_time' => $currentTime->format('h:i A'), 
+                    'time_ago' => Carbon::parse($alert['check_in_time'])->diffForHumans(), 
                     'visitor_name' => $alert['visitor_name'],
                     'incident_type' => 'Visitor Overstay Alert',
                     'priority' => $topAlert['priority'],
@@ -1044,80 +1052,91 @@ public function acknowledgeAlert(Request $request)
         }
     }
 
+    // private function getCheckoutsTodayCount()
+    // {
+    //     try {
+    //         Log::info('=== Starting getCheckoutsTodayCount (With Location Match) ===');
+
+    //         $turnstileLocations = VendorLocation::where('name', 'like', '%Turnstile%')
+    //             ->get(['id', 'name']);
+
+    //         Log::info('Turnstile locations found:', $turnstileLocations->toArray());
+
+    //         if ($turnstileLocations->isEmpty()) {
+    //             Log::info('No Turnstile locations found.');
+    //             return 0;
+    //         }
+
+    //         $turnstileLocationIds = $turnstileLocations->pluck('id');
+    //         $turnstileLocationNames = $turnstileLocations->pluck('name');
+
+    //         $deviceLocationAssigns = DeviceLocationAssign::whereIn('location_id', $turnstileLocationIds)
+    //             ->where('is_type', 'check_out')
+    //             ->get(['id', 'device_id', 'location_id', 'is_type']);
+
+    //         Log::info('Device location assigns found:', $deviceLocationAssigns->toArray());
+
+    //         if ($deviceLocationAssigns->isEmpty()) {
+    //             Log::info('No device assigns found with check_out.');
+    //             return 0;
+    //         }
+
+    //         $deviceConnectionIds = $deviceLocationAssigns->pluck('device_id');
+
+    //         $deviceConnections = DeviceConnection::whereIn('id', $deviceConnectionIds)
+    //             ->get(['id', 'device_id']);
+
+    //         Log::info('Device connections found:', $deviceConnections->toArray());
+
+    //         if ($deviceConnections->isEmpty()) {
+    //             Log::info('No device connections found.');
+    //             return 0;
+    //         }
+
+    //         $actualDeviceIds = $deviceConnections->pluck('device_id');
+
+    //         Log::info('Actual device IDs: ', ['ids' => $actualDeviceIds->implode(', ')]);
+
+    //         $today = now()->format('Y-m-d');
+
+    //         Log::info("Checking logs for date: {$today}");
+    //         Log::info('Matching location names: ', ['locations' => $turnstileLocationNames->implode(', ')]);
+
+    //         $sampleLogs = DeviceAccessLog::whereIn('device_id', $actualDeviceIds)
+    //             ->whereIn('location_name', $turnstileLocationNames)
+    //             ->whereDate('created_at', $today)
+    //             ->take(5)
+    //             ->get(['id', 'device_id', 'location_name', 'staff_no', 'created_at']);
+
+    //         Log::info('Sample access logs (with location match):', $sampleLogs->toArray());
+
+    //         $checkoutsCount = DeviceAccessLog::whereIn('device_id', $actualDeviceIds)
+    //             ->whereIn('location_name', $turnstileLocationNames)
+    //             ->whereDate('created_at', $today)
+    //             ->count();
+
+    //         Log::info("Checkouts today count (with location filter): {$checkoutsCount}");
+    //         Log::info('=== End getCheckoutsTodayCount ===');
+
+    //         return $checkoutsCount;
+
+    //     } catch (\Exception $e) {
+    //         Log::error('Error calculating checkout count: ' . $e->getMessage());
+    //         Log::error('Stack trace: ' . $e->getTraceAsString());
+    //         return 0;
+    //     }
+    // }
     private function getCheckoutsTodayCount()
-    {
-        try {
-            Log::info('=== Starting getCheckoutsTodayCount (With Location Match) ===');
-
-            $turnstileLocations = VendorLocation::where('name', 'like', '%Turnstile%')
-                ->get(['id', 'name']);
-
-            Log::info('Turnstile locations found:', $turnstileLocations->toArray());
-
-            if ($turnstileLocations->isEmpty()) {
-                Log::info('No Turnstile locations found.');
-                return 0;
-            }
-
-            $turnstileLocationIds = $turnstileLocations->pluck('id');
-            $turnstileLocationNames = $turnstileLocations->pluck('name');
-
-            $deviceLocationAssigns = DeviceLocationAssign::whereIn('location_id', $turnstileLocationIds)
-                ->where('is_type', 'check_out')
-                ->get(['id', 'device_id', 'location_id', 'is_type']);
-
-            Log::info('Device location assigns found:', $deviceLocationAssigns->toArray());
-
-            if ($deviceLocationAssigns->isEmpty()) {
-                Log::info('No device assigns found with check_out.');
-                return 0;
-            }
-
-            $deviceConnectionIds = $deviceLocationAssigns->pluck('device_id');
-
-            $deviceConnections = DeviceConnection::whereIn('id', $deviceConnectionIds)
-                ->get(['id', 'device_id']);
-
-            Log::info('Device connections found:', $deviceConnections->toArray());
-
-            if ($deviceConnections->isEmpty()) {
-                Log::info('No device connections found.');
-                return 0;
-            }
-
-            $actualDeviceIds = $deviceConnections->pluck('device_id');
-
-            Log::info('Actual device IDs: ', ['ids' => $actualDeviceIds->implode(', ')]);
-
-            $today = now()->format('Y-m-d');
-
-            Log::info("Checking logs for date: {$today}");
-            Log::info('Matching location names: ', ['locations' => $turnstileLocationNames->implode(', ')]);
-
-            $sampleLogs = DeviceAccessLog::whereIn('device_id', $actualDeviceIds)
-                ->whereIn('location_name', $turnstileLocationNames)
-                ->whereDate('created_at', $today)
-                ->take(5)
-                ->get(['id', 'device_id', 'location_name', 'staff_no', 'created_at']);
-
-            Log::info('Sample access logs (with location match):', $sampleLogs->toArray());
-
-            $checkoutsCount = DeviceAccessLog::whereIn('device_id', $actualDeviceIds)
-                ->whereIn('location_name', $turnstileLocationNames)
-                ->whereDate('created_at', $today)
-                ->count();
-
-            Log::info("Checkouts today count (with location filter): {$checkoutsCount}");
-            Log::info('=== End getCheckoutsTodayCount ===');
-
-            return $checkoutsCount;
-
-        } catch (\Exception $e) {
-            Log::error('Error calculating checkout count: ' . $e->getMessage());
-            Log::error('Stack trace: ' . $e->getTraceAsString());
-            return 0;
-        }
+{
+    try {
+        // Instead of complex query, use the modal data function
+        $checkoutsData = $this->getCheckoutsTodayModalData();
+        return count($checkoutsData);
+    } catch (\Exception $e) {
+        Log::error('Error calculating checkout count: ' . $e->getMessage());
+        return 0;
     }
+}
 
 private function getEnrichedDeniedAccessLogs($deniedAccessLogs)
 {
@@ -1509,64 +1528,69 @@ private function callJavaVendorApi($staffNo)
     private function getCheckoutsTodayModalData()
     {
         try {
-            Log::info('=== Starting getCheckoutsTodayModalData ===');
+            Log::info('=== Starting getCheckoutsTodayModalData (Updated Logic) ===');
             
             $today = now()->format('Y-m-d');
             $checkoutRecords = [];
 
-            $turnstileLocations = VendorLocation::where('name', 'like', '%Turnstile%')
-                ->get(['id', 'name']);
-            
-            Log::info('Turnstile locations found:', $turnstileLocations->toArray());
-            
-            if ($turnstileLocations->isEmpty()) {
-                Log::info('No Turnstile locations found.');
-                return [];
-            }
-            
-            $turnstileLocationIds = $turnstileLocations->pluck('id');
-            $turnstileLocationNames = $turnstileLocations->pluck('name');
-
-            $deviceLocationAssigns = DeviceLocationAssign::whereIn('location_id', $turnstileLocationIds)
-                ->where('is_type', 'check_out')
-                ->get(['id', 'device_id', 'location_id', 'is_type']);
-            
-            Log::info('Device location assigns (check_out) found:', $deviceLocationAssigns->toArray());
-            
-            if ($deviceLocationAssigns->isEmpty()) {
-                Log::info('No device_location_assigns with check_out type found.');
-                return [];
-            }
-
-            $deviceConnectionIds = $deviceLocationAssigns->pluck('device_id');
-            
-            $deviceConnections = DeviceConnection::whereIn('id', $deviceConnectionIds)
-                ->get(['id', 'device_id']);
-            
-            Log::info('Device connections found:', $deviceConnections->toArray());
-            
-            if ($deviceConnections->isEmpty()) {
-                Log::info('No device connections found.');
-                return [];
-            }
-            
-            $actualDeviceIds = $deviceConnections->pluck('device_id');
-            
-            $todayCheckoutLogs = DeviceAccessLog::whereIn('device_id', $actualDeviceIds)
-                ->whereIn('location_name', $turnstileLocationNames)
-                ->whereDate('created_at', $today)
+            // Sabhi logs le lo jisme access granted hai
+            $todayCheckoutLogs = DeviceAccessLog::whereDate('created_at', $today)
                 ->where('access_granted', 1)
                 ->orderBy('created_at', 'desc')
                 ->get();
             
-            Log::info('Today checkout logs found (after both checks): ' . $todayCheckoutLogs->count());
+            Log::info('Total today checkout logs found: ' . $todayCheckoutLogs->count());
             
             foreach ($todayCheckoutLogs as $checkoutLog) {
                 try {
+                    // Step 1: Get location details from vendor_locations
+                    $vendorLocation = VendorLocation::where('name', $checkoutLog->location_name)->first();
+                    
+                    if (!$vendorLocation) {
+                        Log::info("Vendor location not found for: " . $checkoutLog->location_name);
+                        continue;
+                    }
+                    
+                    $locationId = $vendorLocation->id;
+                    
+                    // Step 2: Get device connection details
+                    $deviceConnection = DeviceConnection::where('device_id', $checkoutLog->device_id)->first();
+                    
+                    if (!$deviceConnection) {
+                        Log::info("Device connection not found for device_id: " . $checkoutLog->device_id);
+                        continue;
+                    }
+                    
+                    $deviceConnectionId = $deviceConnection->id;
+                    
+                    // Step 3: Check device_location_assigns
+                    $deviceLocationAssign = DeviceLocationAssign::where('device_id', $deviceConnectionId)
+                        ->where('location_id', $locationId)
+                        ->first();
+                    
+                    $displayLocation = $checkoutLog->location_name; // Default
+                    
+                    if ($deviceLocationAssign) {
+                        // Step 4: Check is_type and update display location
+                        if ($deviceLocationAssign->is_type === 'check_in') {
+                            $displayLocation = 'Turnstile';
+                        } elseif ($deviceLocationAssign->is_type === 'check_out') {
+                            $displayLocation = 'Out';
+                        }
+                    }
+                    
+                    // Sirf check_out type wale hi show karein
+                    if ($displayLocation !== 'Out') {
+                        continue;
+                    }
+                    
+                    // Visitor details get karein
                     $visitorDetails = $this->getVisitorDetailsForCheckout($checkoutLog);
                     
+                    // Check-in log find karein (same staff_no ke liye)
                     $checkInLog = $this->getCheckinLogForStaffNo($checkoutLog->staff_no, $today);
                     
+                    // Duration calculate karein
                     $duration = $this->calculateCheckoutDuration($checkInLog, $checkoutLog);
                     
                     $checkoutRecords[] = [
@@ -1576,15 +1600,20 @@ private function callJavaVendorApi($staffNo)
                         'check_out_time' => $checkoutLog->created_at->format('h:i A'),
                         'duration' => $duration,
                         'staff_no' => $checkoutLog->staff_no,
-                        'location' => $checkoutLog->location_name ?? 'N/A',
+                        'location' => $displayLocation,
+                        'original_location' => $checkoutLog->location_name,
+                        'device_id' => $checkoutLog->device_id,
                     ];
+                    
+                    Log::info("Processed checkout for staff_no: {$checkoutLog->staff_no}, Display Location: {$displayLocation}");
+                    
                 } catch (\Exception $e) {
                     Log::error('Error processing checkout record: ' . $e->getMessage());
                     continue;
                 }
             }
             
-            Log::info('Total checkout records processed: ' . count($checkoutRecords));
+            Log::info('Total filtered checkout records (only "Out" type): ' . count($checkoutRecords));
             return $checkoutRecords;
             
         } catch (\Exception $e) {
@@ -1594,52 +1623,50 @@ private function callJavaVendorApi($staffNo)
         }
     }
 
-    private function getCheckinLogForStaffNo($staffNo, $date)
-    {
-        try {
-            $turnstileLocations = VendorLocation::where('name', 'like', '%Turnstile%')
-                ->get(['id', 'name']);
+private function getCheckinLogForStaffNo($staffNo, $date)
+{
+    try {
+        Log::info("Looking for check-in log for staff_no: {$staffNo}");
+        
+        // Sabhi logs le lo
+        $allLogs = DeviceAccessLog::where('staff_no', $staffNo)
+            ->whereDate('created_at', $date)
+            ->where('access_granted', 1)
+            ->orderBy('created_at', 'asc')
+            ->get();
+        
+        foreach ($allLogs as $log) {
+            // Same logic use karein location process ke liye
+            $vendorLocation = VendorLocation::where('name', $log->location_name)->first();
             
-            if ($turnstileLocations->isEmpty()) {
-                return null;
+            if (!$vendorLocation) {
+                continue;
             }
             
-            $turnstileLocationIds = $turnstileLocations->pluck('id');
-            $turnstileLocationNames = $turnstileLocations->pluck('name');
+            $deviceConnection = DeviceConnection::where('device_id', $log->device_id)->first();
             
-            $deviceLocationAssigns = DeviceLocationAssign::whereIn('location_id', $turnstileLocationIds)
-                ->where('is_type', 'check_in')
-                ->get(['id', 'device_id', 'location_id']);
-            
-            if ($deviceLocationAssigns->isEmpty()) {
-                return null;
-            }
-            $deviceConnectionIds = $deviceLocationAssigns->pluck('device_id');
-            
-            $deviceConnections = DeviceConnection::whereIn('id', $deviceConnectionIds)
-                ->get(['id', 'device_id']);
-            
-            if ($deviceConnections->isEmpty()) {
-                return null;
+            if (!$deviceConnection) {
+                continue;
             }
             
-            $actualDeviceIds = $deviceConnections->pluck('device_id');
-            
-            $checkinLog = DeviceAccessLog::where('staff_no', $staffNo)
-                ->whereIn('device_id', $actualDeviceIds)  
-                ->whereIn('location_name', $turnstileLocationNames) 
-                ->whereDate('created_at', $date)
-                ->where('access_granted', 1)
-                ->orderBy('created_at', 'asc')  
+            $deviceLocationAssign = DeviceLocationAssign::where('device_id', $deviceConnection->id)
+                ->where('location_id', $vendorLocation->id)
                 ->first();
             
-            return $checkinLog;
-            
-        } catch (\Exception $e) {
-            Log::error('Error in getCheckinLogForStaffNo: ' . $e->getMessage());
-            return null;
+            if ($deviceLocationAssign && $deviceLocationAssign->is_type === 'check_in') {
+                Log::info("Found check-in log ID: {$log->id} for staff_no: {$staffNo}");
+                return $log;
+            }
         }
+        
+        Log::info("No check-in log found for staff_no: {$staffNo}");
+        return null;
+        
+    } catch (\Exception $e) {
+        Log::error('Error in getCheckinLogForStaffNo: ' . $e->getMessage());
+        return null;
     }
+}
 
     private function getVisitorDetailsForCheckout($checkoutLog)
     {

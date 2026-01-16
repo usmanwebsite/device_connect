@@ -890,6 +890,41 @@ body {
     overflow-y: auto;
 }
 
+.modal-xl {
+    max-width: 1050px;
+}
+
+/* Table cell wrapping */
+.table-responsive td {
+    word-wrap: break-word;
+    white-space: normal !important;
+}
+
+/* Fix for table header */
+.table-dark th {
+    background-color: #495057;
+    color: white;
+    border: 1px solid #dee2e6;
+}
+
+/* Better spacing for modal */
+.modal-body {
+    padding: 1.5rem;
+}
+
+/* Scrollable table with fixed header */
+.table-responsive {
+    max-height: 500px;
+    overflow-y: auto;
+}
+
+.table-responsive thead th {
+    position: sticky;
+    top: 0;
+    background-color: #495057;
+    z-index: 10;
+}
+
 /* When sidebar is collapsed */
 .sidebar.collapsed {
     transform: translateX(-100%);

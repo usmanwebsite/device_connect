@@ -331,7 +331,7 @@
     <div class="modal-dialog modal-xl">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title">Today's Appointments</h5>
+            <h5 class="modal-title">Today's Appointments ({{ count(collect($todayAppointments)->unique('staff_no')) }})</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
@@ -377,7 +377,7 @@
     <div class="modal-dialog modal-xl">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title">Today's Check-outs ({{ count($checkoutsTodayModalData ?? []) }})</h5>
+                <h5 class="modal-title">Today's Check-outs ({{ count($checkoutsTodayModalData) }})</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
@@ -439,9 +439,9 @@
                             <tr>
                                 {{-- <th>Staff No</th> --}}
                                 <th>Visitor Name</th>
-                                <th>Host</th>
                                 <th>Contact No</th>
                                 <th>IC No</th>
+                                <th>Host</th>
                                 <th>Location</th>
                                 <th>Reason</th>
                                 <th>Date & Time</th>
@@ -452,9 +452,9 @@
                             <tr>
                                 {{-- <td>{{ $enrichedLog['log']->staff_no }}</td> --}}
                                 <td>{{ $enrichedLog['visitor_details']['fullName'] }}</td>
-                                <td>{{ $enrichedLog['visitor_details']['personVisited'] }}</td>
                                 <td>{{ $enrichedLog['visitor_details']['contactNo'] }}</td>
                                 <td>{{ $enrichedLog['visitor_details']['icNo'] }}</td>
+                                <td>{{ $enrichedLog['visitor_details']['personVisited'] }}</td>
                                 <td>{{ $enrichedLog['log']->location_name ?? 'Unknown Location' }}</td>
                                 <td>{{ $enrichedLog['log']->reason ? $enrichedLog['log']->reason : 'Other Reason' }}</td>
                                 <td>{{ \Carbon\Carbon::parse($enrichedLog['log']->created_at)->format('d M Y h:i A') }}</td>
@@ -491,9 +491,9 @@
                             <tr>
                                 {{-- <th>Staff No</th> --}}
                                 <th>Visitor Name</th>
-                                <th>Host</th>
                                 <th>Contact No</th>
                                 <th>IC No</th>
+                                <th>Host</th>
                                 <th>Location</th>
                                 <th>Reason</th>
                                 <th>Date & Time</th>
@@ -504,9 +504,9 @@
                             <tr>
                                 {{-- <td>{{ $enrichedLog['log']->staff_no }}</td> --}}
                                 <td>{{ $enrichedLog['visitor_details']['fullName'] }}</td>
-                                <td>{{ $enrichedLog['visitor_details']['personVisited'] }}</td>
                                 <td>{{ $enrichedLog['visitor_details']['contactNo'] }}</td>
                                 <td>{{ $enrichedLog['visitor_details']['icNo'] }}</td>
+                                <td>{{ $enrichedLog['visitor_details']['personVisited'] }}</td>
                                 <td>{{ $enrichedLog['log']->location_name ?? 'Unknown Location' }}</td>
                                 <td>{{ $enrichedLog['log']->reason ? $enrichedLog['log']->reason : 'Other Reason' }}</td>
                                 <td>{{ \Carbon\Carbon::parse($enrichedLog['log']->created_at)->format('d M Y h:i A') }}</td>
@@ -836,7 +836,6 @@ function updateCheckoutsModalContent(checkoutsData) {
         `;
         
         modalBody.innerHTML = html;
-        modalTitle.textContent = `Today's Check-outs (${checkoutsData.length})`;
     } else {
         modalBody.innerHTML = `
             <div class="alert alert-info">
@@ -1019,139 +1018,6 @@ function closeCriticalAlert() {
     });
 }
 
-// function viewCriticalIncidentDetails(alertId) {
-//     currentCriticalAlertId = alertId;
-    
-//     // Show loading in modal
-//     const modalBody = document.querySelector('#securityAlertsModal .modal-body');
-//     const originalContent = modalBody.innerHTML;
-    
-//     modalBody.innerHTML = `
-//         <div class="text-center py-4">
-//             <div class="spinner-border text-primary" role="status">
-//                 <span class="visually-hidden">Loading...</span>
-//             </div>
-//             <p class="mt-2">Loading incident details...</p>
-//         </div>
-//     `;
-    
-//     // Fetch specific alert details
-//     fetch('/dashboard/get-critical-alert-details', {
-//         method: 'POST',
-//         headers: {
-//             'Content-Type': 'application/json',
-//             'X-CSRF-TOKEN': '{{ csrf_token() }}',
-//             'X-Requested-With': 'XMLHttpRequest'
-//         },
-//         body: JSON.stringify({
-//             alert_id: alertId
-//         })
-//     })
-//     .then(response => response.json())
-//     .then(data => {
-//         if (data.success) {
-//             // Update modal with specific alert details
-//             updateSecurityAlertsModalForCriticalAlert(data.alert);
-//         } else {
-//             modalBody.innerHTML = `
-//                 ${originalContent}
-//             `;
-//         }
-//     })
-//     .catch(error => {
-//         console.error('Error:', error);
-//         modalBody.innerHTML = `
-//             <div class="alert alert-danger">
-//                 <p class="mb-0">Error loading incident details. Please try again.</p>
-//             </div>
-//             ${originalContent}
-//         `;
-//     });
-    
-//     // Show the modal
-//     const modal = new bootstrap.Modal(document.getElementById('securityAlertsModal'));
-//     modal.show();
-// }
-
-// function updateSecurityAlertsModalForCriticalAlert(alertData) {
-//     const modalBody = document.querySelector('#securityAlertsModal .modal-body');
-//     const modalTitle = document.querySelector('#securityAlertsModal .modal-title');
-    
-//     modalTitle.textContent = 'Critical Security Alert Details';
-    
-//     if (!alertData || !alertData.log) {
-//         modalBody.innerHTML = `
-//             <div class="alert alert-danger">
-//                 <p class="mb-0">Error: No alert data received from server</p>
-//             </div>
-//         `;
-//         return;
-//     }
-    
-//     const log = alertData.log;
-//     const visitor = alertData.visitor_details || {};
-    
-//     // Debug info
-//     console.log('Alert data received:', alertData);
-//     console.log('Visitor details:', visitor);
-    
-//     const html = `
-//         <div class="table-responsive">
-//             <table class="table table-hover">
-//                 <thead>
-//                     <tr>
-//                         <th>Field</th>
-//                         <th>Value</th>
-//                     </tr>
-//                 </thead>
-//                 <tbody>
-//                     <tr>
-//                         <td><strong>Staff No</strong></td>
-//                         <td>${log.staff_no || 'N/A'}</td>
-//                     </tr>
-//                     <tr>
-//                         <td><strong>Visitor Name</strong></td>
-//                         <td>${visitor.fullName || 'N/A (API Failed)'}</td>
-//                     </tr>
-//                     <tr>
-//                         <td><strong>Host</strong></td>
-//                         <td>${visitor.personVisited || 'N/A'}</td>
-//                     </tr>
-//                     <tr>
-//                         <td><strong>Contact No</strong></td>
-//                         <td>${visitor.contactNo || 'N/A'}</td>
-//                     </tr>
-//                     <tr>
-//                         <td><strong>IC No</strong></td>
-//                         <td>${visitor.icNo || 'N/A'}</td>
-//                     </tr>
-//                     <tr>
-//                         <td><strong>Location</strong></td>
-//                         <td>${log.location_name || 'Unknown Location'}</td>
-//                     </tr>
-//                     <tr>
-//                         <td><strong>Reason</strong></td>
-//                         <td>${log.reason ? log.reason : 'Other Reason'}</td>
-//                     </tr>
-//                     <tr>
-//                         <td><strong>Date & Time</strong></td>
-//                         <td>${new Date(log.created_at).toLocaleString('en-US', {
-//                             day: 'numeric',
-//                             month: 'short',
-//                             year: 'numeric',
-//                             hour: 'numeric',
-//                             minute: '2-digit',
-//                             hour12: true
-//                         })}</td>
-//                     </tr>
-//                 </tbody>
-//             </table>
-//         </div>
-//     `;
-    
-//     modalBody.innerHTML = html;
-// }
-
 // ✅ Reset modal when opened from Active Security Alerts card
 function showSecurityAlertsModal() {
     const modal = new bootstrap.Modal(document.getElementById('securityAlertsModal'));
@@ -1215,7 +1081,11 @@ function updateCriticalAlert(alertData) {
                 <div class="critical-alert-box" 
                      id="currentCriticalAlert" 
                      data-alert-id="${alertData.log_id}"
-                     data-alert-type="access_denied">
+                     data-alert-type="access_denied"
+                     data-staff-no="${alertData.staff_no || ''}"
+                     data-card-no="${alertData.card_no || ''}"
+                     data-location="${alertData.location || ''}"
+                     data-original-location="${alertData.original_location || alertData.location || ''}">
                     <div class="d-flex justify-content-between align-items-center">
                         <h5 class="critical-title mb-0">
                             <i class="fas fa-shield-alt me-2"></i>Critical Security Alert
@@ -1236,16 +1106,21 @@ function updateCriticalAlert(alertData) {
 
                         <div class="col-md-4 col-12 mb-3">
                             <p class="label mb-1">Location</p>
-                            <p class="value mb-0">${alertData.location}</p>
+                            <p class="value mb-0">${alertData.location || 'N/A'}</p>
                         </div>
 
                         <div class="col-md-4 col-12 mb-3">
                             <p class="label mb-1">Time</p>
+                            <p class="value mb-0">
+                                ${alertData.created_at || 'N/A'} 
+                                ${alertData.time_ago ? '(' + alertData.time_ago + ')' : ''}
+                                <br>
+                            </p>
                         </div>
                     </div>
 
                     <p class="description mt-2 mb-3">
-                        ${alertData.visitor_name} on the restricted watchlist attempted to gain entry.
+                        ${alertData.visitor_name || 'Unknown'} on the restricted watchlist attempted to gain entry.
                     </p>
 
                     <div>
@@ -1262,7 +1137,12 @@ function updateCriticalAlert(alertData) {
                 <div class="critical-alert-box" 
                      id="currentCriticalAlert" 
                      data-alert-id="${alertData.log_id}"
-                     data-alert-type="visitor_overstay">
+                     data-alert-type="visitor_overstay"
+                     data-staff-no="${alertData.staff_no || ''}"
+                     data-card-no="${alertData.card_no || ''}"
+                     data-location="${alertData.location || ''}"
+                     data-original-location="${alertData.original_location || alertData.location || ''}"
+                     data-date-of-visit-from="${alertData.overstay_details?.date_of_visit_from || ''}">
                     <div class="d-flex justify-content-between align-items-center">
                         <h5 class="critical-title mb-0">
                             <i class="fas fa-clock me-2"></i>Visitor Overstay Alert
@@ -1283,17 +1163,22 @@ function updateCriticalAlert(alertData) {
 
                         <div class="col-md-4 col-12 mb-3">
                             <p class="label mb-1">Location</p>
-                            <p class="value mb-0">${alertData.location}</p>
+                            <p class="value mb-0">${alertData.location || 'N/A'}</p>
                         </div>
 
                         <div class="col-md-4 col-12 mb-3">
                             <p class="label mb-1">Time</p>
+                            <p class="value mb-0">
+                                ${alertData.created_at || 'N/A'} 
+                                ${alertData.time_ago ? '(' + alertData.time_ago + ')' : ''}
+                                <br>
+                            </p>
                         </div>
                     </div>
 
                     <p class="description mt-2 mb-3">
-                        ${alertData.visitor_name} has exceeded their scheduled visit time by ${alertData.overstay_details.overstay_duration || 'unknown time'}.
-                        Expected end: ${alertData.overstay_details.expected_end_time || 'N/A'}
+                        ${alertData.visitor_name || 'Unknown'} has exceeded their scheduled visit time by ${alertData.overstay_details?.overstay_duration || 'unknown time'}.
+                        Expected end: ${alertData.overstay_details?.expected_end_time || 'N/A'}
                     </p>
 
                     <div>
@@ -1430,6 +1315,5 @@ window.addEventListener('resize', adjustCriticalAlertWidth);
 // Page load par bhi call karein
 document.addEventListener('DOMContentLoaded', adjustCriticalAlertWidth);
 </script>
-
 @endsection
 
