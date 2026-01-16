@@ -394,34 +394,34 @@ function renderVisitorDetails(response) {
     
     let content = `
         <div class="detail-section">
-            <h6 class="mb-3"><i class="fas fa-user me-2"></i>Visitor Information</h6>
+            <h6 class="detail-label mb-3" style="font-size: 20px !important;"><i class="fas fa-user me-2"></i>Visitor Information</h6>
             <div class="row">
                 <div class="col-md-6 detail-item">
-                    <div class="detail-label">Visitor Name</div>
+                    <div class="detail-label">VISITOR NAME</div>
                     <div class="detail-value">${upper(visitor.full_name || visitor.visitor_name)}</div>
                 </div>
                 <div class="col-md-6 detail-item">
-                    <div class="detail-label">Contact No</div>
+                    <div class="detail-label">CONTACT NO</div>
                     <div class="detail-value">${visitor.contact_no}</div>
                 </div>
                 <div class="col-md-6 detail-item">
-                    <div class="detail-label">Person Visited</div>
+                    <div class="detail-label">PERSON VISITED</div>
                     <div class="detail-value">${upper(visitor.person_visited)}</div>
                 </div>
                 <div class="col-md-6 detail-item">
-                    <div class="detail-label">IC No</div>
+                    <div class="detail-label">IC NO</div>
                     <div class="detail-value">${visitor.ic_no}</div>
                 </div>
                 <div class="col-md-6 detail-item">
-                    <div class="detail-label">Sex</div>
+                    <div class="detail-label">SEX</div>
                     <div class="detail-value">${upper(visitor.sex)}</div>
                 </div>
                 <div class="col-md-6 detail-item">
-                    <div class="detail-label">Visit From</div>
+                    <div class="detail-label">VISIT FROM</div>
                     <div class="detail-value">${visitor.date_of_visit_from}</div>
                 </div>
                 <div class="col-md-6 detail-item">
-                    <div class="detail-label">Visit To</div>
+                    <div class="detail-label">VISIT TO</div>
                     <div class="detail-value">${visitor.date_of_visit_to}</div>
                 </div>
     `;
@@ -440,7 +440,7 @@ function renderVisitorDetails(response) {
     if (visitor.company_name && visitor.company_name !== 'N/A') {
         content += `
                 <div class="col-md-6 detail-item">
-                    <div class="detail-label">Company</div>
+                    <div class="detail-label">COMPANY</div>
                     <div class="detail-value">${visitor.company_name}</div>
                 </div>
         `;
