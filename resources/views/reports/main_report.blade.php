@@ -718,6 +718,11 @@ function loadReport() {
 function handleDataTableResponse(json, fromDateTime, toDateTime, selectedLocations) {
     document.getElementById('loadingSpinner').classList.add('d-none');
     
+    // Debugging کے لیے response کو console میں دیکھیں
+    console.log('API Response:', json);
+    console.log('recordsTotal:', json.recordsTotal);
+    console.log('Number of rows in data:', json.data ? json.data.length : 0);
+    
     if (json && json.recordsTotal > 0) {
         document.getElementById('staffTableContainer').classList.remove('d-none');
         document.getElementById('totalStaffCount').textContent = json.recordsTotal;

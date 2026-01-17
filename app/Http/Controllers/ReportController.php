@@ -28,141 +28,181 @@ class ReportController extends Controller
         return view('reports.main_report', compact('locations', 'angularMenu'));
     }
 
-    public function getAccessLogsData(Request $request)
-    {
-        try {
-            $request->validate([
-                'from_date' => 'required|date_format:Y-m-d H:i',
-                'to_date'   => 'required|date_format:Y-m-d H:i',
-                'locations' => 'required|array'
-            ]);
+public function getAccessLogsData(Request $request)
+{
+    try {
+        $request->validate([
+            'from_date' => 'required|date_format:Y-m-d H:i',
+            'to_date'   => 'required|date_format:Y-m-d H:i',
+            'locations' => 'required|array'
+        ]);
 
-            // Convert datetime-local format to database format
-            $fromDateTime = Carbon::createFromFormat('Y-m-d H:i', $request->from_date)
-                ->format('Y-m-d H:i:s');
+        // Convert datetime-local format to database format
+        $fromDateTime = Carbon::createFromFormat('Y-m-d H:i', $request->from_date)
+            ->format('Y-m-d H:i:s');
 
-            $toDateTime = Carbon::createFromFormat('Y-m-d H:i', $request->to_date)
-                ->format('Y-m-d H:i:s');
-            
-            Log::info('Access Logs Report Filters:', [
-                'from_datetime' => $fromDateTime,
-                'to_datetime' => $toDateTime,
-                'locations' => $request->input('locations')
-            ]);
+        $toDateTime = Carbon::createFromFormat('Y-m-d H:i', $request->to_date)
+            ->format('Y-m-d H:i:s');
+        
+        Log::info('Access Logs Report Filters:', [
+            'from_datetime' => $fromDateTime,
+            'to_datetime' => $toDateTime,
+            'locations' => $request->input('locations')
+        ]);
 
-            $locations = $request->input('locations');
+        $locations = $request->input('locations');
 
-            // Get pagination parameters
-            $start = $request->input('start', 0);
-            $length = $request->input('length', 10);
-            $draw = $request->input('draw', 1);
-            $searchValue = $request->input('search.value', '');
-            $orderColumn = $request->input('order.0.column', 0);
-            $orderDirection = $request->input('order.0.dir', 'asc');
+        // Get pagination parameters
+        $start = $request->input('start', 0);
+        $length = $request->input('length', 10);
+        $draw = $request->input('draw', 1);
+        $searchValue = $request->input('search.value', '');
+        $orderColumn = $request->input('order.0.column', 0);
+        $orderDirection = $request->input('order.0.dir', 'asc');
 
-            $columns = [
-                0 => 'staff_no', 
-                1 => 'staff_no', 
-                2 => 'staff_no', 
-                3 => 'staff_no', 
-                4 => 'staff_no', 
-                5 => 'total_access', 
-                6 => 'first_access_original', 
-                7 => 'last_access_original'  
-            ];
+        $columns = [
+            0 => 'staff_no', 
+            1 => 'staff_no', 
+            2 => 'staff_no', 
+            3 => 'staff_no', 
+            4 => 'staff_no', 
+            5 => 'total_access', 
+            6 => 'first_access_original', 
+            7 => 'last_access_original'  
+        ];
 
-            // Get unique staff numbers with pagination
-            $query = DeviceAccessLog::whereBetween('created_at', [$fromDateTime, $toDateTime])
-                ->where(function($query) use ($locations) {
-                    foreach ($locations as $location) {
-                        $query->orWhere('location_name', 'like', '%' . $location . '%');
-                    }
-                })
-                ->select('staff_no')
-                ->selectRaw('COUNT(*) as total_access')
-                ->selectRaw('MIN(created_at) as first_access_original')
-                ->selectRaw('MAX(created_at) as last_access_original')
-                ->groupBy('staff_no');
-
-            // Apply search
-            if (!empty($searchValue)) {
-                $query->where('staff_no', 'like', '%' . $searchValue . '%');
-            }
-
-            // Get total count before pagination
-            $totalRecords = $query->count();
-
-            // Apply ordering
-            if (isset($columns[$orderColumn])) {
-                if ($columns[$orderColumn] === 'total_access' || 
-                    $columns[$orderColumn] === 'first_access_original' || 
-                    $columns[$orderColumn] === 'last_access_original') {
-                    $query->orderBy($columns[$orderColumn], $orderDirection);
-                } else {
-                    $query->orderBy('staff_no', $orderDirection);
+        // Step 1: First get total UNIQUE visitors count
+        $uniqueVisitorsQuery = DeviceAccessLog::whereBetween('created_at', [$fromDateTime, $toDateTime])
+            ->where(function($query) use ($locations) {
+                foreach ($locations as $location) {
+                    $query->orWhere('location_name', 'like', '%' . $location . '%');
                 }
-            } else {
-                $query->orderBy('staff_no', 'asc');
-            }
+            });
+        
+        // Apply search for count query too
+        if (!empty($searchValue)) {
+            $uniqueVisitorsQuery->where('staff_no', 'like', '%' . $searchValue . '%');
+        }
+        
+        // Get total UNIQUE visitors (distinct staff numbers)
+        $totalUniqueVisitors = $uniqueVisitorsQuery->distinct('staff_no')->count('staff_no');
+        
+        Log::info('Total unique visitors found:', ['count' => $totalUniqueVisitors]);
 
-            // Apply pagination
-            $staffList = $query->skip($start)->take($length)->get();
+        // Step 2: Main query for paginated data
+        $query = DeviceAccessLog::whereBetween('created_at', [$fromDateTime, $toDateTime])
+            ->where(function($query) use ($locations) {
+                foreach ($locations as $location) {
+                    $query->orWhere('location_name', 'like', '%' . $location . '%');
+                }
+            })
+            ->select('staff_no')
+            ->selectRaw('COUNT(*) as total_access')
+            ->selectRaw('MIN(created_at) as first_access_original')
+            ->selectRaw('MAX(created_at) as last_access_original')
+            ->groupBy('staff_no');
 
-            Log::info('Staff list found:', ['count' => $staffList->count()]);
-
-            // Get all logs for these staff numbers in the date range
-            $staffNos = $staffList->pluck('staff_no');
+        // Apply search
+        if (!empty($searchValue)) {
+            $query->where('staff_no', 'like', '%' . $searchValue . '%');
             
-            $accessLogs = DeviceAccessLog::whereBetween('created_at', [$fromDateTime, $toDateTime])
-                ->whereIn('staff_no', $staffNos)
+            // For filtered count (when searching)
+            $filteredUniqueVisitorsQuery = DeviceAccessLog::whereBetween('created_at', [$fromDateTime, $toDateTime])
                 ->where(function($query) use ($locations) {
                     foreach ($locations as $location) {
                         $query->orWhere('location_name', 'like', '%' . $location . '%');
                     }
                 })
-                ->orderBy('created_at', 'asc')
-                ->get()
-                ->groupBy('staff_no');
-
-            // Format the response for DataTables
-            $formattedData = [];
-            foreach ($staffList as $index => $staff) {
-                $staffLogs = $accessLogs[$staff->staff_no] ?? [];
-                
-                $formattedData[] = [
-                    'DT_RowIndex' => $start + $index + 1,
-                    'staff_no' => $staff->staff_no, 
-                    'full_name' => 'Loading...', 
-                    'contact_no' => 'Loading...',
-                    'ic_no' => $staff->staff_no,
-                    'person_visited' => 'Loading...', 
-                    'total_access' => $staff->total_access,
-                    'first_access' => $staff->first_access_original ? Carbon::parse($staff->first_access_original)->format('d/m/Y H:i') : 'N/A',
-                    'last_access' => $staff->last_access_original ? Carbon::parse($staff->last_access_original)->format('d/m/Y H:i') : 'N/A',
-                    'logs' => $staffLogs
-                ];
-            }
-
-            return response()->json([
-                'draw' => intval($draw),
-                'recordsTotal' => $totalRecords,
-                'recordsFiltered' => $totalRecords,
-                'data' => $formattedData,
-                'success' => true,
-                'from_datetime' => $fromDateTime,
-                'to_datetime' => $toDateTime
-            ]);
-
-        } catch (\Exception $e) {
-            Log::error('Access logs report error: ' . $e->getMessage());
-            Log::error('Stack trace: ' . $e->getTraceAsString());
+                ->where('staff_no', 'like', '%' . $searchValue . '%');
             
-            return response()->json([
-                'success' => false,
-                'message' => 'Error fetching report data: ' . $e->getMessage()
-            ], 500);
+            $filteredUniqueVisitors = $filteredUniqueVisitorsQuery->distinct('staff_no')->count('staff_no');
+        } else {
+            $filteredUniqueVisitors = $totalUniqueVisitors;
         }
+
+        // Apply ordering
+        if (isset($columns[$orderColumn])) {
+            if ($columns[$orderColumn] === 'total_access' || 
+                $columns[$orderColumn] === 'first_access_original' || 
+                $columns[$orderColumn] === 'last_access_original') {
+                $query->orderBy($columns[$orderColumn], $orderDirection);
+            } else {
+                $query->orderBy('staff_no', $orderDirection);
+            }
+        } else {
+            $query->orderBy('first_access_original', 'desc'); // Default: latest first access first
+        }
+
+        // Apply pagination
+        $staffList = $query->skip($start)->take($length)->get();
+
+        Log::info('Paginated staff list found:', [
+            'count' => $staffList->count(),
+            'page' => ($start/$length) + 1
+        ]);
+
+        // Get all logs for these staff numbers in the date range (for detailed info if needed)
+        $staffNos = $staffList->pluck('staff_no');
+        
+        $accessLogs = DeviceAccessLog::whereBetween('created_at', [$fromDateTime, $toDateTime])
+            ->whereIn('staff_no', $staffNos)
+            ->where(function($query) use ($locations) {
+                foreach ($locations as $location) {
+                    $query->orWhere('location_name', 'like', '%' . $location . '%');
+                }
+            })
+            ->orderBy('created_at', 'asc')
+            ->get()
+            ->groupBy('staff_no');
+
+        // Format the response for DataTables
+        $formattedData = [];
+        foreach ($staffList as $index => $staff) {
+            $staffLogs = $accessLogs[$staff->staff_no] ?? [];
+            
+            $formattedData[] = [
+                'DT_RowIndex' => $start + $index + 1,
+                'staff_no' => $staff->staff_no, 
+                'full_name' => 'Loading...', 
+                'contact_no' => 'Loading...',
+                'ic_no' => $staff->staff_no,
+                'person_visited' => 'Loading...', 
+                'total_access' => $staff->total_access,
+                'first_access' => $staff->first_access_original ? Carbon::parse($staff->first_access_original)->format('d/m/Y H:i') : 'N/A',
+                'last_access' => $staff->last_access_original ? Carbon::parse($staff->last_access_original)->format('d/m/Y H:i') : 'N/A',
+                'logs' => $staffLogs
+            ];
+        }
+
+        return response()->json([
+            'draw' => intval($draw),
+            'recordsTotal' => $totalUniqueVisitors, // Total unique visitors (without search)
+            'recordsFiltered' => $filteredUniqueVisitors, // Filtered unique visitors (with search)
+            'data' => $formattedData,
+            'success' => true,
+            'from_datetime' => $fromDateTime,
+            'to_datetime' => $toDateTime,
+            'summary' => [
+                'total_unique_visitors' => $totalUniqueVisitors,
+                'total_access_records' => DeviceAccessLog::whereBetween('created_at', [$fromDateTime, $toDateTime])
+                    ->where(function($query) use ($locations) {
+                        foreach ($locations as $location) {
+                            $query->orWhere('location_name', 'like', '%' . $location . '%');
+                        }
+                    })->count()
+            ]
+        ]);
+
+    } catch (\Exception $e) {
+        Log::error('Access logs report error: ' . $e->getMessage());
+        Log::error('Stack trace: ' . $e->getTraceAsString());
+        
+        return response()->json([
+            'success' => false,
+            'message' => 'Error fetching report data: ' . $e->getMessage()
+        ], 500);
     }
+}
 
 public function getStaffMovement($staffNo)
 {
@@ -172,7 +212,6 @@ public function getStaffMovement($staffNo)
             ->orderBy('created_at', 'asc')
             ->get()
             ->map(function ($log) {
-                // اصل boolean value رکھیں
                 $accessGranted = (bool) $log->access_granted;
                 
                 $reason = $accessGranted ? '--' : ($log->reason ?? 'N/A');
