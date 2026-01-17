@@ -369,6 +369,7 @@ function initializeDataTable() {
     dataTable = $('#staffTable').DataTable({
         "processing": true,
         "serverSide": true,
+        "order": [[6, 'desc']],  
         "ajax": {
             "url": '{{ route("reports.access-logs.data") }}',
             "type": "POST",

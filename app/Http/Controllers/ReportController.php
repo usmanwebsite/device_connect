@@ -60,16 +60,15 @@ class ReportController extends Controller
             $orderColumn = $request->input('order.0.column', 0);
             $orderDirection = $request->input('order.0.dir', 'asc');
 
-            // Column mapping for ordering - صرف ان columns کے لیے جو database میں موجود ہیں
             $columns = [
-                0 => 'staff_no', // No - staff_no سے order کریں
-                1 => 'staff_no', // Visitor Name - بھی staff_no سے order کریں (frontend میں update ہوگا)
-                2 => 'staff_no', // Contact No - بھی staff_no سے order کریں
-                3 => 'staff_no', // IC No - یہ staff_no ہی ہے
-                4 => 'staff_no', // Person Visited - بھی staff_no سے order کریں
-                5 => 'total_access', // Total Access - یہ موجود ہے
-                6 => 'first_access', // First Access - یہ موجود ہے
-                7 => 'last_access'  // Last Access - یہ موجود ہے
+                0 => 'staff_no', 
+                1 => 'staff_no', 
+                2 => 'staff_no', 
+                3 => 'staff_no', 
+                4 => 'staff_no', 
+                5 => 'total_access', 
+                6 => 'first_access_original', 
+                7 => 'last_access_original'  
             ];
 
             // Get unique staff numbers with pagination
@@ -81,8 +80,8 @@ class ReportController extends Controller
                 })
                 ->select('staff_no')
                 ->selectRaw('COUNT(*) as total_access')
-                ->selectRaw('MIN(created_at) as first_access')
-                ->selectRaw('MAX(created_at) as last_access')
+                ->selectRaw('MIN(created_at) as first_access_original')
+                ->selectRaw('MAX(created_at) as last_access_original')
                 ->groupBy('staff_no');
 
             // Apply search
@@ -96,11 +95,10 @@ class ReportController extends Controller
             // Apply ordering
             if (isset($columns[$orderColumn])) {
                 if ($columns[$orderColumn] === 'total_access' || 
-                    $columns[$orderColumn] === 'first_access' || 
-                    $columns[$orderColumn] === 'last_access') {
+                    $columns[$orderColumn] === 'first_access_original' || 
+                    $columns[$orderColumn] === 'last_access_original') {
                     $query->orderBy($columns[$orderColumn], $orderDirection);
                 } else {
-                    // باقی سب کے لیے staff_no سے order کریں
                     $query->orderBy('staff_no', $orderDirection);
                 }
             } else {
@@ -133,14 +131,14 @@ class ReportController extends Controller
                 
                 $formattedData[] = [
                     'DT_RowIndex' => $start + $index + 1,
-                    'staff_no' => $staff->staff_no, // یہ icNo ہے اور frontend میں استعمال ہوگا
-                    'full_name' => 'Loading...', // Java API سے آئے گا
-                    'contact_no' => 'Loading...', // Java API سے آئے گا
-                    'ic_no' => $staff->staff_no, // یہ staff_no ہی ہے (icNo)
-                    'person_visited' => 'Loading...', // Java API سے آئے گا
+                    'staff_no' => $staff->staff_no, 
+                    'full_name' => 'Loading...', 
+                    'contact_no' => 'Loading...',
+                    'ic_no' => $staff->staff_no,
+                    'person_visited' => 'Loading...', 
                     'total_access' => $staff->total_access,
-                    'first_access' => $staff->first_access ? Carbon::parse($staff->first_access)->format('d/m/Y H:i') : 'N/A',
-                    'last_access' => $staff->last_access ? Carbon::parse($staff->last_access)->format('d/m/Y H:i') : 'N/A',
+                    'first_access' => $staff->first_access_original ? Carbon::parse($staff->first_access_original)->format('d/m/Y H:i') : 'N/A',
+                    'last_access' => $staff->last_access_original ? Carbon::parse($staff->last_access_original)->format('d/m/Y H:i') : 'N/A',
                     'logs' => $staffLogs
                 ];
             }
