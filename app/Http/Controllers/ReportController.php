@@ -275,7 +275,7 @@ public function getStaffMovement($staffNo)
                 }
                 
                 return [
-                    'date_time' => Carbon::parse($log->created_at)->format('d M Y h:i A'),
+                    'date_time' => Carbon::parse($log->created_at)->format('d M Y h:i:s A'),
                     'location' => $log->location_name ?? 'Unknown',
                     'access_granted' => $log->access_granted, // اصل value (1 یا 0)
                     'reason' => $reason,

@@ -718,7 +718,6 @@ function loadReport() {
 function handleDataTableResponse(json, fromDateTime, toDateTime, selectedLocations) {
     document.getElementById('loadingSpinner').classList.add('d-none');
     
-    // Debugging کے لیے response کو console میں دیکھیں
     console.log('API Response:', json);
     console.log('recordsTotal:', json.recordsTotal);
     console.log('Number of rows in data:', json.data ? json.data.length : 0);
@@ -865,6 +864,24 @@ function displayMovementHistory(movementHistory) {
         
         if (displayType === 'check_in') displayType = 'Checkin';
         if (displayType === 'check_out') displayType = 'Checkout';
+
+                // ✅ Original date_time ko parse karke seconds add karein
+        const originalDateTime = movement.date_time || 'N/A';
+        let formattedDateTime = originalDateTime;
+        
+        // Agar format mein seconds nahi hain to add karein
+        if (originalDateTime !== 'N/A' && !originalDateTime.includes(':')) {
+            const date = new Date(originalDateTime);
+            formattedDateTime = date.toLocaleString('en-GB', {
+                day: '2-digit',
+                month: 'short',
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit',
+                hour12: true
+            });
+        }
 
         const row = document.createElement('tr');
         row.innerHTML = `
