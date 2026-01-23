@@ -1337,7 +1337,7 @@ public function getFilteredAngularMenu()
                     [
                         'id' => 6.45, 
                         'label' => "PATHWAY", 
-                        'link' => "/paths", 
+                        'link' => "/vms/paths", 
                         'isAuth' => 'MasterPath', 
                         'parentId' => 6.0,
                         'isLaravelRoute' => true
@@ -1345,7 +1345,7 @@ public function getFilteredAngularMenu()
                     [
                         'id' => 6.46, 
                         'label' => "VISITOR TYPE", 
-                        'link' => "/visitor-types",
+                        'link' => "/vms/visitor-types",
                         'isAuth' => 'MVT',
                         'parentId' => 6.0, 
                         'isLaravelRoute' => true
@@ -1353,7 +1353,7 @@ public function getFilteredAngularMenu()
                     [
                         'id' => 6.47, 
                         'label' => "DEVICE ASSIGNMENT", 
-                        'link' => "/device-assignments",
+                        'link' => "/vms/device-assignments",
                          'isAuth' => 'device-assign',
                         'parentId' => 6.0, 
                         'isLaravelRoute' => true
@@ -1361,7 +1361,7 @@ public function getFilteredAngularMenu()
                     [
                         'id' => 6.48, 
                         'label' => "ALERT PRIORITY", 
-                        'link' => "/security-alert-priority",
+                        'link' => "/vms/security-alert-priority",
                         'isAuth' => 'SecurityAlertPriority',
                         'parentId' => 6.0, 
                         'isLaravelRoute' => true
@@ -1380,7 +1380,7 @@ public function getFilteredAngularMenu()
                     [
                         'id' => 7.1,
                         'label' => "ACCESS REPORT",
-                        'link' => "/reports/access-logs", 
+                        'link' => "/vms/reports/access-logs", 
                         'isAuth' => 'mVRP',
                         'parentId' => 7.0,
                         'isLaravelRoute' => true 
@@ -1388,7 +1388,7 @@ public function getFilteredAngularMenu()
                     [
                         'id' => 7.2,
                         'label' => "VISITOR REPORT",
-                        'link' => "/visitor-report", 
+                        'link' => "/vms/visitor-report", 
                         'isAuth' => 'VR',
                         'parentId' => 7.0,
                         'isLaravelRoute' => true 
@@ -1396,7 +1396,7 @@ public function getFilteredAngularMenu()
                     [
                         'id' => 7.3,
                         'label' => "VISITOR CHRONOLOGY",
-                        'link' => "/visitor-details", 
+                        'link' => "/vms/visitor-details", 
                         'isAuth' => 'VisitorD&C',
                         'parentId' => 7.0,
                         'isLaravelRoute' => true 
@@ -1404,7 +1404,7 @@ public function getFilteredAngularMenu()
                     [
                         'id' => 7.4,
                         'label' => "VISITOR INFO BY DOOR",
-                        'link' => "/visitor-info-door", 
+                        'link' => "/vms/visitor-info-door", 
                         'isAuth' => 'VisitorInfoByDoor',
                         'parentId' => 7.0,
                         'isLaravelRoute' => true 
@@ -1458,7 +1458,7 @@ public function getFilteredAngularMenu()
                     [
                         'id' => 9.1,
                         'label' => "VISITOR DASHBAORD",
-                        'link' => "/", 
+                        'link' => "/vms", 
                         'isAuth' => 'VisitorDashboard',
                         'parentId' => 9.0,
                         'isLaravelRoute' => true 
@@ -1466,7 +1466,7 @@ public function getFilteredAngularMenu()
                     [
                         'id' => 9.1,
                         'label' => "SECURITY DASHBAORD",
-                        'link' => "/security-alerts", 
+                        'link' => "/vms/security-alerts", 
                         'isAuth' => 'SecurityDashboard',
                         'parentId' => 9.0,
                         'isLaravelRoute' => true 

@@ -63,6 +63,29 @@ return [
             ]) : [],
         ],
 
+        'mysql_second' => [
+            'driver' => 'mysql',
+            'url' => env('DB_SECOND_URL'),
+            'host' => env('DB_SECOND_HOST', '127.0.0.1'),
+            'port' => env('DB_SECOND_PORT', '3306'),
+            'database' => env('DB_SECOND_DATABASE', 'forge'),
+            'username' => env('DB_SECOND_USERNAME', 'forge'),
+            'password' => env('DB_SECOND_PASSWORD', ''),
+            'charset' => 'utf8mb4',
+            'collation' => 'utf8mb4_unicode_ci',
+            'prefix' => '',
+            'strict' => true,
+            'engine' => null,
+            
+            // Optional: SSL/TLS for remote connection
+            'options' => extension_loaded('pdo_mysql') ? array_filter([
+                PDO::MYSQL_ATTR_SSL_CA => env('DB_SECOND_SSL_CA'),
+                PDO::MYSQL_ATTR_SSL_CERT => env('DB_SECOND_SSL_CERT'),
+                PDO::MYSQL_ATTR_SSL_KEY => env('DB_SECOND_SSL_KEY'),
+                PDO::MYSQL_ATTR_SSL_VERIFY_SERVER_CERT => false, // For self-signed certs
+            ]) : [],
+        ],
+
         'pgsql' => [
             'driver' => 'pgsql',
             'url' => env('DATABASE_URL'),

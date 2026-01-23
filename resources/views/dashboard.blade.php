@@ -693,7 +693,7 @@ function initializeChart(labels, data) {
         data: {
             labels: labels,
             datasets: [{
-                label: 'Visitors',
+                label: 'Scans',
                 data: data,
                 backgroundColor: 'rgba(85, 110, 230, 0.5)',
                 borderColor: 'rgba(85, 110, 230, 1)',

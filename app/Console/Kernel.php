@@ -12,6 +12,11 @@ class Kernel extends ConsoleKernel
      */
     protected function schedule(Schedule $schedule): void
     {
+        $schedule->command('db:sync ')
+            ->dailyAt('21:00')  // 24-hour format: 21:00 = 9:00 PM
+            ->timezone('Asia/Karachi')
+            ->withoutOverlapping()
+            ->runInBackground();
         // $schedule->command('inspire')->hourly();
     }
 

@@ -7,7 +7,7 @@
     <div class="row mb-4 top-stats">
         <div class="col-md-3">
             <div class="stat-card shadow-sm">
-                <h6>Total Incidents</h6> {{-- Removed (24H) --}}
+                <h6>Total Incidents</h6> 
                 <h2>{{ $totalIncidents }}</h2>
                 <span class="green">+3%</span>
             </div>

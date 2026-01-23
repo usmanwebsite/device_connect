@@ -54,19 +54,42 @@ class SecurityAlertController extends Controller
     {
         try {
             $javaBaseUrl = env('JAVA_BACKEND_URL', 'http://localhost:8080');
+            $token = session()->get('java_backend_token') ?? session()->get('java_auth_token'); 
             
-            // Direct call without authentication headers
-            $response = Http::timeout(10)
-                  ->get($javaBaseUrl . '/api/vendorpass/get-visitor-details?icNo=' . $staffNo);
+            Log::info('=== SecurityAlertController Java API Call Debug ===');
+            Log::info('Staff No: ' . $staffNo);
+            Log::info('Java Base URL: ' . $javaBaseUrl);
+            Log::info('Token exists: ' . ($token ? 'Yes' : 'No'));
+            
+            if (!$token) {
+                Log::error('Java API Token missing in session!');
+                return null;
+            }
+            
+            $url = $javaBaseUrl . '/api/vendorpass/get-visitor-details?icNo=' . urlencode($staffNo);
+            Log::info('Full URL: ' . $url);
+            
+            $response = Http::withHeaders([
+                'x-auth-token' => $token,
+                'Accept' => 'application/json',
+            ])->timeout(10)
+            ->get($url);
 
+            Log::info('Response Status: ' . $response->status());
+            Log::info('Response Body: ' . $response->body());
+            
             if ($response->successful()) {
-                return $response->json();
+                $data = $response->json();
+                Log::info('API Response Data: ', $data);
+                return $data;
             } else {
-                Log::warning('Java API returned non-200 status for staff_no ' . $staffNo . ': ' . $response->status());
+                Log::error('Java API error: ' . $response->status());
+                Log::error('Error body: ' . $response->body());
                 return null;
             }
         } catch (\Exception $e) {
-            Log::error('Java API exception for staff_no ' . $staffNo . ': ' . $e->getMessage());
+            Log::error('Java API exception: ' . $e->getMessage());
+            Log::error('Stack trace: ' . $e->getTraceAsString());
             return null;
         }
     }
@@ -163,7 +186,7 @@ class SecurityAlertController extends Controller
         try {
             $unauthorizedLogs = DeviceAccessLog::where('access_granted', 0)
                 ->orderBy('created_at', 'desc')
-                ->take(50) 
+                // ->take(50) 
                 ->get()
                 ->groupBy('staff_no');
             
@@ -175,6 +198,7 @@ class SecurityAlertController extends Controller
                 }
                 
                 $javaApiResponse = $this->callJavaVendorApi($staffNo);
+                // dd($javaApiResponse);
                 $visitorData = $javaApiResponse['data'] ?? null;
                 
                 if (!$visitorData) {
