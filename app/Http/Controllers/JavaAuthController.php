@@ -21,6 +21,7 @@ class JavaAuthController extends Controller
 
     public function handleCallback(Request $request)
     {
+        // dd('heelo');
         Log::info('=== JavaAuthController Callback Start ===');
         Log::info('Callback payload', $request->all());
         Log::info('Session ID before:', ['session_id' => session()->getId()]);
@@ -68,7 +69,7 @@ class JavaAuthController extends Controller
         ]);
 
         // ✅ Direct URL use करें, route के through नहीं
-        return redirect('/dashboard');
+        return redirect('vms/dashboard');
     }
 
 

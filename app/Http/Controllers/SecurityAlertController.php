@@ -109,6 +109,12 @@ class SecurityAlertController extends Controller
         
         $angularMenu = $this->menuService->getFilteredAngularMenu();
         $totalIncidents = DB::table('device_access_logs')->where('access_granted', 0)->count();
+
+        $totalIncidents = ""; // Hide count
+
+        $unresolvedHighSeverity = ""; // Hide count
+
+        $activeSecurity = $this->getOverstayVisitorsCount();
         
         $unauthorizedAccess = DB::table('device_access_logs')
             ->where('access_granted', 0)
@@ -120,7 +126,7 @@ class SecurityAlertController extends Controller
             ->count();
         
         // Static data for Unresolved High-Severity
-        $unresolvedHighSeverity = 3;
+        $unresolvedHighSeverity = '';
 
         $alerts = [
             [
@@ -129,7 +135,6 @@ class SecurityAlertController extends Controller
                 "title" => "Forced Entry",
                 "severity" => "Critical",
                 "location" => "Gate 4",
-                "time" => "1 min ago"
             ],
             [
                 "id" => 2,
@@ -137,15 +142,13 @@ class SecurityAlertController extends Controller
                 "title" => "Unauthorized Access",
                 "severity" => "High",
                 "location" => "Building B",
-                "time" => "2 min ago"
             ],
             [
                 "id" => 3,
                 "code" => "INC-722",
-                "title" => "System Anomaly",
+                "title" => "Visitor Overstay",
                 "severity" => "Medium",
                 "location" => "Server Room",
-                "time" => "15 min ago"
             ]
         ];
 
@@ -165,10 +168,78 @@ class SecurityAlertController extends Controller
     }
 
 
+    private function getOverstayVisitorsCount()
+    {
+        try {
+            $allDeviceUsers = DeviceAccessLog::where('access_granted', 1)->get();
+            $overstayAlerts = $this->getUnacknowledgedOverstayAlerts($allDeviceUsers);
+            return count($overstayAlerts);
+        } catch (\Exception $e) {
+            Log::error('Error getting overstay count: ' . $e->getMessage());
+            return 0;
+        }
+    }
+
+    private function getUnacknowledgedOverstayAlerts($allDeviceUsers = null)
+    {
+        try {
+            if (!$allDeviceUsers) {
+                $allDeviceUsers = DeviceAccessLog::where('access_granted', 1)->get();
+            }
+            
+            $currentTime = now();
+            $overstayAlerts = [];
+            
+            foreach ($allDeviceUsers as $user) {
+                try {
+                    if (empty($user['location_name'])) {
+                        continue;
+                    }
+                    
+                    // Skip if already acknowledged
+                    if ($user->overstay_acknowledge == 1 || $user->overstay_acknowledge === true) {
+                        continue;
+                    }
+                    
+                    // Get API data
+                    $javaApiResponse = $this->callJavaVendorApi($user['staff_no']);
+                    
+                    if ($javaApiResponse && isset($javaApiResponse['data'])) {
+                        $visitorData = $javaApiResponse['data'];
+                        
+                        if (isset($visitorData['dateOfVisitTo'])) {
+                            $dateOfVisitTo = Carbon::parse($visitorData['dateOfVisitTo']);
+                            
+                            if ($currentTime->greaterThan($dateOfVisitTo)) {
+                                $overstayAlerts[] = $user;
+                            }
+                        }
+                    }
+                } catch (\Exception $e) {
+                    Log::error('Error checking overstay for staff_no ' . $user['staff_no'] . ': ' . $e->getMessage());
+                    continue;
+                }
+            }
+            
+            return $overstayAlerts;
+            
+        } catch (\Exception $e) {
+            Log::error('Error getting unacknowledged overstay alerts: ' . $e->getMessage());
+            return [];
+        }
+    }
+
+
     public function getDetails($id)
     {
+        if ($id == 1) {
+            return $this->getForcedEntryDetails();
+        }
         if ($id == 2) {
             return $this->getUnauthorizedAccessDetails();
+        }
+        if ($id == 3) {
+            return $this->getOverstayVisitorsDetails();
         }
         
         $details = [
@@ -246,6 +317,171 @@ class SecurityAlertController extends Controller
             
         } catch (\Exception $e) {
             Log::error('Error in getUnauthorizedAccessDetails: ' . $e->getMessage());
+            
+            return response()->json([
+                [
+                    'time' => 'Error',
+                    'event' => 'Failed to load data',
+                    'staff_no' => 'N/A',
+                    'full_name' => 'N/A',
+                    'ic_no' => 'N/A',
+                    'company_name' => 'N/A',
+                    'contact_no' => 'N/A',
+                    'person_visited' => 'N/A',
+                    'reason' => 'N/A',
+                    'location' => 'N/A'
+                ]
+            ]);
+        }
+    }
+
+    private function getForcedEntryDetails()
+    {
+        try {
+            $forcedEntryLogs = DeviceAccessLog::where('acknowledge', 1)
+                ->orderBy('created_at', 'desc')
+                ->get()
+                ->groupBy('staff_no');
+            
+            $details = [];
+            
+            foreach ($forcedEntryLogs as $staffNo => $logs) {
+                if (empty($staffNo)) {
+                    continue;
+                }
+                
+                $javaApiResponse = $this->callJavaVendorApi($staffNo);
+                $visitorData = $javaApiResponse['data'] ?? null;
+                
+                if (!$visitorData) {
+                    continue;
+                }
+                
+                $latestLog = $logs->first();
+                
+                $details[] = [
+                    'time' => $latestLog->created_at->format('Y-m-d h:i A'),
+                    'event' => 'Forced Entry Attempt',
+                    'staff_no' => $visitorData['staffNo'] ?? $staffNo,
+                    'full_name' => $visitorData['fullName'] ?? 'N/A',
+                    'ic_no' => $visitorData['icNo'] ?? 'N/A',
+                    'company_name' => $visitorData['companyName'] ?? 'N/A',
+                    'contact_no' => $visitorData['contactNo'] ?? 'N/A',
+                    'person_visited' => $visitorData['personVisited'] ?? 'N/A',
+                    'reason' => $visitorData['reason'] ?? 'N/A',
+                    'location' => $latestLog->location_name ?? 'N/A'
+                ];
+                
+                if (count($details) >= 15) {
+                    break;
+                }
+            }
+            
+            if (empty($details)) {
+                $details = [
+                    [
+                        'time' => 'N/A',
+                        'event' => 'No forced entry attempts found',
+                        'staff_no' => 'N/A',
+                        'full_name' => 'N/A',
+                        'ic_no' => 'N/A',
+                        'company_name' => 'N/A',
+                        'contact_no' => 'N/A',
+                        'person_visited' => 'N/A',
+                        'reason' => 'N/A',
+                        'location' => 'N/A'
+                    ]
+                ];
+            }
+            
+            return response()->json($details);
+            
+        } catch (\Exception $e) {
+            Log::error('Error in getForcedEntryDetails: ' . $e->getMessage());
+            
+            return response()->json([
+                [
+                    'time' => 'Error',
+                    'event' => 'Failed to load data',
+                    'staff_no' => 'N/A',
+                    'full_name' => 'N/A',
+                    'ic_no' => 'N/A',
+                    'company_name' => 'N/A',
+                    'contact_no' => 'N/A',
+                    'person_visited' => 'N/A',
+                    'reason' => 'N/A',
+                    'location' => 'N/A'
+                ]
+            ]);
+        }
+    }
+
+    private function getOverstayVisitorsDetails()
+    {
+        try {
+            $allDeviceUsers = DeviceAccessLog::where('access_granted', 1)->get();
+            $overstayAlerts = $this->getUnacknowledgedOverstayAlerts($allDeviceUsers);
+            
+            $details = [];
+            
+            foreach ($overstayAlerts as $alert) {
+                $javaApiResponse = $this->callJavaVendorApi($alert['staff_no']);
+                $visitorData = $javaApiResponse['data'] ?? null;
+                
+                if (!$visitorData) {
+                    continue;
+                }
+                
+                $currentTime = now();
+                $dateOfVisitTo = Carbon::parse($visitorData['dateOfVisitTo']);
+                
+                // Overstay duration calculate karein
+                $overstayMinutes = $currentTime->diffInMinutes($dateOfVisitTo);
+                $overstayHours = floor($overstayMinutes / 60);
+                $remainingMinutes = $overstayMinutes % 60;
+                
+                $details[] = [
+                    'time' => Carbon::parse($alert['created_at'])->format('Y-m-d h:i A'),
+                    'event' => 'Visitor Overstay',
+                    'staff_no' => $alert['staff_no'],
+                    'full_name' => $visitorData['fullName'] ?? 'N/A',
+                    'ic_no' => $visitorData['icNo'] ?? 'N/A',
+                    'company_name' => $visitorData['companyName'] ?? 'N/A',
+                    'contact_no' => $visitorData['contactNo'] ?? 'N/A',
+                    'person_visited' => $visitorData['personVisited'] ?? 'N/A',
+                    'reason' => 'Overstay: ' . $overstayHours . 'h ' . $remainingMinutes . 'm',
+                    'location' => $alert['location_name'] ?? 'N/A',
+                    'check_in_time' => Carbon::parse($alert['created_at'])->format('h:i A'),
+                    'expected_end_time' => $dateOfVisitTo->format('d M Y h:i A'),
+                    'overstay_duration' => $overstayHours . ' hours ' . $remainingMinutes . ' minutes'
+                ];
+                
+                if (count($details) >= 15) {
+                    break;
+                }
+            }
+            
+            if (empty($details)) {
+                $details = [
+                    [
+                        'time' => 'N/A',
+                        'event' => 'No overstay visitors found',
+                        'staff_no' => 'N/A',
+                        'full_name' => 'N/A',
+                        'ic_no' => 'N/A',
+                        'company_name' => 'N/A',
+                        'contact_no' => 'N/A',
+                        'person_visited' => 'N/A',
+                        'reason' => 'N/A',
+                        'location' => 'N/A'
+                    ]
+                ];
+            }
+            
+            return response()->json($details);
+            
+        } catch (\Exception $e) {
+            Log::error('Error in getOverstayVisitorsDetails: ' . $e->getMessage());
             
             return response()->json([
                 [

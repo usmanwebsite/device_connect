@@ -12,11 +12,11 @@ class VerifyCsrfToken extends Middleware
      * @var array<int, string>
      */
     protected $except = [
-        'java-auth/callback',
-        'visitor-info-door/get-visitors',
-        'visitor-info-door',
-        '/dashboard/get-critical-alert-details',
-        '/encrypt',
-        '/decrypt',
+        '/vms/java-auth/callback',
+        'vms/visitor-info-door/get-visitors',
+        '/vms/visitor-info-door',
+        '/vms/dashboard/get-critical-alert-details',
+        '/vms/encrypt',
+        '/vms/decrypt',
     ];
 }

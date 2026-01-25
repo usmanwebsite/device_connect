@@ -56,11 +56,11 @@ Route::post('/login', [LoginController::class, 'login'])->name('login');
 
 
 // 1) CALLBACK — NO JAVA AUTH MIDDLEWARE HERE!
-Route::get('/java-auth/callback',
+Route::get('/vms/java-auth/callback',
     [JavaAuthController::class, 'handleCallback']
 )->name('java-auth.callback');
 
-Route::get('/vms/dashboard', [DashboardController::class, 'index'])->name('dashboard');
+Route::get('vms/dashboard', [DashboardController::class, 'index'])->name('dashboard');
 
 
 

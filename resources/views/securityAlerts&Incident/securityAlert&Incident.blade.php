@@ -8,7 +8,7 @@
         <div class="col-md-3">
             <div class="stat-card shadow-sm">
                 <h6>Total Incidents</h6> 
-                <h2>{{ $totalIncidents }}</h2>
+                <h2>{{ $totalIncidents !== "" ? $totalIncidents : '--' }}</h2>
                 <span class="green">+3%</span>
             </div>
         </div>
@@ -16,7 +16,7 @@
         <div class="col-md-3">
             <div class="stat-card shadow-sm">
                 <h6>Unresolved High-Severity</h6>
-                <h2>3</h2> {{-- STATIC --}}
+                <h2>{{ $unresolvedHighSeverity !== "" ? $unresolvedHighSeverity : '--' }}</h2>
                 <span class="red">-1</span>
             </div>
         </div>
@@ -150,6 +150,84 @@
                         </div>
                     </div>
                 </div>
+
+
+
+                {{-- Forced Entry table (initially hidden) --}}
+                <div id="forcedEntryTableSection" style="display: none;">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h6 class="mb-0 text-danger">
+                            <i class="bx bx-shield-x"></i> Forced Entry Details (Acknowledged Logs)
+                        </h6>
+                        <button class="btn btn-sm btn-outline-danger" onclick="refreshForcedEntryData()">
+                            <i class="bx bx-refresh"></i> Refresh
+                        </button>
+                    </div>
+                    
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover table-bordered">
+                            <thead class="table-dark">
+                                <tr>
+                                    <th>Date & Time</th>
+                                    <th>Event</th>
+                                    <th>Staff No</th>
+                                    <th>Full Name</th>
+                                    <th>IC No</th>
+                                    <th>Company</th>
+                                    <th>Contact No</th>
+                                    <th>Person to Visit</th>
+                                    <th>Reason</th>
+                                    <th>Location</th>
+                                </tr>
+                            </thead>
+                            <tbody id="forcedEntryDetailsBody">
+                                <!-- Data will be loaded here -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                {{-- Overstay Visitors table (initially hidden) --}}
+                <div id="overstayTableSection" style="display: none;">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h6 class="mb-0 text-warning">
+                            <i class="bx bx-time"></i> Overstay Visitors Details
+                        </h6>
+                        <button class="btn btn-sm btn-outline-warning" onclick="refreshOverstayData()">
+                            <i class="bx bx-refresh"></i> Refresh
+                        </button>
+                    </div>
+                    
+                    <div class="alert alert-warning alert-sm mb-3">
+                        <i class="bx bx-info-circle"></i> Showing visitors who have overstayed their expected visit time
+                    </div>
+                    
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover table-bordered">
+                            <thead class="table-warning">
+                                <tr>
+                                    <th>Date & Time</th>
+                                    <th>Event</th>
+                                    <th>Staff No</th>
+                                    <th>Full Name</th>
+                                    <th>IC No</th>
+                                    <th>Company</th>
+                                    <th>Contact No</th>
+                                    <th>Person to Visit</th>
+                                    <th>Overstay Reason</th>
+                                    <th>Location</th>
+                                    <th>Check-in Time</th>
+                                    <th>Overstay Duration</th>
+                                </tr>
+                            </thead>
+                            <tbody id="overstayDetailsBody">
+                                <!-- Data will be loaded here -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+
             </div>
         </div>
     </div>
@@ -211,13 +289,19 @@ let unauthorizedData = [];
 function loadDetails(id) {
     currentIncidentId = id;
     
-    if (id == 2) { // Unauthorized Access incident
+    if (id == 1) { // Forced Entry incident
+        showForcedEntrySection();
+        loadForcedEntryData();
+    } else if (id == 2) { // Unauthorized Access incident
         showUnauthorizedSection();
         loadUnauthorizedData();
+    } else if (id == 3) { // System Anomaly (now Overstay Visitors)
+        showOverstaySection();
+        loadOverstayData();
     } else {
         showRegularSection();
         
-        fetch("/security-alerts/details/" + id)
+        fetch("/vms/security-alerts/details/" + id)
             .then(res => res.json())
             .then(data => {
                 let tbody = "";
@@ -244,11 +328,30 @@ function loadDetails(id) {
     }
 }
 
-/* Show/Hide Sections */
+function showForcedEntrySection() {
+    document.getElementById('regularDetailsTable').style.display = 'none';
+    document.getElementById('unauthorizedTableSection').style.display = 'none';
+    document.getElementById('overstayTableSection').style.display = 'block';
+}
+
+function showOverstaySection() {
+    document.getElementById('regularDetailsTable').style.display = 'none';
+    document.getElementById('unauthorizedTableSection').style.display = 'none';
+    document.getElementById('overstayTableSection').style.display = 'block';
+}
+
 function showUnauthorizedSection() {
     document.getElementById('regularDetailsTable').style.display = 'none';
     document.getElementById('unauthorizedTableSection').style.display = 'block';
+    document.getElementById('overstayTableSection').style.display = 'none';
 }
+
+function showRegularSection() {
+    document.getElementById('regularDetailsTable').style.display = 'table';
+    document.getElementById('unauthorizedTableSection').style.display = 'none';
+    document.getElementById('overstayTableSection').style.display = 'none';
+}
+
 
 function showRegularSection() {
     document.getElementById('regularDetailsTable').style.display = 'table';
@@ -269,7 +372,7 @@ function loadUnauthorizedData() {
         </tr>
     `;
     
-    fetch('/security-alerts/details/2') // ID 2 is for unauthorized access
+    fetch('/vms/security-alerts/details/2') // ID 2 is for unauthorized access
         .then(response => {
             if (!response.ok) {
                 throw new Error('Network response was not ok');
@@ -327,6 +430,118 @@ function loadUnauthorizedData() {
             `;
             document.getElementById('totalRecords').textContent = '0';
             showToast('Error loading unauthorized access data', 'error');
+        });
+}
+
+function loadForcedEntryData() {
+    const tbody = document.getElementById('forcedEntryDetailsBody');
+    tbody.innerHTML = `
+        <tr>
+            <td colspan="10" class="text-center">
+                <div class="spinner-border spinner-border-sm text-danger" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                Loading forced entry data...
+            </td>
+        </tr>
+    `;
+    
+    fetch('/vms/security-alerts/details/1') // ID 1 is for forced entry
+        .then(response => response.json())
+        .then(data => {
+            let html = '';
+            if (data && Array.isArray(data)) {
+                data.forEach(item => {
+                    html += `
+                        <tr>
+                            <td><small class="text-muted">${item.time || 'N/A'}</small></td>
+                            <td><span class="badge bg-danger">${item.event || 'Forced Entry'}</span></td>
+                            <td><strong>${item.staff_no || 'N/A'}</strong></td>
+                            <td>${item.full_name || 'Unknown'}</td>
+                            <td><small>${item.ic_no || 'N/A'}</small></td>
+                            <td>${item.company_name || 'N/A'}</td>
+                            <td><small>${item.contact_no || 'N/A'}</small></td>
+                            <td>${item.person_visited || 'N/A'}</td>
+                            <td><small class="text-muted">${item.reason || 'N/A'}</small></td>
+                            <td><small>${item.location || 'Unknown'}</small></td>
+                        </tr>
+                    `;
+                });
+            }
+            tbody.innerHTML = html || `
+                <tr>
+                    <td colspan="10" class="text-center text-muted">
+                        No forced entry data found
+                    </td>
+                </tr>
+            `;
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="10" class="text-center text-danger">
+                        Error loading data
+                    </td>
+                </tr>
+            `;
+        });
+}
+
+function loadOverstayData() {
+    const tbody = document.getElementById('overstayDetailsBody');
+    tbody.innerHTML = `
+        <tr>
+            <td colspan="12" class="text-center">
+                <div class="spinner-border spinner-border-sm text-warning" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                Loading overstay visitors data...
+            </td>
+        </tr>
+    `;
+    
+    fetch('/vms/security-alerts/details/3') // ID 3 is for overstay
+        .then(response => response.json())
+        .then(data => {
+            let html = '';
+            if (data && Array.isArray(data)) {
+                data.forEach(item => {
+                    html += `
+                        <tr>
+                            <td><small class="text-muted">${item.time || 'N/A'}</small></td>
+                            <td><span class="badge bg-warning">${item.event || 'Overstay'}</span></td>
+                            <td><strong>${item.staff_no || 'N/A'}</strong></td>
+                            <td>${item.full_name || 'Unknown'}</td>
+                            <td><small>${item.ic_no || 'N/A'}</small></td>
+                            <td>${item.company_name || 'N/A'}</td>
+                            <td><small>${item.contact_no || 'N/A'}</small></td>
+                            <td>${item.person_visited || 'N/A'}</td>
+                            <td><small class="text-muted">${item.reason || 'N/A'}</small></td>
+                            <td><small>${item.location || 'Unknown'}</small></td>
+                            <td><small>${item.check_in_time || 'N/A'}</small></td>
+                            <td><small class="text-danger">${item.overstay_duration || 'N/A'}</small></td>
+                        </tr>
+                    `;
+                });
+            }
+            tbody.innerHTML = html || `
+                <tr>
+                    <td colspan="12" class="text-center text-muted">
+                        No overstay visitors found
+                    </td>
+                </tr>
+            `;
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="12" class="text-center text-danger">
+                        Error loading data
+                    </td>
+                </tr>
+            `;
         });
 }
 

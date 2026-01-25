@@ -2,7 +2,7 @@
 
 return [
 
-    'paths' => ['api/*','java-auth/*', 'dashboard', 'sanctum/csrf-cookie'],
+    'paths' => ['api/*','/vms/java-auth/*', '/vms/dashboard', 'sanctum/csrf-cookie'],
 
     'allowed_methods' => ['*'],
 

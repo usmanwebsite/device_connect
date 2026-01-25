@@ -1458,7 +1458,7 @@ public function getFilteredAngularMenu()
                     [
                         'id' => 9.1,
                         'label' => "VISITOR DASHBAORD",
-                        'link' => "/vms", 
+                        'link' => "/vms/dashboard", 
                         'isAuth' => 'VisitorDashboard',
                         'parentId' => 9.0,
                         'isLaravelRoute' => true 

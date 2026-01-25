@@ -182,6 +182,7 @@ public function index(Request $request)
 {
     try {
         Log::info('=== Dashboard Accessed ===');
+        // dd('hello');
 
         $token = session()->get('java_backend_token') ?? session()->get('java_auth_token');
         
