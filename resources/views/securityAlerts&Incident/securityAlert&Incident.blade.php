@@ -9,7 +9,7 @@
             <div class="stat-card shadow-sm">
                 <h6>Total Incidents</h6> 
                 <h2>{{ $totalIncidents !== "" ? $totalIncidents : '--' }}</h2>
-                <span class="green">+3%</span>
+                {{-- <span class="green">+3%</span> --}}
             </div>
         </div>
 
@@ -17,7 +17,7 @@
             <div class="stat-card shadow-sm">
                 <h6>Unresolved High-Severity</h6>
                 <h2>{{ $unresolvedHighSeverity !== "" ? $unresolvedHighSeverity : '--' }}</h2>
-                <span class="red">-1</span>
+                {{-- <span class="red">-1</span> --}}
             </div>
         </div>
 
@@ -25,7 +25,7 @@
             <div class="stat-card shadow-sm">
                 <h6>Unauthorized Access</h6>
                 <h2>{{ $unauthorizedAccess }}</h2>
-                <span class="green">+2%</span>
+                {{-- <span class="green">+2%</span> --}}
             </div>
         </div>
 
@@ -33,7 +33,7 @@
             <div class="stat-card shadow-sm">
                 <h6>Active Unauthorized Access</h6>
                 <h2>{{ $activeSecurity }}</h2>
-                <span class="gray">0%</span>
+                {{-- <span class="gray">0%</span> --}}
             </div>
         </div>
     </div>

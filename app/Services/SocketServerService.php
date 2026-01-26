@@ -136,6 +136,10 @@ private function handleOpenDoorRequest($sock, $data, $ip)
 
     echo "[" . date('H:i:s') . "] 🔍 Encrypted Card ID: $encryptedCardId, DeviceID: $deviceId\n";
 
+    $locationInfo = $this->getDeviceLocationInfo($deviceId);
+    $locationName = $locationInfo['location_name'] ?? 'Unknown Location';
+    $isType = $locationInfo['is_type'] ?? null;
+
     if (empty($encryptedCardId) || empty($deviceId)) {
         echo "[" . date('H:i:s') . "] ❌ Missing SCode or DeviceID\n";
         $this->sendAlarm($sock, $deviceId, $encryptedCardId);
@@ -179,6 +183,7 @@ private function handleOpenDoorRequest($sock, $data, $ip)
     
     echo "[" . date('H:i:s') . "] 👤 IC No: $icNo, Staff No: $staffNo, Visitor Type ID: $visitorTypeId\n";
 
+
     // ✅ NEW STEP: Check visit date/time validity
 $dateOfVisitFrom = $visitorData['dateOfVisitFrom'] ?? null;
 $dateOfVisitTo   = $visitorData['dateOfVisitTo'] ?? null;
@@ -194,7 +199,7 @@ if (empty($dateOfVisitFrom) || empty($dateOfVisitTo)) {
         $decryptedCardId,
         $reason,
         $icNo,
-        'N/A'
+        $locationName
     );
     return; // ⛔ STOP FLOW HERE
 }
@@ -218,7 +223,7 @@ try {
             $decryptedCardId,
             $reason,
             $icNo,
-            'N/A'
+            $locationName
         );
         return; // ⛔ STOP FLOW HERE
     }
@@ -236,7 +241,7 @@ try {
         $decryptedCardId,
         $reason,
         $icNo,
-        'N/A'
+        $locationName
     );
     return; // ⛔ STOP FLOW HERE
 }
@@ -735,21 +740,33 @@ private function getIsTypeFromDeviceAssignment($deviceId)
 private function sendAlarm($sock, $deviceId, $cardId = null, $reason = null, $icNo = null, $locationName = null)
 {
     echo "[" . date('H:i:s') . "] 🚨 Triggering alarm for device $deviceId - Reason: $reason\n";
-    echo "[" . date('H:i:s') . "] 💳 Card ID: $cardId, IC No: $icNo\n";
+    echo "[" . date('H:i:s') . "] 💳 Card ID: $cardId, IC No: $icNo, Location: " . ($locationName ?? 'NOT PROVIDED') . "\n";
+    
+    // ✅ Step 1: Pehle location fetch karein agar provided nahi hai
+    if (!$locationName) {
+        $locationInfo = $this->getDeviceLocationInfo($deviceId);
+        $locationName = $locationInfo['location_name'] ?? 'Unknown Location';
+        echo "[" . date('H:i:s') . "] 📍 Location fetched from device: $locationName\n";
+    }
+    
+    // ✅ Step 2: Ensure location is never empty
+    $locationName = $locationName ?: 'Unknown Location';
     
     // Trigger device alarm
     $this->triggerDeviceAlarm($sock, $deviceId);
 
-    // ✅ Log denied access with card_id and ic_no
+    // ✅ Log denied access with ALL required fields
     DB::table('device_access_logs')->insert([
         'device_id' => $deviceId,
         'card_no' => $cardId,      // ✅ Decrypted Card ID (or null)
-        'staff_no' => $icNo,          // ✅ IC No (or null)
-        'location_name' => $locationName,
+        'staff_no' => $icNo,       // ✅ IC No (or null)
+        'location_name' => $locationName, // ✅ ALWAYS include location
         'access_granted' => 0,
         'reason' => $reason,
         'created_at' => now(),
     ]);
+    
+    echo "[" . date('H:i:s') . "] 💾 Denied access logged - Location: $locationName\n";
 }
 
     private function sendOpenDoorCommand($sock, $deviceId)

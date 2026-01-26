@@ -394,78 +394,82 @@ function renderVisitorDetails(response) {
     
     let content = `
         <div class="detail-section">
-            <h6 class="detail-label mb-3" style="font-size: 20px !important;"><i class="fas fa-user me-2"></i>Visitor Information</h6>
+            <h6 class="detail-label mb-3" style="font-size: 20px !important;">
+                <i class="fas fa-user me-2"></i>Visitor Information
+            </h6>
             <div class="row">
+
                 <div class="col-md-6 detail-item">
                     <div class="detail-label">VISITOR NAME</div>
                     <div class="detail-value">${upper(visitor.full_name || visitor.visitor_name)}</div>
                 </div>
+
                 <div class="col-md-6 detail-item">
                     <div class="detail-label">CONTACT NO</div>
                     <div class="detail-value">${visitor.contact_no}</div>
                 </div>
+
                 <div class="col-md-6 detail-item">
                     <div class="detail-label">PERSON VISITED</div>
                     <div class="detail-value">${upper(visitor.person_visited)}</div>
                 </div>
+
                 <div class="col-md-6 detail-item">
                     <div class="detail-label">IC NO</div>
                     <div class="detail-value">${visitor.ic_no}</div>
                 </div>
+
+                <!-- COMPANY moved to SEX position -->
+                <div class="col-md-6 detail-item">
+                    <div class="detail-label">COMPANY</div>
+                    <div class="detail-value">${upper(visitor.company_name)}</div>
+                </div>
+
+                <!-- SEX moved to COMPANY position -->
                 <div class="col-md-6 detail-item">
                     <div class="detail-label">SEX</div>
                     <div class="detail-value">${upper(visitor.sex)}</div>
                 </div>
+
                 <div class="col-md-6 detail-item">
-                    <div class="detail-label">VISIT FROM</div>
-                    <div class="detail-value">${visitor.date_of_visit_from}</div>
+                <div class="detail-label">VISIT FROM</div>
+                <div class="detail-value">${visitor.date_of_visit_from}</div>
                 </div>
+
                 <div class="col-md-6 detail-item">
-                    <div class="detail-label">VISIT TO</div>
-                    <div class="detail-value">${visitor.date_of_visit_to}</div>
+                <div class="detail-label">VISIT TO</div>
+                <div class="detail-value">${visitor.date_of_visit_to}</div>
                 </div>
+
     `;
-    
-    // Conditionally add email if exists
+
     if (visitor.email && visitor.email !== 'N/A') {
         content += `
                 <div class="col-md-6 detail-item">
-                    <div class="detail-label">Email</div>
+                    <div class="detail-label">EMAIL</div>
                     <div class="detail-value">${visitor.email}</div>
                 </div>
         `;
     }
-    
-    // Conditionally add company name if exists
-    if (visitor.company_name && visitor.company_name !== 'N/A') {
-        content += `
-                <div class="col-md-6 detail-item">
-                    <div class="detail-label">COMPANY</div>
-                    <div class="detail-value">${visitor.company_name}</div>
-                </div>
-        `;
-    }
-    
-    // Conditionally add purpose of visit if exists
+
     if (visitor.purpose_of_visit && visitor.purpose_of_visit !== 'N/A') {
         content += `
                 <div class="col-md-12 detail-item">
-                    <div class="detail-label">Purpose of Visit</div>
+                    <div class="detail-label">PURPOSE OF VISIT</div>
                     <div class="detail-value">${visitor.purpose_of_visit}</div>
                 </div>
         `;
     }
-    
-    // Check-in time add karein agar available ho
+
     if (visitor.check_in_time && visitor.check_in_time !== 'N/A') {
         content += `
                 <div class="col-md-6 detail-item">
-                    <div class="detail-label">Check-in Time</div>
+                    <div class="detail-label">CHECK-IN TIME</div>
                     <div class="detail-value">${visitor.check_in_time}</div>
                 </div>
         `;
     }
-    
+
     content += `
             </div>
         </div>
@@ -473,6 +477,7 @@ function renderVisitorDetails(response) {
 
     $('#visitorDetailsContent').html(content);
 }
+
 
         // Auto-refresh data every 30 seconds if data is loaded
         let refreshInterval;

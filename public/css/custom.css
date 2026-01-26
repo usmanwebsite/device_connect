@@ -1782,7 +1782,12 @@ table.dataTable thead .sorting_desc_disabled {
     background-image: none !important;
 }
 
-
+.select2-container{
+    border: 1px solid #ced4da !important;
+    border-radius: 6px !important;
+    padding: 6px 12px !important;
+    transition: all 0.3s ease !important;
+}
 
 .sortable-list {
     min-height: 100px;
