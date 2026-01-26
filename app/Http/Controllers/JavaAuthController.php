@@ -79,13 +79,18 @@ class JavaAuthController extends Controller
         Auth::logout();
         Session::invalidate();
         Session::regenerateToken();
+        
+            // 2. Dynamic domain (local + live compatible)
+        $domain = $request->getHost();
+        $javaLogoutUrl = 'http://' . $domain . ':8080/#/pages/login';
 
-        $response = redirect()->away('http://localhost:8080/#/pages/login');
+        $response = redirect()->away($javaLogoutUrl);
 
+    // 4. Clear all cookies (important for live)
         foreach ($request->cookies->all() as $name => $value) {
-            $response->withCookie(
-                Cookie::forget($name, '/', config('session.domain'))
-            );
+        $response->withCookie(
+            Cookie::forget($name, '/', config('session.domain'))
+        );
         }
 
         return $response;

@@ -102,15 +102,14 @@
             <h5 class="mb-3"><i class="fas fa-bell me-2"></i>Recent Alerts</h5>
             
             <div class="row g-3 mx-0"> {{-- ✅ mx-0 add karein --}}
-                {{-- Access Denied Card --}}
-                <div class="col-12 col-md-6 px-2"> {{-- ✅ px-2 for proper spacing --}}
+                <div class="col-12 col-md-6 px-2">
                     <div class="stat-card clickable-card alert-card" onclick="showAccessDeniedModal()">
                         <div class="d-flex justify-content-between align-items-center mb-2">
-                            <h2 class="text-danger">{{ $deniedAccessCount ?? 0 }}</h2>
+                            <h2 class="text-danger" id="deniedAccessCount24h">{{ $deniedAccessCount24h ?? 0 }}</h2>
                             <span class="badge bg-danger">Access Denied</span>
                         </div>
                         <p class="mb-1 fw-medium">Access Denied Incidents</p>
-                        <small class="text-muted">Last 24 hours</small>
+                        <small class="text-muted">Last 24 hours only</small>
                     </div>
                 </div>
 
@@ -686,31 +685,57 @@ document.addEventListener('DOMContentLoaded', function() {
     }, 30000);
 });
 
-// Function to refresh table data
-function refreshOnSiteTable() {
-    fetch('/dashboard/refresh-on-site', {
-        method: 'GET',
-        headers: {
-            'X-CSRF-TOKEN': '{{ csrf_token() }}',
-            'X-Requested-With': 'XMLHttpRequest'
-        }
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            updateTableData(data.visitors);
-            
-            // Update count in card
-            const visitorsCard = document.querySelector('.stat-card.clickable-card:nth-child(1) h2');
-            if (visitorsCard) {
-                visitorsCard.textContent = data.count || 0;
+    // Function to refresh table data
+    function refreshOnSiteTable() {
+        fetch('/dashboard/refresh-on-site', {
+            method: 'GET',
+            headers: {
+                'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                'X-Requested-With': 'XMLHttpRequest'
             }
-        }
-    })
-    .catch(error => {
-        console.error('Error refreshing on-site data:', error);
-    });
-}
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                updateTableData(data.visitors);
+                
+                // Update count in card
+                const visitorsCard = document.querySelector('.stat-card.clickable-card:nth-child(1) h2');
+                if (visitorsCard) {
+                    visitorsCard.textContent = data.count || 0;
+                }
+                
+                // ✅ ADD: Also refresh denied access count separately
+                refreshDeniedAccessCount();
+            }
+        })
+        .catch(error => {
+            console.error('Error refreshing on-site data:', error);
+        });
+    }
+
+    // ✅ NEW: Separate function to refresh denied access count
+    function refreshDeniedAccessCount() {
+        fetch('/dashboard/refresh-denied-access-count', {
+            method: 'GET',
+            headers: {
+                'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                const deniedAccessCard = document.getElementById('deniedAccessCount24h');
+                if (deniedAccessCard) {
+                    deniedAccessCard.textContent = data.deniedAccessCount24h || 0;
+                }
+            }
+        })
+        .catch(error => {
+            console.error('Error refreshing denied access count:', error);
+        });
+    }
 
 // Function to update table data
 function updateTableData(visitors) {
@@ -957,29 +982,23 @@ function acknowledgeAlert() {
     
     const alertId = alertBox.dataset.alertId;
     const alertType = alertBox.dataset.alertType || 'access_denied';
-    const staffNo = alertBox.dataset.staffNo || '';
-    const cardNo = alertBox.dataset.cardNo || '';
-    const location = alertBox.dataset.location || '';
-    const originalLocation = alertBox.dataset.originalLocation || location; // ✅ Get original_location
-    const dateOfVisitFrom = alertBox.dataset.dateOfVisitFrom || '';
+    
+    console.log('Sending acknowledgment for:', { alertId, alertType });
     
     // Prepare request data
     const requestData = {
         alert_id: alertId,
         alert_type: alertType,
-        staff_no: staffNo,
-        card_no: cardNo,
-        location: location,
-        original_location: originalLocation // ✅ Add original_location
+        staff_no: alertBox.dataset.staffNo || '',
+        card_no: alertBox.dataset.cardNo || '',
+        location: alertBox.dataset.location || '',
+        original_location: alertBox.dataset.originalLocation || alertBox.dataset.location || ''
     };
     
-    // Add date_of_visit_from for overstay alerts
     if (alertType === 'visitor_overstay') {
-        requestData.date_of_visit_from = dateOfVisitFrom;
-        requestData.location = originalLocation; // ✅ For overstay, use original_location for matching
+        requestData.date_of_visit_from = alertBox.dataset.dateOfVisitFrom || '';
+        requestData.location = alertBox.dataset.originalLocation || alertBox.dataset.location || '';
     }
-    
-    console.log('Sending acknowledgment data:', requestData);
     
     // Show loading state
     const acknowledgeBtn = alertBox.querySelector('.btn-outline-light');
@@ -987,8 +1006,8 @@ function acknowledgeAlert() {
     acknowledgeBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Acknowledging...';
     acknowledgeBtn.disabled = true;
     
-    // AJAX call to acknowledge alert
-    fetch('/dashboard/acknowledge-alert', {
+    // AJAX call
+    fetch('/vms/dashboard/acknowledge-alert', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
@@ -1000,8 +1019,40 @@ function acknowledgeAlert() {
     .then(response => response.json())
     .then(data => {
         if (data.success) {
+            // ✅ UPDATE BOTH COUNTS IMMEDIATELY
+            if (alertType === 'access_denied') {
+                // Update Active Security Alerts (OVERALL)
+                const activeAlertsCard = document.getElementById('activeSecurityAlertsCount');
+                if (activeAlertsCard) {
+                    let currentCount = parseInt(activeAlertsCard.textContent);
+                    if (currentCount > 0) {
+                        activeAlertsCard.textContent = currentCount - 1;
+                    }
+                }
+                
+                // Update Denied Access (24 HOURS)
+                const deniedAccessCard = document.getElementById('deniedAccessCount24h');
+                if (deniedAccessCard) {
+                    let currentCount = parseInt(deniedAccessCard.textContent);
+                    if (currentCount > 0) {
+                        deniedAccessCard.textContent = currentCount - 1;
+                    }
+                }
+            } else if (alertType === 'visitor_overstay') {
+                // Update Visitor Overstay
+                const overstayCard = document.getElementById('visitorOverstayCount');
+                if (overstayCard) {
+                    let currentCount = parseInt(overstayCard.textContent);
+                    if (currentCount > 0) {
+                        overstayCard.textContent = currentCount - 1;
+                    }
+                }
+            }
+            
+            // Handle next alert or show success
             if (data.has_next && data.next_alert) {
                 updateCriticalAlert(data.next_alert);
+                // Also refresh counts via AJAX for consistency
                 refreshDashboardCounts();
             } else {
                 document.getElementById('criticalAlertSection').innerHTML = `
@@ -1013,7 +1064,6 @@ function acknowledgeAlert() {
                     </div>
                 `;
             }
-            updateDashboardCountsImmediately(alertType);
         } else {
             alert('Error: ' + data.message);
             acknowledgeBtn.innerHTML = originalText;
@@ -1099,7 +1149,7 @@ function closeCriticalAlert() {
     updateAllDashboardCountsImmediately();
     
     // AJAX call to mark alert as acknowledged
-    fetch('/dashboard/hide-critical-alert', {
+    fetch('/vms/dashboard/hide-critical-alert', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
@@ -1292,39 +1342,53 @@ function updateCriticalAlert(alertData) {
 }
 
 function refreshDashboardCounts() {
-    fetch('/dashboard/refresh-counts', {
+    console.log('Refreshing dashboard counts...');
+    
+    fetch('/vms/dashboard/refresh-counts', {
         method: 'GET',
         headers: {
             'X-CSRF-TOKEN': '{{ csrf_token() }}',
-            'X-Requested-With': 'XMLHttpRequest'
+            'X-Requested-With': 'XMLHttpRequest',
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache',
+            'Expires': '0'
         }
     })
-    .then(response => response.json())
+    .then(response => {
+        if (!response.ok) {
+            throw new Error(`HTTP error! Status: ${response.status}`);
+        }
+        return response.json();
+    })
     .then(data => {
+        console.log('Dashboard counts refreshed:', data);
+        
         if (data.success) {
-            // Update Active Security Alerts count
+            // Update Active Security Alerts card (OVERALL COUNT - NO TIME LIMIT)
             if (data.activeSecurityAlertsCount !== undefined) {
-                const activeAlertsCard = document.querySelectorAll('.stat-card')[3]?.querySelector('h2');
+                const activeAlertsCard = document.getElementById('activeSecurityAlertsCount');
                 if (activeAlertsCard) {
                     activeAlertsCard.textContent = data.activeSecurityAlertsCount;
                 }
             }
             
-            // Update Denied Access count
-            if (data.deniedAccessCount !== undefined) {
-                const deniedAccessCard = document.querySelector('.alert-card:nth-child(1) h2');
+            // Update Denied Access card (24 HOURS ONLY)
+            if (data.deniedAccessCount24h !== undefined) {
+                const deniedAccessCard = document.getElementById('deniedAccessCount24h');
                 if (deniedAccessCard) {
-                    deniedAccessCard.textContent = data.deniedAccessCount;
+                    deniedAccessCard.textContent = data.deniedAccessCount24h;
                 }
             }
             
-            // Update Visitor Overstay count
+            // Update Visitor Overstay card
             if (data.visitorOverstayCount !== undefined) {
-                const overstayCard = document.querySelector('.alert-card:nth-child(2) h2');
+                const overstayCard = document.getElementById('visitorOverstayCount');
                 if (overstayCard) {
                     overstayCard.textContent = data.visitorOverstayCount;
                 }
             }
+        } else {
+            console.error('Error refreshing counts:', data.message);
         }
     })
     .catch(error => {

@@ -56,6 +56,7 @@ Route::post('/login', [LoginController::class, 'login'])->name('login');
 
 Route::post('/dashboard/get-visitor-details', [DashboardController::class, 'getVisitorDetails']);
 Route::get('/dashboard/refresh-on-site', [DashboardController::class, 'refreshOnSiteData']);
+Route::get('/dashboard/refresh-denied-access-count', [DashboardController::class, 'refreshDeniedAccessCount']);
 
 // 1) CALLBACK — NO JAVA AUTH MIDDLEWARE HERE!
 Route::get('/vms/java-auth/callback',

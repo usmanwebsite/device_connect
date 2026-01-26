@@ -31,7 +31,7 @@
 
         <div class="col-md-3">
             <div class="stat-card shadow-sm">
-                <h6>Active Security Personnel</h6>
+                <h6>Active Unauthorized Access</h6>
                 <h2>{{ $activeSecurity }}</h2>
                 <span class="gray">0%</span>
             </div>

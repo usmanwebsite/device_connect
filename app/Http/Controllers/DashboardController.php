@@ -237,6 +237,9 @@ public function index(Request $request)
         // ✅ UPDATED: Get critical alert with new priority logic
         $criticalAlert = $this->getCriticalSecurityAlertWithPriority();
 
+        $twentyFourHoursAgo = Carbon::now()->subHours(24);
+        $deniedAccessCount24h = $this->getDeniedAccessCount24h();
+
         // Counts for cards
         $activeSecurityAlertsCount = DeviceAccessLog::where('access_granted', 0)
             ->where('acknowledge', 0)
@@ -256,6 +259,7 @@ public function index(Request $request)
         // Get enriched data for modals
         $deniedAccessLogs = DeviceAccessLog::where('access_granted', 0)
             ->where('acknowledge', 0)
+            ->where('created_at', '>=', $twentyFourHoursAgo)
             ->orderBy('created_at', 'desc')
             ->get();
 
@@ -274,7 +278,8 @@ public function index(Request $request)
             'upcomingAppointments',
             'activeSecurityAlertsCount',
             'hourlyTrafficData',
-            'visitorOverstayCount',    
+            'visitorOverstayCount',   
+            'deniedAccessCount24h',    // ✅ Changed variable name 
             'deniedAccessCount',      
             'deniedAccessLogs',        
             'visitorOverstayAlerts',    
@@ -297,6 +302,7 @@ public function index(Request $request)
             'hourlyTrafficData' => $this->getDefaultHourlyTrafficData(),
             'visitorOverstayCount' => 0,
             'deniedAccessCount' => 0,
+            'deniedAccessCount24h' => 0,
             'checkOutsTodayCount' => 0,
             'checkoutsTodayModalData' => [],
             'deniedAccessLogs' => collect(),
@@ -307,7 +313,6 @@ public function index(Request $request)
         ]);
     }
 }
-
 
 private function getCriticalSecurityAlertWithPriority()
 {
@@ -335,7 +340,9 @@ private function getCriticalSecurityAlertWithPriority()
         foreach ($accessDeniedAlerts as $alert) {
             $priority = $accessDeniedPriority ? strtolower($accessDeniedPriority->priority) : 'low';
             
-            // ✅ Process location for Turnstile
+            // ✅ FIX: Handle empty staff_no case
+            $visitorDetails = $this->getVisitorDetailsForAlert($alert->staff_no ?? $alert->card_no ?? '');
+            
             $processedLocation = $this->processTurnstileLocationForAlert($alert);
             
             $allAlerts->push([
@@ -348,7 +355,9 @@ private function getCriticalSecurityAlertWithPriority()
                 'data' => $alert,
                 'display_location' => $processedLocation,
                 'original_location' => $alert->location_name ?? 'Unknown Location',
-                'card_no' => $alert->card_no ?? null
+                'card_no' => $alert->card_no ?? null,
+                'staff_no' => $alert->staff_no ?? null,
+                'visitor_name' => $visitorDetails['fullName'] ?? 'Unknown Visitor' // ✅ Add visitor name here
             ]);
         }
         
@@ -358,7 +367,6 @@ private function getCriticalSecurityAlertWithPriority()
         foreach ($overstayAlerts as $alert) {
             $priority = $visitorOverstayPriority ? strtolower($visitorOverstayPriority->priority) : 'low';
             
-            // ✅ Process location for Turnstile
             $processedLocation = $this->processTurnstileLocationForOverstay($alert);
             
             $allAlerts->push([
@@ -371,7 +379,8 @@ private function getCriticalSecurityAlertWithPriority()
                 'data' => $alert,
                 'display_location' => $processedLocation,
                 'original_location' => $alert['original_location'] ?? ($alert['location'] ?? 'Unknown Location'),
-                'card_no' => $alert['card_no'] ?? null
+                'card_no' => $alert['card_no'] ?? null,
+                'staff_no' => $alert['staff_no'] ?? null
             ]);
         }
         
@@ -389,12 +398,16 @@ private function getCriticalSecurityAlertWithPriority()
             Log::info('Top alert selected:', [
                 'type' => $topAlert['type'],
                 'priority' => $topAlert['priority'],
+                'staff_no' => $topAlert['staff_no'] ?? 'EMPTY',
+                'card_no' => $topAlert['card_no'] ?? 'EMPTY',
                 'created_at' => $topAlert['created_at']->format('Y-m-d H:i:s')
             ]);
             
             if ($topAlert['type'] === 'access_denied') {
                 $alert = $topAlert['data'];
-                $visitorDetails = $this->getVisitorDetailsForAlert($alert->staff_no);
+                
+                // ✅ Use visitor_name from the alert array we added above
+                $visitorName = $topAlert['visitor_name'] ?? 'Unknown Visitor';
                 
                 $createdAt = Carbon::parse($alert->created_at);
                 $timeAgo = $createdAt->diffForHumans();
@@ -402,15 +415,15 @@ private function getCriticalSecurityAlertWithPriority()
                 return [
                     'log_id' => $alert->id,
                     'alert_type' => 'access_denied',
-                    'staff_no' => $alert->staff_no,
-                    'card_no' => $alert->card_no ?? null,
+                    'staff_no' => $alert->staff_no ?? '', // ✅ Can be empty
+                    'card_no' => $alert->card_no ?? '',   // ✅ Use card_no when staff_no is empty
                     'location' => $topAlert['display_location'],
                     'original_location' => $topAlert['original_location'],
                     'created_at' => $createdAt->format('h:i A'),
                     'time_ago' => $timeAgo,
                     'malaysia_time' => Carbon::now('Asia/Kuala_Lumpur')->format('h:i A'), 
                     'reason' => $alert->reason ?? 'Other Reason',
-                    'visitor_name' => $visitorDetails['fullName'] ?? 'Unknown Visitor',
+                    'visitor_name' => $visitorName, // ✅ Already fetched above
                     'incident_type' => 'Unauthorized Access Attempt',
                     'priority' => $topAlert['priority']
                 ];
@@ -423,8 +436,8 @@ private function getCriticalSecurityAlertWithPriority()
                 return [
                     'log_id' => $alert['log_id'] ?? $alert['staff_no'] . '_overstay',
                     'alert_type' => 'visitor_overstay',
-                    'staff_no' => $alert['staff_no'],
-                    'card_no' => $alert['card_no'] ?? null,
+                    'staff_no' => $alert['staff_no'] ?? '', // ✅ Can be empty
+                    'card_no' => $alert['card_no'] ?? '',   // ✅ Use card_no when staff_no is empty
                     'location' => $topAlert['display_location'],
                     'original_location' => $topAlert['original_location'],
                     'created_at' => Carbon::parse($alert['check_in_time'])->format('h:i A'),
@@ -856,25 +869,47 @@ public function acknowledgeAlert(Request $request)
                 ], 404);
             }
 
-            // ✅ Access Denied: Match staff_no, card_no, location_name
-            $updateQuery = DeviceAccessLog::where('staff_no', $alert->staff_no)
-                ->where('card_no', $alert->card_no ?? '')
-                ->where('location_name', $alert->location_name ?? '');
+            // ✅ UPDATED: Match by alert_id OR card_no (whichever is available)
+            $updateQuery = DeviceAccessLog::query();
             
-            $updateQuery->update([
+            // First, try to update by alert_id (most accurate)
+            $updateQuery->where('id', $alertId);
+            
+            // If card_no is available, use it as additional filter
+            if (!empty($alert->card_no)) {
+                // Also update other logs with same card_no at same location
+                $updateQuery->orWhere(function($query) use ($alert) {
+                    $query->where('card_no', $alert->card_no)
+                          ->where('location_name', $alert->location_name ?? '')
+                          ->where('access_granted', 0)
+                          ->where('acknowledge', 0);
+                });
+            }
+            
+            // If staff_no is available (but might be empty), use it too
+            if (!empty($alert->staff_no)) {
+                $updateQuery->orWhere(function($query) use ($alert) {
+                    $query->where('staff_no', $alert->staff_no)
+                          ->where('location_name', $alert->location_name ?? '')
+                          ->where('access_granted', 0)
+                          ->where('acknowledge', 0);
+                });
+            }
+            
+            $affectedRows = $updateQuery->update([
                 'acknowledge' => true,
                 'acknowledge_by' => $currentUserId,
                 'updated_at' => now()
             ]);
             
-            Log::info("Access Denied alert acknowledged: ID {$alertId}, Staff No: {$alert->staff_no}, Card No: {$alert->card_no}");
+            Log::info("Access Denied alert acknowledged: ID {$alertId}, Affected Rows: {$affectedRows}");
             
         } else if ($alertType == 'visitor_overstay') {
             Log::info('Processing overstay acknowledgment with specific visit criteria');
             
             $staffNo = $request->input('staff_no');
             $cardNo = $request->input('card_no');
-            $originalLocation = $request->input('original_location'); // ✅ Use original_location
+            $originalLocation = $request->input('original_location');
             $dateOfVisitFrom = $request->input('date_of_visit_from');
             
             Log::info('Request data for overstay acknowledgment:', [
@@ -884,21 +919,24 @@ public function acknowledgeAlert(Request $request)
                 'date_of_visit_from' => $dateOfVisitFrom
             ]);
             
-            if (!$staffNo || !$originalLocation || !$dateOfVisitFrom) {
+            // ✅ UPDATED: For overstay, use card_no as primary if staff_no is empty
+            $query = DeviceAccessLog::query();
+            
+            if (!empty($staffNo)) {
+                $query->where('staff_no', $staffNo);
+            } elseif (!empty($cardNo)) {
+                // If staff_no is empty, use card_no
+                $query->where('card_no', $cardNo);
+            } else {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Missing required parameters for overstay acknowledgment: ' . 
-                                json_encode(['staff_no' => $staffNo, 'original_location' => $originalLocation, 'date_of_visit_from' => $dateOfVisitFrom])
+                    'message' => 'Both staff_no and card_no are empty for overstay acknowledgment'
                 ], 400);
             }
             
-            // ✅ Overstay: Match staff_no, card_no, location_name AND date_of_visit_from greater than
-            $query = DeviceAccessLog::where('staff_no', $staffNo)
-                ->where('location_name', $originalLocation); // ✅ Use original_location
-            
-            // Card number match if provided
-            if ($cardNo) {
-                $query->where('card_no', $cardNo);
+            // Add location filter
+            if (!empty($originalLocation)) {
+                $query->where('location_name', $originalLocation);
             }
             
             // Date condition: created_at greater than dateOfVisitFrom
@@ -926,7 +964,7 @@ public function acknowledgeAlert(Request $request)
                 $log->save();
                 $updatedCount++;
                 
-                Log::info("Updated log ID: {$log->id}, Staff No: {$log->staff_no}, Overstay Acknowledge: {$log->overstay_acknowledge}");
+                Log::info("Updated log ID: {$log->id}, Card No: {$log->card_no}, Overstay Acknowledge: {$log->overstay_acknowledge}");
             }
             
             Log::info("Visitor Overstay alert acknowledged. Updated {$updatedCount} records.");
@@ -1021,24 +1059,37 @@ public function acknowledgeAlert(Request $request)
     public function refreshDashboardCounts()
     {
         try {
-            // Access Denied count
-            $deniedAccessCount = DeviceAccessLog::where('access_granted', 0)
+            $twentyFourHoursAgo = Carbon::now()->subHours(24);
+            
+            // ✅ 1. Access Denied Count - LAST 24 HOURS ONLY
+            $deniedAccessCount24h = DeviceAccessLog::where('access_granted', 0)
+                ->where('acknowledge', 0)
+                ->where('created_at', '>=', $twentyFourHoursAgo)
+                ->count();
+
+            // ✅ 2. Active Security Alerts - OVERALL COUNT (NO TIME LIMIT)
+            $activeSecurityAlertsCount = DeviceAccessLog::where('access_granted', 0)
                 ->where('acknowledge', 0)
                 ->count();
 
-            // Visitor Overstay count (unacknowledged)
+            // ✅ 3. Visitor Overstay Count - NO TIME FILTER
             $allDeviceUsers = DeviceAccessLog::where('access_granted', 1)->get();
             $visitorOverstayAlerts = $this->getUnacknowledgedOverstayAlerts($allDeviceUsers);
             $visitorOverstayCount = count($visitorOverstayAlerts);
 
-            // Active Security Alerts (Access Denied only)
-            $activeSecurityAlertsCount = $deniedAccessCount;
+            Log::info('Refreshed dashboard counts:', [
+                'deniedAccessCount24h' => $deniedAccessCount24h,
+                'activeSecurityAlertsCount' => $activeSecurityAlertsCount,
+                'visitorOverstayCount' => $visitorOverstayCount,
+                'twentyFourHoursAgo' => $twentyFourHoursAgo->format('Y-m-d H:i:s')
+            ]);
 
             return response()->json([
                 'success' => true,
                 'activeSecurityAlertsCount' => $activeSecurityAlertsCount,
-                'deniedAccessCount' => $deniedAccessCount,
-                'visitorOverstayCount' => $visitorOverstayCount
+                'deniedAccessCount24h' => $deniedAccessCount24h,
+                'visitorOverstayCount' => $visitorOverstayCount,
+                'timestamp' => now()->format('Y-m-d H:i:s')
             ]);
             
         } catch (\Exception $e) {
@@ -1668,6 +1719,31 @@ private function getCheckinLogForStaffNo($staffNo, $date)
 }
 
 
+private function getDeniedAccessCount24h()
+{
+    try {
+        $twentyFourHoursAgo = Carbon::now()->subHours(24);
+        
+        // Pehle clear condition check karein
+        $count = DeviceAccessLog::where('access_granted', 0)
+            ->where('acknowledge', 0)
+            ->where('created_at', '>=', $twentyFourHoursAgo)
+            ->count();
+            
+        Log::info('Denied Access 24h Count:', [
+            'count' => $count,
+            'from_time' => $twentyFourHoursAgo->format('Y-m-d H:i:s'),
+            'to_time' => now()->format('Y-m-d H:i:s')
+        ]);
+        
+        return $count;
+    } catch (\Exception $e) {
+        Log::error('Error in getDeniedAccessCount24h: ' . $e->getMessage());
+        return 0;
+    }
+}
+
+
 public function getVisitorDetails(Request $request)
 {
     try {
@@ -1732,27 +1808,84 @@ public function getVisitorDetails(Request $request)
     }
 }
 
-public function refreshOnSiteData()
-{
-    try {
-        $visitorsOnSite = $this->getCurrentVisitorsOnSite();
-        
-        return response()->json([
-            'success' => true,
-            'visitors' => $visitorsOnSite,
-            'count' => count($visitorsOnSite),
-            'timestamp' => now()->format('Y-m-d H:i:s')
-        ]);
-        
-    } catch (\Exception $e) {
-        Log::error('Error refreshing on-site data: ' . $e->getMessage());
-        
-        return response()->json([
-            'success' => false,
-            'message' => 'Error refreshing data'
-        ], 500);
+    public function refreshOnSiteData()
+    {
+        try {
+            $visitorsOnSite = $this->getCurrentVisitorsOnSite();
+            
+            $twentyFourHoursAgo = Carbon::now()->subHours(24);
+            $debugDeniedCount = DeviceAccessLog::where('access_granted', 0)
+                ->where('acknowledge', 0)
+                ->where('created_at', '>=', $twentyFourHoursAgo)
+                ->count();
+                
+            Log::info('Refresh On-Site Debug:', [
+                'visitors_count' => count($visitorsOnSite),
+                'denied_access_24h' => $debugDeniedCount,
+                'time_range' => [
+                    'from' => $twentyFourHoursAgo->format('Y-m-d H:i:s'),
+                    'to' => now()->format('Y-m-d H:i:s')
+                ]
+            ]);
+            return response()->json([
+                'success' => true,
+                'visitors' => $visitorsOnSite,
+                'count' => count($visitorsOnSite),
+                'timestamp' => now()->format('Y-m-d H:i:s')
+            ]);
+            
+        } catch (\Exception $e) {
+            Log::error('Error refreshing on-site data: ' . $e->getMessage());
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'Error refreshing data'
+            ], 500);
+        }
     }
-}
+
+
+    public function refreshDeniedAccessCount()
+    {
+        try {
+            $twentyFourHoursAgo = Carbon::now()->subHours(24);
+            
+            $count = DeviceAccessLog::where('access_granted', 0)
+                ->where('acknowledge', 0)
+                ->where('created_at', '>=', $twentyFourHoursAgo)
+                ->count();
+                
+            // Debug: Check what records are being counted
+            $records = DeviceAccessLog::where('access_granted', 0)
+                ->where('acknowledge', 0)
+                ->where('created_at', '>=', $twentyFourHoursAgo)
+                ->select('id', 'staff_no', 'card_no', 'created_at', 'updated_at', 'access_granted', 'acknowledge')
+                ->get();
+                
+            Log::info('Denied Access Count Refresh:', [
+                'count' => $count,
+                'records_found' => $records->toArray(),
+                'time_range' => [
+                    'from' => $twentyFourHoursAgo->format('Y-m-d H:i:s'),
+                    'to' => now()->format('Y-m-d H:i:s')
+                ]
+            ]);
+            
+            return response()->json([
+                'success' => true,
+                'deniedAccessCount24h' => $count,
+                'timestamp' => now()->format('Y-m-d H:i:s')
+            ]);
+            
+        } catch (\Exception $e) {
+            Log::error('Error refreshing denied access count: ' . $e->getMessage());
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'Error refreshing count'
+            ], 500);
+        }
+    }
 
     private function getVisitorDetailsForCheckout($checkoutLog)
     {

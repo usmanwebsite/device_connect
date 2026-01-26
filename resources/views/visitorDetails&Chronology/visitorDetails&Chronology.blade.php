@@ -3,6 +3,11 @@
 @section('title', 'Visitor Details & Chronology')
 
 @section('content')
+
+@php
+    // Controller se aaya hua javaBaseUrl use karein
+    $javaBackendUrl = $javaBaseUrl ?? env('JAVA_BACKEND_URL', 'http://127.0.0.1:8080');
+@endphp
 <div class="content-header">
     <div class="container-fluid">
         <div class="row mb-2">
@@ -632,6 +637,7 @@
 <script src="https://cdn.datatables.net/buttons/2.4.0/js/buttons.print.min.js"></script>
 
 <script>
+        const JAVA_BACKEND_URL = '{{ $javaBackendUrl }}';
 $(document).ready(function() {
 
     const urlParams = new URLSearchParams(window.location.search);
@@ -800,12 +806,6 @@ $(document).ready(function() {
         $('#viewDetailsModal').modal('hide');
     });
 
-    
-    // // Close View Details Modal (Close button)
-    // $('#closeViewDetailsModalBtn').click(function() {
-    //     $('#viewDetailsModal').modal('hide');
-    // });
-
     $('#closeChronologyModal').click(function() {
         $('#chronologyModal').modal('hide');
     });
@@ -861,12 +861,10 @@ function searchVisitor() {
     
     console.log('Searching for:', searchTerm, 'Type:', searchType);
     
-    // TEMPORARY: Direct Java API call
-    const javaBaseUrl = 'http://127.0.0.1:8080';
-    let url = `${javaBaseUrl}/api/vendorpass/get-visitor-details?icNo=${searchTerm}`;
-    
+    let url = `${JAVA_BACKEND_URL}/api/vendorpass/get-visitor-details?icNo=${searchTerm}`;
+        
     if (searchType === 'staffNo') {
-        url = `${javaBaseUrl}/api/vendorpass/get-visitor-details?staffNo=${searchTerm}`;
+        url = `${JAVA_BACKEND_URL}/api/vendorpass/get-visitor-details?staffNo=${searchTerm}`;
     }
     
     console.log('Direct API URL:', url);

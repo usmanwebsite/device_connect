@@ -792,7 +792,7 @@ function viewStaffMovement(staffNo) {
     document.getElementById('movementContent').classList.add('d-none');
     document.getElementById('noMovementMessage').classList.add('d-none');
     
-    fetch(`/reports/staff-movement/${staffNo}`)
+    fetch(`/vms/reports/staff-movement/${staffNo}`)
         .then(response => {
             if (!response.ok) {
                 throw new Error(`HTTP error! status: ${response.status}`);

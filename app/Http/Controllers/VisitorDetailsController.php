@@ -14,10 +14,20 @@ use App\Models\VendorLocation;
 class VisitorDetailsController extends Controller
 {
     protected $menuService;
+    protected $javaBaseUrl;
     
     public function __construct(MenuService $menuService)
     {
         $this->menuService = $menuService;
+
+        $this->javaBaseUrl = env('JAVA_BACKEND_URL', 'http://127.0.0.1:8080');
+        
+        // Check agar .env me value set nahi hai to fallback
+        if (!$this->javaBaseUrl) {
+            $this->javaBaseUrl = 'http://127.0.0.1:8080'; // Default fallback
+        }
+        
+        Log::info('Java Base URL set to: ' . $this->javaBaseUrl);
     }
 
     /**
@@ -26,6 +36,7 @@ class VisitorDetailsController extends Controller
     public function index()
     {
         $angularMenu = $this->menuService->getFilteredAngularMenu();
+        $javaBaseUrl = $this->javaBaseUrl;
         
         return view('visitorDetails&Chronology.visitorDetails&Chronology', compact('angularMenu'));
     }
@@ -85,7 +96,7 @@ class VisitorDetailsController extends Controller
     private function callJavaApi($searchTerm, $searchType)
     {
         try {
-            $javaBaseUrl = env('JAVA_BACKEND_URL', 'http://127.0.0.1:8080');
+            $javaBaseUrl = $this->javaBaseUrl;
             
             $params = [];
             if ($searchType === 'staffNo') {
@@ -1202,9 +1213,6 @@ private function generateCompleteTimeline($allLogs)
             'formatted' => "{$hours}h {$minutes}m {$seconds}s"
         ];
     }
-
-
-
 
 }
 
