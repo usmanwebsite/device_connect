@@ -56,7 +56,6 @@
                                 {{ $alert['severity'] }}
                             </span>
                             <div class="small text-muted mt-1">
-                                {{ $alert['location'] }} • {{ $alert['time'] }}
                             </div>
                         </div>
                     @endforeach
@@ -91,14 +90,16 @@
                         <h6 class="mb-0 text-danger">
                             <i class="bx bx-shield-x"></i> Unauthorized Access Details
                         </h6>
-                        <div class="btn-group">
-                            <button class="btn btn-sm btn-outline-danger" onclick="refreshUnauthorizedData()">
-                                <i class="bx bx-refresh"></i> Refresh
-                            </button>
-                            <button class="btn btn-sm btn-outline-secondary" onclick="exportUnauthorizedData()">
-                                <i class="bx bx-download"></i> Export
-                            </button>
-                        </div>
+                            <div class="btn-group">
+                                <button class="btn btn-sm btn-outline-danger" onclick="refreshUnauthorizedData()">
+                                    <i class="bx bx-refresh"></i> Refresh
+                                </button>
+                                <button class="btn btn-sm btn-outline-secondary" onclick="exportUnauthorizedData()">
+                                    <i class="bx bx-download"></i> Export
+                                </button>
+                            </div>
+
+                            
                     </div>
                     
                     {{-- <div class="alert alert-info alert-sm mb-3">
@@ -106,7 +107,7 @@
                     </div> --}}
                     
                     <div class="table-responsive">
-                        <table class="table table-sm table-hover table-bordered" id="unauthorizedDetailsTable">
+                        <table class="table table-sm table-hover table-bordered display nowrap" id="unauthorizedDetailsTable">
                             <thead class="table-dark">
                                 <tr>
                                     <th>Date & Time</th>
@@ -123,14 +124,6 @@
                             </thead>
                             <tbody id="unauthorizedDetailsBody">
                                 <!-- Data will be loaded here -->
-                                <tr>
-                                    <td colspan="10" class="text-center">
-                                        <div class="spinner-border spinner-border-sm text-danger" role="status">
-                                            <span class="visually-hidden">Loading...</span>
-                                        </div>
-                                        Loading unauthorized access data...
-                                    </td>
-                                </tr>
                             </tbody>
                         </table>
                     </div>
@@ -165,7 +158,7 @@
                     </div>
                     
                     <div class="table-responsive">
-                        <table class="table table-sm table-hover table-bordered">
+                        <table class="table table-sm table-hover table-bordered display nowrap" id="forcedEntryDetailsTable">
                             <thead class="table-dark">
                                 <tr>
                                     <th>Date & Time</th>
@@ -203,7 +196,7 @@
                     </div>
                     
                     <div class="table-responsive">
-                        <table class="table table-sm table-hover table-bordered">
+                        <table class="table table-sm table-hover table-bordered display nowrap" id="overstayDetailsTable">
                             <thead class="table-warning">
                                 <tr>
                                     <th>Date & Time</th>
@@ -284,6 +277,13 @@
 <script>
 let currentIncidentId = null;
 let unauthorizedData = [];
+let forcedEntryData = [];
+let overstayData = [];
+
+
+let unauthorizedTable = null;
+let forcedEntryTable = null;
+let overstayTable = null;
 
 /* Load Incident Details */
 function loadDetails(id) {
@@ -295,7 +295,7 @@ function loadDetails(id) {
     } else if (id == 2) { // Unauthorized Access incident
         showUnauthorizedSection();
         loadUnauthorizedData();
-    } else if (id == 3) { // System Anomaly (now Overstay Visitors)
+    } else if (id == 3) { // Visitor Overstay
         showOverstaySection();
         loadOverstayData();
     } else {
@@ -331,34 +331,123 @@ function loadDetails(id) {
 function showForcedEntrySection() {
     document.getElementById('regularDetailsTable').style.display = 'none';
     document.getElementById('unauthorizedTableSection').style.display = 'none';
-    document.getElementById('overstayTableSection').style.display = 'block';
+    document.getElementById('overstayTableSection').style.display = 'none';
+    document.getElementById('forcedEntryTableSection').style.display = 'block';
+    
+    // Initialize DataTable if not already done
+    if (!forcedEntryTable && document.getElementById('forcedEntryDetailsTable')) {
+        initializeForcedEntryTable();
+    }
 }
 
 function showOverstaySection() {
     document.getElementById('regularDetailsTable').style.display = 'none';
     document.getElementById('unauthorizedTableSection').style.display = 'none';
+    document.getElementById('forcedEntryTableSection').style.display = 'none';
     document.getElementById('overstayTableSection').style.display = 'block';
+    
+    // Initialize DataTable if not already done
+    if (!overstayTable && document.getElementById('overstayDetailsTable')) {
+        initializeOverstayTable();
+    }
 }
 
 function showUnauthorizedSection() {
     document.getElementById('regularDetailsTable').style.display = 'none';
+    document.getElementById('forcedEntryTableSection').style.display = 'none';
+    document.getElementById('overstayTableSection').style.display = 'none';
     document.getElementById('unauthorizedTableSection').style.display = 'block';
-    document.getElementById('overstayTableSection').style.display = 'none';
+    
+    // Initialize DataTable if not already done
+    if (!unauthorizedTable && document.getElementById('unauthorizedDetailsTable')) {
+        initializeUnauthorizedTable();
+    }
 }
+
+function initializeForcedEntryTable() {
+    if ($.fn.DataTable.isDataTable('#forcedEntryDetailsTable')) {
+        forcedEntryTable = $('#forcedEntryDetailsTable').DataTable();
+        return;
+    }
+    
+    forcedEntryTable = $('#forcedEntryDetailsTable').DataTable({
+        pageLength: 5,
+        lengthMenu: [[5, 10, 25, 50, -1], [5, 10, 25, 50, "All"]],
+        responsive: true,
+        order: [[0, 'desc']], // Sort by Date & Time descending
+        language: {
+            search: "_INPUT_",
+            searchPlaceholder: "Search forced entry...",
+            lengthMenu: "Show _MENU_ entries",
+            info: "Showing _START_ to _END_ of _TOTAL_ entries",
+            infoEmpty: "Showing 0 to 0 of 0 entries",
+            infoFiltered: "(filtered from _MAX_ total entries)"
+        }
+    });
+}
+
+
+
 
 function showRegularSection() {
     document.getElementById('regularDetailsTable').style.display = 'table';
     document.getElementById('unauthorizedTableSection').style.display = 'none';
+    document.getElementById('forcedEntryTableSection').style.display = 'none';
     document.getElementById('overstayTableSection').style.display = 'none';
 }
 
-
-function showRegularSection() {
-    document.getElementById('regularDetailsTable').style.display = 'table';
-    document.getElementById('unauthorizedTableSection').style.display = 'none';
+function initializeUnauthorizedTable() {
+    if ($.fn.DataTable.isDataTable('#unauthorizedDetailsTable')) {
+        unauthorizedTable = $('#unauthorizedDetailsTable').DataTable();
+        return;
+    }
+    
+    unauthorizedTable = $('#unauthorizedDetailsTable').DataTable({
+        pageLength: 5,
+        lengthMenu: [[5, 10, 25, 50, -1], [5, 10, 25, 50, "All"]],
+        responsive: true,
+        order: [[0, 'desc']], // Sort by Date & Time descending
+        language: {
+            search: "_INPUT_",
+            searchPlaceholder: "Search unauthorized access...",
+            lengthMenu: "Show _MENU_ entries",
+            info: "Showing _START_ to _END_ of _TOTAL_ entries",
+            infoEmpty: "Showing 0 to 0 of 0 entries",
+            infoFiltered: "(filtered from _MAX_ total entries)"
+        }
+    });
 }
 
-/* Load Unauthorized Access Data from Java API (ALL TIME DATA) */
+function initializeOverstayTable() {
+    if ($.fn.DataTable.isDataTable('#overstayDetailsTable')) {
+        overstayTable = $('#overstayDetailsTable').DataTable();
+        return;
+    }
+    
+    overstayTable = $('#overstayDetailsTable').DataTable({
+        pageLength: 5,
+        lengthMenu: [[5, 10, 25, 50, -1], [5, 10, 25, 50, "All"]],
+        responsive: true,
+        order: [[0, 'desc']], // Sort by Date & Time descending
+        language: {
+            search: "_INPUT_",
+            searchPlaceholder: "Search overstay visitors...",
+            lengthMenu: "Show _MENU_ entries",
+            info: "Showing _START_ to _END_ of _TOTAL_ entries",
+            infoEmpty: "Showing 0 to 0 of 0 entries",
+            infoFiltered: "(filtered from _MAX_ total entries)"
+        }
+    });
+}
+
+
+
+
+// function showRegularSection() {
+//     document.getElementById('regularDetailsTable').style.display = 'table';
+//     document.getElementById('unauthorizedTableSection').style.display = 'none';
+// }
+
 function loadUnauthorizedData() {
     const tbody = document.getElementById('unauthorizedDetailsBody');
     tbody.innerHTML = `
@@ -367,25 +456,24 @@ function loadUnauthorizedData() {
                 <div class="spinner-border spinner-border-sm text-danger" role="status">
                     <span class="visually-hidden">Loading...</span>
                 </div>
-                Loading all unauthorized access data from Java API...
+                Loading unauthorized access data...
             </td>
         </tr>
     `;
     
-    fetch('/vms/security-alerts/details/2') // ID 2 is for unauthorized access
-        .then(response => {
-            if (!response.ok) {
-                throw new Error('Network response was not ok');
-            }
-            return response.json();
-        })
+    fetch('/vms/security-alerts/details/2')
+        .then(response => response.json())
         .then(data => {
-            unauthorizedData = data; // Store data for export
+            unauthorizedData = data;
+            
+            if (unauthorizedTable) {
+                unauthorizedTable.destroy();
+                unauthorizedTable = null;
+            }
             
             if (data && Array.isArray(data) && data.length > 0) {
                 let html = '';
                 data.forEach(item => {
-                    // Display 5-6 important fields from Java API response
                     html += `
                         <tr>
                             <td><small class="text-muted">${item.time || 'N/A'}</small></td>
@@ -403,11 +491,15 @@ function loadUnauthorizedData() {
                 });
                 tbody.innerHTML = html;
                 
-                // Update total records count
+                // Update total records
                 document.getElementById('totalRecords').textContent = data.length;
                 
-                // Show success message
-                // showToast(`Loaded ${data.length} unauthorized access attempts (All time)`, 'success');
+                // Initialize DataTable
+                setTimeout(() => {
+                    initializeUnauthorizedTable();
+                }, 100);
+                
+                showToast(`Loaded ${data.length} unauthorized access attempts`, 'success');
             } else {
                 tbody.innerHTML = `
                     <tr>
@@ -420,16 +512,14 @@ function loadUnauthorizedData() {
             }
         })
         .catch(error => {
-            console.error('Error loading unauthorized data:', error);
+            console.error('Error:', error);
             tbody.innerHTML = `
                 <tr>
                     <td colspan="10" class="text-center text-danger">
-                        <small><i class="bx bx-error"></i> Error loading data from Java API. Please try again.</small>
+                        Error loading data
                     </td>
                 </tr>
             `;
-            document.getElementById('totalRecords').textContent = '0';
-            showToast('Error loading unauthorized access data', 'error');
         });
 }
 
@@ -441,14 +531,21 @@ function loadForcedEntryData() {
                 <div class="spinner-border spinner-border-sm text-danger" role="status">
                     <span class="visually-hidden">Loading...</span>
                 </div>
-                Loading forced entry data...
+                Loading forced entry data (acknowledge = 1)...
             </td>
         </tr>
     `;
     
-    fetch('/vms/security-alerts/details/1') // ID 1 is for forced entry
+    fetch('/vms/security-alerts/details/1')
         .then(response => response.json())
         .then(data => {
+            forcedEntryData = data;
+            
+            if (forcedEntryTable) {
+                forcedEntryTable.destroy();
+                forcedEntryTable = null;
+            }
+            
             let html = '';
             if (data && Array.isArray(data)) {
                 data.forEach(item => {
@@ -468,13 +565,20 @@ function loadForcedEntryData() {
                     `;
                 });
             }
+            
             tbody.innerHTML = html || `
                 <tr>
                     <td colspan="10" class="text-center text-muted">
-                        No forced entry data found
+                        No forced entry data found (acknowledge = 1)
                     </td>
                 </tr>
             `;
+            
+            // Initialize DataTable
+            setTimeout(() => {
+                initializeForcedEntryTable();
+            }, 100);
+            
         })
         .catch(error => {
             console.error('Error:', error);
@@ -501,9 +605,16 @@ function loadOverstayData() {
         </tr>
     `;
     
-    fetch('/vms/security-alerts/details/3') // ID 3 is for overstay
+    fetch('/vms/security-alerts/details/3')
         .then(response => response.json())
         .then(data => {
+            overstayData = data;
+            
+            if (overstayTable) {
+                overstayTable.destroy();
+                overstayTable = null;
+            }
+            
             let html = '';
             if (data && Array.isArray(data)) {
                 data.forEach(item => {
@@ -525,6 +636,7 @@ function loadOverstayData() {
                     `;
                 });
             }
+            
             tbody.innerHTML = html || `
                 <tr>
                     <td colspan="12" class="text-center text-muted">
@@ -532,6 +644,12 @@ function loadOverstayData() {
                     </td>
                 </tr>
             `;
+            
+            // Initialize DataTable
+            setTimeout(() => {
+                initializeOverstayTable();
+            }, 100);
+            
         })
         .catch(error => {
             console.error('Error:', error);
@@ -548,37 +666,84 @@ function loadOverstayData() {
 /* Refresh Unauthorized Data */
 function refreshUnauthorizedData() {
     if (currentIncidentId == 2) {
-        showToast('Refreshing all unauthorized access data...', 'info');
+        showToast('Refreshing unauthorized access data...', 'info');
         loadUnauthorizedData();
     }
 }
 
-/* Export Unauthorized Data to CSV */
+function refreshForcedEntryData() {
+    if (currentIncidentId == 1) {
+        showToast('Refreshing forced entry data...', 'info');
+        loadForcedEntryData();
+    }
+}
+
+function refreshOverstayData() {
+    if (currentIncidentId == 3) {
+        showToast('Refreshing overstay visitors data...', 'info');
+        loadOverstayData();
+    }
+}
+
 function exportUnauthorizedData() {
     if (unauthorizedData.length === 0) {
         showToast('No data to export', 'warning');
         return;
     }
     
-    // Convert to CSV
     let csv = 'Date & Time,Event,Staff No,Full Name,IC No,Company,Contact No,Person to Visit,Reason,Location\n';
     
     unauthorizedData.forEach(item => {
         csv += `"${item.time || ''}","${item.event || ''}","${item.staff_no || ''}","${item.full_name || ''}","${item.ic_no || ''}","${item.company_name || ''}","${item.contact_no || ''}","${item.person_visited || ''}","${item.reason || ''}","${item.location || ''}"\n`;
     });
     
-    // Create download link
+    downloadCSV(csv, `unauthorized_access_${new Date().toISOString().split('T')[0]}.csv`);
+    showToast(`Exported ${unauthorizedData.length} records to CSV`, 'success');
+}
+
+function exportForcedEntryData() {
+    if (forcedEntryData.length === 0) {
+        showToast('No data to export', 'warning');
+        return;
+    }
+    
+    let csv = 'Date & Time,Event,Staff No,Full Name,IC No,Company,Contact No,Person to Visit,Reason,Location\n';
+    
+    forcedEntryData.forEach(item => {
+        csv += `"${item.time || ''}","${item.event || ''}","${item.staff_no || ''}","${item.full_name || ''}","${item.ic_no || ''}","${item.company_name || ''}","${item.contact_no || ''}","${item.person_visited || ''}","${item.reason || ''}","${item.location || ''}"\n`;
+    });
+    
+    downloadCSV(csv, `forced_entry_${new Date().toISOString().split('T')[0]}.csv`);
+    showToast(`Exported ${forcedEntryData.length} records to CSV`, 'success');
+}
+
+function exportOverstayData() {
+    if (overstayData.length === 0) {
+        showToast('No data to export', 'warning');
+        return;
+    }
+    
+    let csv = 'Date & Time,Event,Staff No,Full Name,IC No,Company,Contact No,Person to Visit,Reason,Location,Check-in Time,Overstay Duration\n';
+    
+    overstayData.forEach(item => {
+        csv += `"${item.time || ''}","${item.event || ''}","${item.staff_no || ''}","${item.full_name || ''}","${item.ic_no || ''}","${item.company_name || ''}","${item.contact_no || ''}","${item.person_visited || ''}","${item.reason || ''}","${item.location || ''}","${item.check_in_time || ''}","${item.overstay_duration || ''}"\n`;
+    });
+    
+    downloadCSV(csv, `overstay_visitors_${new Date().toISOString().split('T')[0]}.csv`);
+    showToast(`Exported ${overstayData.length} records to CSV`, 'success');
+}
+
+function downloadCSV(csv, filename) {
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.setAttribute('download', `unauthorized_access_${new Date().toISOString().split('T')[0]}.csv`);
+    link.setAttribute('download', filename);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    
-    showToast(`Exported ${unauthorizedData.length} records to CSV`, 'success');
 }
+
 
 /* Search Function */
 document.getElementById("searchInput").addEventListener("keyup", function () {
@@ -597,13 +762,11 @@ document.getElementById("searchInput").addEventListener("keyup", function () {
 
 /* Toast notification function */
 function showToast(message, type = 'info') {
-    // Remove existing toast
     const existingToast = document.querySelector('.custom-toast');
     if (existingToast) {
         existingToast.remove();
     }
     
-    // Create toast
     const toast = document.createElement('div');
     toast.className = `custom-toast alert alert-${type === 'success' ? 'success' : type === 'error' ? 'danger' : type === 'warning' ? 'warning' : 'info'} alert-dismissible fade show`;
     toast.style.cssText = `
@@ -623,7 +786,6 @@ function showToast(message, type = 'info') {
     
     document.body.appendChild(toast);
     
-    // Auto remove after 4 seconds
     setTimeout(() => {
         if (toast.parentNode) {
             toast.remove();

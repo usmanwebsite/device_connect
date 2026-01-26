@@ -54,6 +54,8 @@ Route::prefix('/vms/device-assignments')->group(function () {
 Route::get('/vms', [DashboardController::class, 'index'])->name('dashboard');
 Route::post('/login', [LoginController::class, 'login'])->name('login');
 
+Route::post('/dashboard/get-visitor-details', [DashboardController::class, 'getVisitorDetails']);
+Route::get('/dashboard/refresh-on-site', [DashboardController::class, 'refreshOnSiteData']);
 
 // 1) CALLBACK — NO JAVA AUTH MIDDLEWARE HERE!
 Route::get('/vms/java-auth/callback',

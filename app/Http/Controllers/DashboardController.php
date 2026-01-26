@@ -630,59 +630,49 @@ private function getUnacknowledgedOverstayAlerts($allDeviceUsers = null)
 
     private function getCurrentVisitorsOnSite()
     {
-    try {
-        Log::info('=== Starting getCurrentVisitorsOnSite ===');
-        
-        // Step 1: Get ALL access logs (not just Turnstile)
-        $allAccessLogs = DeviceAccessLog::where('access_granted', 1)
-            ->orderBy('created_at', 'desc')
-            ->get(['id', 'staff_no', 'device_id', 'location_name', 'created_at']);
-        
-        Log::info('All access logs found: ' . $allAccessLogs->count());
-        
-        // Step 2: Get device connections
-        $deviceIds = $allAccessLogs->pluck('device_id')->unique();  // <-- CHANGE HERE
-        $deviceConnections = DeviceConnection::whereIn('device_id', $deviceIds)
-            ->get(['id', 'device_id']);
-        
-        Log::info('Device connections found: ' . $deviceConnections->count());
-        
-        // Step 3: Get vendor locations
-        $locationNames = $allAccessLogs->pluck('location_name')->unique();  // <-- CHANGE HERE
-        $vendorLocations = VendorLocation::whereIn('name', $locationNames)
-            ->get(['id', 'name']);
-        
-        Log::info('Vendor locations found: ' . $vendorLocations->count());
-        
-        // Step 4: Get device location assigns
-        $deviceConnectionIds = $deviceConnections->pluck('id');
-        $locationIds = $vendorLocations->pluck('id');
-        
-        $deviceLocationAssigns = DeviceLocationAssign::whereIn('device_id', $deviceConnectionIds)
-            ->whereIn('location_id', $locationIds)
-            ->get(['id', 'device_id', 'location_id', 'is_type', 'created_at']);
-        
-        Log::info('Device location assigns found: ' . $deviceLocationAssigns->count());
-        
-        // Step 5: Group logs by staff_no
-        $groupedLogs = $allAccessLogs->groupBy('staff_no');  // <-- CHANGE HERE
-        
-        $currentVisitors = [];
-        
-        foreach ($groupedLogs as $staffNo => $logs) {
-            $latestCheckIn = null;
-            $latestCheckOut = null;
+        try {
+            Log::info('=== Starting getCurrentVisitorsOnSite ===');
             
-            foreach ($logs as $log) {
-                // Find device connection
+            // Step 1: Pehle sabhi check_in logs lein
+            $allAccessLogs = DeviceAccessLog::where('access_granted', 1)
+                ->orderBy('created_at', 'desc')
+                ->get(['id', 'staff_no', 'device_id', 'location_name', 'created_at']);
+            
+            Log::info('All access logs found: ' . $allAccessLogs->count());
+            
+            // Step 2: Device connections
+            $deviceIds = $allAccessLogs->pluck('device_id')->unique();
+            $deviceConnections = DeviceConnection::whereIn('device_id', $deviceIds)
+                ->get(['id', 'device_id']);
+            
+            // Step 3: Vendor locations
+            $locationNames = $allAccessLogs->pluck('location_name')->unique();
+            $vendorLocations = VendorLocation::whereIn('name', $locationNames)
+                ->get(['id', 'name']);
+            
+            // Step 4: Device location assigns
+            $deviceConnectionIds = $deviceConnections->pluck('id');
+            $locationIds = $vendorLocations->pluck('id');
+            
+            $deviceLocationAssigns = DeviceLocationAssign::whereIn('device_id', $deviceConnectionIds)
+                ->whereIn('location_id', $locationIds)
+                ->get(['id', 'device_id', 'location_id', 'is_type']);
+            
+            // Step 5: Track har staff_no ke latest check_in aur check_out
+            $visitorStatus = [];
+            
+            foreach ($allAccessLogs as $log) {
+                $staffNo = $log->staff_no;
+                
+                // Device connection find karein
                 $deviceConnection = $deviceConnections->firstWhere('device_id', $log->device_id);
                 if (!$deviceConnection) continue;
                 
-                // Find vendor location
+                // Vendor location find karein
                 $vendorLocation = $vendorLocations->firstWhere('name', $log->location_name);
                 if (!$vendorLocation) continue;
                 
-                // Find device location assign
+                // Device location assign find karein
                 $deviceLocationAssign = $deviceLocationAssigns
                     ->where('device_id', $deviceConnection->id)
                     ->where('location_id', $vendorLocation->id)
@@ -690,77 +680,85 @@ private function getUnacknowledgedOverstayAlerts($allDeviceUsers = null)
                 
                 if (!$deviceLocationAssign) continue;
                 
-                // Step 7: Check is_type and update latest
+                // Check is_type
                 if ($deviceLocationAssign->is_type === 'check_in') {
-                    if (!$latestCheckIn || $log->created_at > $latestCheckIn->log->created_at) {
-                        $latestCheckIn = (object) [
-                            'log' => $log,
-                            'device_location_assign' => $deviceLocationAssign
+                    // Agar latest check_in hai ya pehli baar check_in hai
+                    if (!isset($visitorStatus[$staffNo]) || 
+                        $log->created_at > $visitorStatus[$staffNo]['last_check_in']) {
+                        $visitorStatus[$staffNo] = [
+                            'last_check_in' => $log->created_at,
+                            'last_check_in_log' => $log,
+                            'has_check_out' => false,
+                            'last_check_out' => null
                         ];
                     }
                 } elseif ($deviceLocationAssign->is_type === 'check_out') {
-                    if (!$latestCheckOut || $log->created_at > $latestCheckOut->log->created_at) {
-                        $latestCheckOut = (object) [
-                            'log' => $log,
-                            'device_location_assign' => $deviceLocationAssign
+                    // Check_out record update karein
+                    if (!isset($visitorStatus[$staffNo])) {
+                        $visitorStatus[$staffNo] = [
+                            'last_check_in' => null,
+                            'last_check_in_log' => null,
+                            'has_check_out' => true,
+                            'last_check_out' => $log->created_at
                         ];
+                    } else {
+                        // Agar check_in ke baad check_out aaya hai
+                        if ($log->created_at > $visitorStatus[$staffNo]['last_check_in']) {
+                            $visitorStatus[$staffNo]['has_check_out'] = true;
+                            $visitorStatus[$staffNo]['last_check_out'] = $log->created_at;
+                        }
                     }
                 }
             }
             
-            // Step 8: Determine if visitor is currently on-site
-            $isCurrentlyOnSite = false;
-            $currentLog = null;
+            // Step 6: Currently on-site visitors identify karein
+            $currentVisitors = [];
             
-            if ($latestCheckIn && !$latestCheckOut) {
-                // Only check_in exists, no check_out
-                $isCurrentlyOnSite = true;
-                $currentLog = $latestCheckIn->log;
-            } elseif ($latestCheckIn && $latestCheckOut) {
-                // Both check_in and check_out exist
-                if ($latestCheckIn->log->created_at > $latestCheckOut->log->created_at) {
-                    // Latest check_in is after latest check_out
-                    $isCurrentlyOnSite = true;
-                    $currentLog = $latestCheckIn->log;
-                } else {
-                    // Latest check_out is after check_in
-                    $isCurrentlyOnSite = false;
+            foreach ($visitorStatus as $staffNo => $status) {
+                // Visitor currently on-site hai agar:
+                // 1. Uska check_in hai
+                // 2. Uska check_out nahi hai, ya check_in latest check_out se baad ka hai
+                $isCurrentlyOnSite = false;
+                
+                if ($status['last_check_in_log']) {
+                    if (!$status['has_check_out']) {
+                        $isCurrentlyOnSite = true;
+                    } elseif ($status['last_check_out'] && 
+                            $status['last_check_in'] > $status['last_check_out']) {
+                        $isCurrentlyOnSite = true;
+                    }
+                }
+                
+                if ($isCurrentlyOnSite && $status['last_check_in_log']) {
+                    // Get visitor details
+                    $visitorDetails = $this->getVisitorDetailsForAlert($staffNo);
+                    
+                    $currentVisitors[] = [
+                        'staff_no' => $staffNo,
+                        'full_name' => $visitorDetails['fullName'] ?? 'N/A',
+                        'person_visited' => $visitorDetails['personVisited'] ?? 'N/A',
+                        'location_name' => $status['last_check_in_log']->location_name,
+                        'created_at' => $status['last_check_in'],
+                        'device_id' => $status['last_check_in_log']->device_id,
+                        'log_id' => $status['last_check_in_log']->id
+                    ];
+                    
+                    Log::info("Visitor {$staffNo} is currently on-site at {$status['last_check_in_log']->location_name}");
                 }
             }
             
-            // Step 9: If currently on-site, add to list
-            if ($isCurrentlyOnSite && $currentLog) {
-                // Get visitor details from Java API
-                $visitorDetails = $this->getVisitorDetailsForAlert($staffNo);
-                
-                $currentVisitors[] = [
-                    'staff_no' => $staffNo,
-                    'full_name' => $visitorDetails['fullName'] ?? 'N/A',
-                    'person_visited' => $visitorDetails['personVisited'] ?? 'N/A',
-                    'location_name' => $currentLog->location_name,
-                    'created_at' => $currentLog->created_at,
-                    'device_id' => $currentLog->device_id,
-                    'log_id' => $currentLog->id
-                ];
-                
-                Log::info("Visitor {$staffNo} is currently on-site at {$currentLog->location_name}");
-            }
+            Log::info('Total visitors on-site: ' . count($currentVisitors));
+            Log::info('=== End getCurrentVisitorsOnSite ===');
+            
+            return $currentVisitors;
+            
+        } catch (\Exception $e) {
+            Log::error('Error in getCurrentVisitorsOnSite: ' . $e->getMessage());
+            Log::error('Stack trace: ' . $e->getTraceAsString());
+            return [];
         }
-        
-        // Step 10: Remove duplicates (just in case)
-        $uniqueVisitors = collect($currentVisitors)->unique('staff_no')->values()->all();
-        
-        Log::info('Total unique visitors on-site: ' . count($uniqueVisitors));
-        Log::info('=== End getCurrentVisitorsOnSite ===');
-        
-        return $uniqueVisitors;
-        
-    } catch (\Exception $e) {
-        Log::error('Error in getCurrentVisitorsOnSite: ' . $e->getMessage());
-        Log::error('Stack trace: ' . $e->getTraceAsString());
-        return [];
     }
-}
+
 
     // Rest of the controller methods remain the same...
     private function getCriticalSecurityAlert()
@@ -1666,6 +1664,93 @@ private function getCheckinLogForStaffNo($staffNo, $date)
     } catch (\Exception $e) {
         Log::error('Error in getCheckinLogForStaffNo: ' . $e->getMessage());
         return null;
+    }
+}
+
+
+public function getVisitorDetails(Request $request)
+{
+    try {
+        $staffNo = $request->input('staff_no');
+        
+        if (!$staffNo) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Staff number is required'
+            ], 400);
+        }
+        
+        // Get visitor details from API
+        $visitorDetails = $this->getVisitorDetailsForAlert($staffNo);
+        
+        // Get check-in information
+        $checkInLog = DeviceAccessLog::where('staff_no', $staffNo)
+            ->where('access_granted', 1)
+            ->orderBy('created_at', 'desc')
+            ->first();
+        
+        $duration = 'N/A';
+        if ($checkInLog) {
+            $checkInTime = Carbon::parse($checkInLog->created_at);
+            $currentTime = now();
+            $diffMinutes = $currentTime->diffInMinutes($checkInTime);
+            
+            if ($diffMinutes < 60) {
+                $duration = $diffMinutes . ' minutes';
+            } else {
+                $hours = floor($diffMinutes / 60);
+                $minutes = $diffMinutes % 60;
+                $duration = $hours . ' hours ' . $minutes . ' minutes';
+            }
+        }
+        
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'fullName' => $visitorDetails['fullName'] ?? 'N/A',
+                'contactNo' => $visitorDetails['contactNo'] ?? 'N/A',
+                'icNo' => $visitorDetails['icNo'] ?? 'N/A',
+                'personVisited' => $visitorDetails['personVisited'] ?? 'N/A',
+                'dateOfVisitFrom' => isset($visitorDetails['dateOfVisitFrom']) ? 
+                    Carbon::parse($visitorDetails['dateOfVisitFrom'])->format('d M Y h:i A') : 'N/A',
+                'dateOfVisitTo' => isset($visitorDetails['dateOfVisitTo']) ? 
+                    Carbon::parse($visitorDetails['dateOfVisitTo'])->format('d M Y h:i A') : 'N/A',
+                'check_in_time' => $checkInLog ? 
+                    Carbon::parse($checkInLog->created_at)->format('d M Y h:i A') : 'N/A',
+                'location' => $checkInLog->location_name ?? 'N/A',
+                'duration' => $duration
+            ]
+        ]);
+        
+    } catch (\Exception $e) {
+        Log::error('Error getting visitor details: ' . $e->getMessage());
+        
+        return response()->json([
+            'success' => false,
+            'message' => 'Error loading visitor details'
+        ], 500);
+    }
+}
+
+public function refreshOnSiteData()
+{
+    try {
+        $visitorsOnSite = $this->getCurrentVisitorsOnSite();
+        
+        return response()->json([
+            'success' => true,
+            'visitors' => $visitorsOnSite,
+            'count' => count($visitorsOnSite),
+            'timestamp' => now()->format('Y-m-d H:i:s')
+        ]);
+        
+    } catch (\Exception $e) {
+        Log::error('Error refreshing on-site data: ' . $e->getMessage());
+        
+        return response()->json([
+            'success' => false,
+            'message' => 'Error refreshing data'
+        ], 500);
     }
 }
 

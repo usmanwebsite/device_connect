@@ -166,39 +166,40 @@
         <div class="col-lg-8 mb-4">
             <div class="content-card mb-4">
                 <h5>Currently On-Site</h5>
-                <table class="table table-hover mt-3">
-                    <thead>
-                        <tr>
-                            <th>Visitor Name</th>
-                            <th>Host</th>
-                            <th>Check-in Time</th>
-                            <th>Location</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @foreach($visitorsOnSite as $visitor)
-                        <tr>
-                            <td>{{ $visitor['full_name'] ?? 'N/A' }}</td>
-                            <td>{{ $visitor['person_visited'] ?? 'N/A' }}</td>
-                            <td>
-                                {{ \Carbon\Carbon::parse($visitor['created_at'])->format('h:i A') }}
-                            </td>
-                            <td>
-                                {{ $visitor['location_name'] ?? 'N/A' }}
-                            </td>
-                        </tr>
-                        @endforeach
-                        
-                        {{-- ✅ Agar koi visitor on-site nahi hai --}}
-                        @if(empty($visitorsOnSite))
-                        <tr>
-                            <td colspan="4" class="text-center">No visitors currently on-site</td>
-                        </tr>
-                        @endif
-                    </tbody>
-                </table>
+                <div class="table-responsive">
+                    <table class="table table-hover mt-3" id="onSiteTable">
+                        <thead>
+                            <tr>
+                                <th>Visitor Name</th>
+                                <th>Host</th>
+                                <th>Check-in Time</th>
+                                <th>Location</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach($visitorsOnSite as $visitor)
+                            <tr>
+                                <td>{{ $visitor['full_name'] ?? 'N/A' }}</td>
+                                <td>{{ $visitor['person_visited'] ?? 'N/A' }}</td>
+                                <td>
+                                    {{ \Carbon\Carbon::parse($visitor['created_at'])->format('h:i A') }}
+                                </td>
+                                <td>
+                                    {{ $visitor['location_name'] ?? 'N/A' }}
+                                </td>
+                            </tr>
+                            @endforeach
+                            
+                            @if(empty($visitorsOnSite))
+                            <tr>
+                                <td colspan="4" class="text-center">No visitors currently on-site</td>
+                            </tr>
+                            @endif
+                        </tbody>
+                    </table>
+                </div>
             </div>
-            {{-- Graph with Date Filter --}}
+
             <div class="content-card">
                 <div class="row mb-4">
                     <div class="col-12">
@@ -642,6 +643,102 @@ function showVisitorOverstayModal() {
     const modal = new bootstrap.Modal(document.getElementById('visitorOverstayModal'));
     modal.show();
 }
+
+
+
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialize DataTable
+    const onSiteTable = $('#onSiteTable').DataTable({
+        pageLength: 5, // 5 records per page
+        lengthMenu: [[5, 10, 25, 50], [5, 10, 25, 50]],
+        responsive: true,
+        language: {
+            search: "_INPUT_",
+            searchPlaceholder: "Search visitors...",
+            lengthMenu: "Show _MENU_ entries",
+            info: "Showing _START_ to _END_ of _TOTAL_ visitors",
+            infoEmpty: "Showing 0 to 0 of 0 visitors",
+            infoFiltered: "(filtered from _MAX_ total visitors)",
+            paginate: {
+                first: "First",
+                last: "Last",
+                next: "Next",
+                previous: "Previous"
+            }
+        },
+        order: [[2, 'desc']], // Sort by check-in time descending
+        drawCallback: function(settings) {
+            // Remove pagination if only one page
+            const api = this.api();
+            const pageInfo = api.page.info();
+            
+            if (pageInfo.pages <= 1) {
+                $(api.table().container()).find('.dataTables_paginate').hide();
+            } else {
+                $(api.table().container()).find('.dataTables_paginate').show();
+            }
+        }
+    });
+    
+    // Auto-refresh table every 30 seconds
+    setInterval(function() {
+        refreshOnSiteTable();
+    }, 30000);
+});
+
+// Function to refresh table data
+function refreshOnSiteTable() {
+    fetch('/dashboard/refresh-on-site', {
+        method: 'GET',
+        headers: {
+            'X-CSRF-TOKEN': '{{ csrf_token() }}',
+            'X-Requested-With': 'XMLHttpRequest'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            updateTableData(data.visitors);
+            
+            // Update count in card
+            const visitorsCard = document.querySelector('.stat-card.clickable-card:nth-child(1) h2');
+            if (visitorsCard) {
+                visitorsCard.textContent = data.count || 0;
+            }
+        }
+    })
+    .catch(error => {
+        console.error('Error refreshing on-site data:', error);
+    });
+}
+
+// Function to update table data
+function updateTableData(visitors) {
+    const table = $('#onSiteTable').DataTable();
+    table.clear();
+    
+    if (visitors.length > 0) {
+        visitors.forEach(function(visitor) {
+            table.row.add([
+                visitor.full_name || 'N/A',
+                visitor.person_visited || 'N/A',
+                visitor.created_at ? new Date(visitor.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : 'N/A',
+                visitor.location_name || 'N/A'
+            ]);
+        });
+    } else {
+        table.row.add([
+            'No visitors currently on-site',
+            'N/A',
+            'N/A',
+            'N/A'
+        ]);
+    }
+    
+    table.draw();
+}
+
+
 
 // Upcoming Appointments Modal Show Function
 function showUpcomingAppointmentsModal() {

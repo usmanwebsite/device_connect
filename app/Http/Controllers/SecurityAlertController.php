@@ -256,6 +256,7 @@ class SecurityAlertController extends Controller
     {
         try {
             $unauthorizedLogs = DeviceAccessLog::where('access_granted', 0)
+                ->where('acknowledge',0)
                 ->orderBy('created_at', 'desc')
                 // ->take(50) 
                 ->get()
@@ -339,6 +340,7 @@ class SecurityAlertController extends Controller
     {
         try {
             $forcedEntryLogs = DeviceAccessLog::where('acknowledge', 1)
+                ->where('access_granted', 0) 
                 ->orderBy('created_at', 'desc')
                 ->get()
                 ->groupBy('staff_no');
