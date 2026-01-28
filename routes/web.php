@@ -59,7 +59,7 @@ Route::get('/dashboard/refresh-on-site', [DashboardController::class, 'refreshOn
 Route::get('/dashboard/refresh-denied-access-count', [DashboardController::class, 'refreshDeniedAccessCount']);
 
 // 1) CALLBACK — NO JAVA AUTH MIDDLEWARE HERE!
-Route::get('/vms/java-auth/callback',
+Route::get('/java-auth/callback',
     [JavaAuthController::class, 'handleCallback']
 )->name('java-auth.callback');
 

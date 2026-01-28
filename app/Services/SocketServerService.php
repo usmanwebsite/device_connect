@@ -30,7 +30,7 @@ class SocketServerService
 
         echo "✅ RD008 Socket Server listening on 0.0.0.0:$port\n";
 
-          $this->runTestFlow('lK98+suwMhrtbbebbrU85Q==:cp2WJfAUpfR9q6qA:wm/S7Q==:6YcYBuylypwFanhDe9rxig==', '008825038133');
+        //   $this->runTestFlow('lK98+suwMhrtbbebbrU85Q==:cp2WJfAUpfR9q6qA:wm/S7Q==:6YcYBuylypwFanhDe9rxig==', '008825038133');
 
         while (true) {
             $read = [$this->server];
@@ -142,7 +142,7 @@ private function handleOpenDoorRequest($sock, $data, $ip)
 
     if (empty($encryptedCardId) || empty($deviceId)) {
         echo "[" . date('H:i:s') . "] ❌ Missing SCode or DeviceID\n";
-        $this->sendAlarm($sock, $deviceId, $encryptedCardId);
+        $this->sendAlarm($sock, $deviceId, $encryptedCardId, 'Missing SCode or DeviceID', null, $locationName);
         return;
     }
 
@@ -151,7 +151,7 @@ private function handleOpenDoorRequest($sock, $data, $ip)
 
     if (!$decryptedCardId) {
         echo "[" . date('H:i:s') . "] ❌ Failed to decrypt Card ID\n";
-        $this->sendAlarm($sock, $deviceId, $encryptedCardId, 'Card ID decryption failed');
+        $this->sendAlarm($sock, $deviceId, $encryptedCardId, 'Card ID decryption failed', null, $locationName);
         return;
     }
 
@@ -160,33 +160,46 @@ private function handleOpenDoorRequest($sock, $data, $ip)
     // ✅ STEP 2: Call Java API with DECRYPTED Card ID
     $javaResponse = $this->callJavaVendorApi($decryptedCardId);
 
-    if (!$javaResponse || !isset($javaResponse['status']) || $javaResponse['status'] !== 'success') {
+    // ✅ FIX 1: Pehle check karo Java API response valid hai ya nahi
+    if (!$javaResponse) {
+        echo "[" . date('H:i:s') . "] ❌ Java API returned null\n";
+        $this->sendAlarm($sock, $deviceId, $decryptedCardId, 'Java API returned null', null, $locationName);
+        return;
+    }
+    
+    if (!isset($javaResponse['status']) || $javaResponse['status'] !== 'success') {
         echo "[" . date('H:i:s') . "] ❌ Java API returned error or no data\n";
-        $this->sendAlarm($sock, $deviceId, $decryptedCardId, 'Java API error or no data');
+        
+        // ✅ FIX 2: Try to get icNo from response if available
+        $icNo = null;
+        if (isset($javaResponse['data']['icNo'])) {
+            $icNo = $javaResponse['data']['icNo'];
+        } elseif (isset($javaResponse['data']['vendorData']['icNo'])) {
+            $icNo = $javaResponse['data']['vendorData']['icNo'];
+        }
+        
+        $this->sendAlarm($sock, $deviceId, $decryptedCardId, 'Java API error or no data', $icNo, $locationName);
         return;
     }
 
+    // ✅ FIX 3: Ab $apiData ko safely access karo
     $apiData = $javaResponse['data'];
     
-    // Extract IC No from API response
+    // Extract IC No from API response - YEHI WOH VALUE HAI JO DATABASE MEIN STORE HOGI
     $icNo = $apiData['icNo'] ?? null;
     
     if (!$icNo) {
         echo "[" . date('H:i:s') . "] ❌ IC No not found in API response\n";
-        $this->sendAlarm($sock, $deviceId, $decryptedCardId, 'IC No not found');
+        $this->sendAlarm($sock, $deviceId, $decryptedCardId, 'IC No not found', null, $locationName);
         return;
     }
     
-    $staffNo = $apiData['staffNo'] ?? null;
+    // Ye staffNo Java API se aata hai, database mein store NAHI hota
+    $staffNoFromJava = $apiData['staffNo'] ?? null;
     $visitorData = $apiData['visitorData'] ?? [];
     $visitorTypeId = $visitorData['visitorTypeId'] ?? null;
     
-    echo "[" . date('H:i:s') . "] 👤 IC No: $icNo, Staff No: $staffNo, Visitor Type ID: $visitorTypeId\n";
-
-
-    // ✅ NEW STEP: Check visit date/time validity
-$dateOfVisitFrom = $visitorData['dateOfVisitFrom'] ?? null;
-$dateOfVisitTo   = $visitorData['dateOfVisitTo'] ?? null;
+    echo "[" . date('H:i:s') . "] 👤 IC No (Database mein store hoga): $icNo, Staff No from Java: $staffNoFromJava, Visitor Type ID: $visitorTypeId\n";
 
 if (empty($dateOfVisitFrom) || empty($dateOfVisitTo)) {
     $reason = 'Visit period not defined for visitor';
@@ -540,11 +553,12 @@ elseif ($currentIndex === $lastIndex) {
 
     // ✅ Step 7: Grant access
     $this->grantAccess($sock, $deviceId, $decryptedCardId, $icNo, $locationName, $isType, [
-        'staffNo' => $staffNo,
+        'staffNo' => $staffNoFromJava,
         'fullName' => $visitorData['fullName'] ?? null,
         'companyName' => $visitorData['companyName'] ?? null
     ]);
 }
+
 private function getIsTypeFromDeviceAssignment($deviceId)
 {
     $deviceConnection = DB::table('device_connections')
@@ -612,108 +626,153 @@ private function getIsTypeFromDeviceAssignment($deviceId)
         }
     }
 
-    private function callJavaVendorApi($cardId)
-    {
-        try {
-            $javaBaseUrl = env('JAVA_BACKEND_URL', 'http://127.0.0.1:8080');
-            $token = env('JAVA_API_TOKEN', '');
+private function callJavaVendorApi($cardId)
+{
+    try {
+        $javaBaseUrl = env('JAVA_BACKEND_URL', 'http://127.0.0.1:8080');
+        $token = env('JAVA_API_TOKEN', '');
 
-            echo "[" . date('H:i:s') . "] 🔹 STEP 1: Getting vendor by Card ID: $cardId\n";
+        echo "[" . date('H:i:s') . "] 🔹 STEP 1: Getting vendor by Card ID: $cardId\n";
 
-            // 🔹 STEP 1: Get vendor by Card ID
-            $vendorResponse = Http::withHeaders([
-                'Accept' => 'application/json',
-                'Content-Type' => 'application/json',
-            ])->timeout(10)->post(
-                $javaBaseUrl . '/api/vendorpass/getVendorByCardId',
-                ['cardId' => $cardId]
-            );
+        // 🔹 STEP 1: Get vendor by Card ID
+        $vendorResponse = Http::withHeaders([
+            'Accept' => 'application/json',
+            'Content-Type' => 'application/json',
+        ])->timeout(10)->post(
+            $javaBaseUrl . '/api/vendorpass/getVendorByCardId',
+            ['cardId' => $cardId]
+        );
 
-            echo "[" . date('H:i:s') . "] 📡 Vendor API Status: " . $vendorResponse->status() . "\n";
+        echo "[" . date('H:i:s') . "] 📡 Vendor API Status: " . $vendorResponse->status() . "\n";
 
-            if (!$vendorResponse->successful()) {
-                echo "[" . date('H:i:s') . "] ❌ getVendorByCardId failed with status: " . $vendorResponse->status() . "\n";
-                echo "[" . date('H:i:s') . "] ❌ Error: " . $vendorResponse->body() . "\n";
-                return null;
-            }
-
-            $vendorData = $vendorResponse->json();
-            echo "[" . date('H:i:s') . "] 📋 Vendor API Response: " . json_encode($vendorData) . "\n";
-
-            if (empty($vendorData['icNo'])) {
-                echo "[" . date('H:i:s') . "] ❌ IC No not found for card\n";
-                return null;
-            }
-
-            $icNo = $vendorData['icNo'];
-            $vendorStaffNo = $vendorData['staffNo'] ?? null;
-            $status = $vendorData['status'] ?? false;
-            
-            if ($status !== true) {
-                echo "[" . date('H:i:s') . "] ❌ Card status is not active\n";
-                return null;
-            }
-
-            echo "[" . date('H:i:s') . "] 🆔 IC No Found: $icNo, Staff No from vendor: $vendorStaffNo\n";
-
-            // 🔹 STEP 2: Get visitor details by IC No
-            echo "[" . date('H:i:s') . "] 🔹 STEP 2: Getting visitor details by IC No: $icNo\n";
-
-            $visitorResponse = Http::withHeaders([
-                'Accept' => 'application/json',
-            ])->timeout(10)->get(
-                $javaBaseUrl . '/api/vendorpass/get-visitor-details-by-icno-or-staffno',
-                ['icNo' => $icNo]
-            );
-
-            echo "[" . date('H:i:s') . "] 📡 Visitor API Status: " . $visitorResponse->status() . "\n";
-
-            if (!$visitorResponse->successful()) {
-                echo "[" . date('H:i:s') . "] ❌ Visitor details API failed with status: " . $visitorResponse->status() . "\n";
-                echo "[" . date('H:i:s') . "] ❌ Error: " . $visitorResponse->body() . "\n";
-                return null;
-            }
-
-            $visitorJson = $visitorResponse->json();
-            echo "[" . date('H:i:s') . "] 📋 Visitor API Response: " . json_encode($visitorJson) . "\n";
-
-            if (empty($visitorJson['status']) || $visitorJson['status'] !== 'success') {
-                echo "[" . date('H:i:s') . "] ❌ Visitor API status not success\n";
-                return null;
-            }
-
-            if (empty($visitorJson['data']) || empty($visitorJson['data'][0])) {
-                echo "[" . date('H:i:s') . "] ❌ No visitor data found\n";
-                return null;
-            }
-
-            $visitorData = $visitorJson['data'][0];
-            $visitorStaffNo = $visitorData['staffNo'] ?? $vendorStaffNo;
-            
-            echo "[" . date('H:i:s') . "] 👤 Visitor Details Found:\n";
-            echo "[" . date('H:i:s') . "]   - Staff No: $visitorStaffNo\n";
-            echo "[" . date('H:i:s') . "]   - Full Name: " . ($visitorData['fullName'] ?? 'N/A') . "\n";
-            echo "[" . date('H:i:s') . "]   - Company: " . ($visitorData['companyName'] ?? 'N/A') . "\n";
-            echo "[" . date('H:i:s') . "]   - IC No: " . ($visitorData['icNo'] ?? 'N/A') . "\n";
-            echo "[" . date('H:i:s') . "] ✅ Both APIs processed successfully\n";
-
-            // Return combined data
-            return [
-                'status' => 'success',
-                'data' => [
-                    'staffNo' => $visitorStaffNo,
-                    'cardId' => $cardId, // Original decrypted card ID
-                    'icNo' => $icNo,
-                    'visitorData' => $visitorData,
-                    'vendorData' => $vendorData
-                ]
-            ];
-
-        } catch (\Exception $e) {
-            echo "[" . date('H:i:s') . "] ❌ Java API Exception: " . $e->getMessage() . "\n";
+        if (!$vendorResponse->successful()) {
+            echo "[" . date('H:i:s') . "] ❌ getVendorByCardId failed with status: " . $vendorResponse->status() . "\n";
+            echo "[" . date('H:i:s') . "] ❌ Error: " . $vendorResponse->body() . "\n";
             return null;
         }
+
+        $vendorData = $vendorResponse->json();
+        echo "[" . date('H:i:s') . "] 📋 Vendor API Response: " . json_encode($vendorData) . "\n";
+
+        // ✅ FIX: Check if response has required fields
+        if (empty($vendorData) || !isset($vendorData['icNo'])) {
+            echo "[" . date('H:i:s') . "] ❌ IC No not found for card or empty response\n";
+            
+            // ✅ Return partial data with status 'error'
+            return [
+                'status' => 'error',
+                'data' => [
+                    'vendorData' => $vendorData, // Pass whatever data we got
+                    'icNo' => $vendorData['icNo'] ?? null
+                ],
+                'message' => 'IC No not found for card'
+            ];
+        }
+
+        $icNo = $vendorData['icNo'];
+        $vendorStaffNo = $vendorData['staffNo'] ?? null;
+        $status = $vendorData['status'] ?? false;
+        
+        if ($status !== true) {
+            echo "[" . date('H:i:s') . "] ❌ Card status is not active\n";
+            return [
+                'status' => 'error',
+                'data' => [
+                    'vendorData' => $vendorData,
+                    'icNo' => $icNo,
+                    'staffNo' => $vendorStaffNo
+                ],
+                'message' => 'Card status is not active'
+            ];
+        }
+
+        echo "[" . date('H:i:s') . "] 🆔 IC No Found: $icNo, Staff No from vendor: $vendorStaffNo\n";
+
+        // 🔹 STEP 2: Get visitor details by IC No
+        echo "[" . date('H:i:s') . "] 🔹 STEP 2: Getting visitor details by IC No: $icNo\n";
+
+        $visitorResponse = Http::withHeaders([
+            'Accept' => 'application/json',
+        ])->timeout(10)->get(
+            $javaBaseUrl . '/api/vendorpass/get-visitor-details-by-icno-or-staffno',
+            ['icNo' => $icNo]
+        );
+
+        echo "[" . date('H:i:s') . "] 📡 Visitor API Status: " . $visitorResponse->status() . "\n";
+
+        if (!$visitorResponse->successful()) {
+            echo "[" . date('H:i:s') . "] ❌ Visitor details API failed with status: " . $visitorResponse->status() . "\n";
+            echo "[" . date('H:i:s') . "] ❌ Error: " . $visitorResponse->body() . "\n";
+            
+            // ✅ Return partial data with icNo
+            return [
+                'status' => 'error',
+                'data' => [
+                    'icNo' => $icNo,
+                    'staffNo' => $vendorStaffNo,
+                    'vendorData' => $vendorData
+                ],
+                'message' => 'Visitor details API failed'
+            ];
+        }
+
+        $visitorJson = $visitorResponse->json();
+        echo "[" . date('H:i:s') . "] 📋 Visitor API Response: " . json_encode($visitorJson) . "\n";
+
+        if (empty($visitorJson['status']) || $visitorJson['status'] !== 'success') {
+            echo "[" . date('H:i:s') . "] ❌ Visitor API status not success\n";
+            return [
+                'status' => 'error',
+                'data' => [
+                    'icNo' => $icNo,
+                    'staffNo' => $vendorStaffNo,
+                    'vendorData' => $vendorData,
+                    'visitorData' => $visitorJson['data'][0] ?? []
+                ],
+                'message' => 'Visitor API status not success'
+            ];
+        }
+
+        if (empty($visitorJson['data']) || empty($visitorJson['data'][0])) {
+            echo "[" . date('H:i:s') . "] ❌ No visitor data found\n";
+            return [
+                'status' => 'error',
+                'data' => [
+                    'icNo' => $icNo,
+                    'staffNo' => $vendorStaffNo,
+                    'vendorData' => $vendorData
+                ],
+                'message' => 'No visitor data found'
+            ];
+        }
+
+        $visitorData = $visitorJson['data'][0];
+        $visitorStaffNo = $visitorData['staffNo'] ?? $vendorStaffNo;
+        
+        echo "[" . date('H:i:s') . "] 👤 Visitor Details Found:\n";
+        echo "[" . date('H:i:s') . "]   - Staff No: $visitorStaffNo\n";
+        echo "[" . date('H:i:s') . "]   - Full Name: " . ($visitorData['fullName'] ?? 'N/A') . "\n";
+        echo "[" . date('H:i:s') . "]   - Company: " . ($visitorData['companyName'] ?? 'N/A') . "\n";
+        echo "[" . date('H:i:s') . "]   - IC No: " . ($visitorData['icNo'] ?? 'N/A') . "\n";
+        echo "[" . date('H:i:s') . "] ✅ Both APIs processed successfully\n";
+
+        // Return combined data
+        return [
+            'status' => 'success',
+            'data' => [
+                'staffNo' => $visitorStaffNo,
+                'cardId' => $cardId, 
+                'icNo' => $icNo, 
+                'visitorData' => $visitorData,
+                'vendorData' => $vendorData
+            ]
+        ];
+
+    } catch (\Exception $e) {
+        echo "[" . date('H:i:s') . "] ❌ Java API Exception: " . $e->getMessage() . "\n";
+        return null;
     }
+}
 
     private function grantAccess($sock, $deviceId, $cardId, $icNo, $locationName, $isType, $additionalData = [])
 {
@@ -731,6 +790,7 @@ private function getIsTypeFromDeviceAssignment($deviceId)
         'access_granted' => 1,
         'reason' => 'Access granted',
         'created_at' => now(),
+        'updated_at' =>now(),
     ]);
     
     echo "[" . date('H:i:s') . "] 💾 Log stored - Card ID: $cardId, IC No: $icNo\n";
@@ -764,6 +824,7 @@ private function sendAlarm($sock, $deviceId, $cardId = null, $reason = null, $ic
         'access_granted' => 0,
         'reason' => $reason,
         'created_at' => now(),
+        'updated_at' =>now(),
     ]);
     
     echo "[" . date('H:i:s') . "] 💾 Denied access logged - Location: $locationName\n";

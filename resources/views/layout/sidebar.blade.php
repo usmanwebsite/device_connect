@@ -1,6 +1,6 @@
 <aside class="sidebar" id="sidebar">
     <div class="sidebar-header">
-        <img src="{{ asset('logo_image/safegLogo2.svg')}}" alt="SafeG Logo" class="img-style">
+        <img src="{{ asset('logo_image/mnr_logo.jpeg')}}" alt="SafeG Logo" class="img-style">
         {{--<img src="{{ asset('logo_image/LogoMnRTrams.png')}}" alt="SafeG Logo" class="img-style"> --}}
     </div>
     

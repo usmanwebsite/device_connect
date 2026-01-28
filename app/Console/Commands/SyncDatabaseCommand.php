@@ -43,7 +43,7 @@ class SyncDatabaseCommand extends Command
             'sync_method' => 'insert_only',
         ],
         'device_connections' => [
-            'sync_method' => 'auto',
+            'sync_method' => 'insert_only',
         ],
         'device_commands' => [
             'sync_method' => 'incremental', // Only new inserts
