@@ -112,7 +112,6 @@
                                 <tr>
                                     <th>Date & Time</th>
                                     <th>Event</th>
-                                    <th>Staff No</th>
                                     <th>Full Name</th>
                                     <th>IC No</th>
                                     <th>Company</th>
@@ -163,7 +162,6 @@
                                 <tr>
                                     <th>Date & Time</th>
                                     <th>Event</th>
-                                    <th>Staff No</th>
                                     <th>Full Name</th>
                                     <th>IC No</th>
                                     <th>Company</th>
@@ -201,7 +199,6 @@
                                 <tr>
                                     <th>Date & Time</th>
                                     <th>Event</th>
-                                    <th>Staff No</th>
                                     <th>Full Name</th>
                                     <th>IC No</th>
                                     <th>Company</th>
@@ -461,66 +458,88 @@ function loadUnauthorizedData() {
         </tr>
     `;
     
-    fetch('/vms/security-alerts/details/2')
-        .then(response => response.json())
-        .then(data => {
-            unauthorizedData = data;
-            
-            if (unauthorizedTable) {
-                unauthorizedTable.destroy();
-                unauthorizedTable = null;
-            }
-            
-            if (data && Array.isArray(data) && data.length > 0) {
-                let html = '';
-                data.forEach(item => {
-                    html += `
-                        <tr>
-                            <td><small class="text-muted">${item.time || 'N/A'}</small></td>
-                            <td><span class="badge bg-danger">${item.event || 'Unauthorized'}</span></td>
-                            <td><strong>${item.staff_no || 'N/A'}</strong></td>
-                            <td>${item.full_name || 'Unknown'}</td>
-                            <td><small>${item.ic_no || 'N/A'}</small></td>
-                            <td>${item.company_name || 'N/A'}</td>
-                            <td><small>${item.contact_no || 'N/A'}</small></td>
-                            <td>${item.person_visited || 'N/A'}</td>
-                            <td><small class="text-muted">${item.reason || 'N/A'}</small></td>
-                            <td><small>${item.location || 'Unknown'}</small></td>
-                        </tr>
-                    `;
-                });
-                tbody.innerHTML = html;
-                
-                // Update total records
-                document.getElementById('totalRecords').textContent = data.length;
-                
-                // Initialize DataTable
-                setTimeout(() => {
-                    initializeUnauthorizedTable();
-                }, 100);
-                
-                showToast(`Loaded ${data.length} unauthorized access attempts`, 'success');
-            } else {
-                tbody.innerHTML = `
+fetch('/vms/security-alerts/details/2')
+    .then(response => {
+        // Check for unauthorized
+        if (response.status === 401) {
+            const logoutUrl = "{{ route('vms.logout') }}";
+            const csrfToken = "{{ csrf_token() }}";
+
+            const form = document.createElement('form');
+            form.method = 'POST';
+            form.action = logoutUrl;
+
+            const tokenInput = document.createElement('input');
+            tokenInput.type = 'hidden';
+            tokenInput.name = '_token';
+            tokenInput.value = csrfToken;
+
+            form.appendChild(tokenInput);
+            document.body.appendChild(form);
+            form.submit();
+
+            return Promise.reject('Unauthorized'); // Stop further processing
+        }
+        // Continue with JSON if authorized
+        return response.json();
+    })
+    .then(data => {
+        unauthorizedData = data;
+
+        if (unauthorizedTable) {
+            unauthorizedTable.destroy();
+            unauthorizedTable = null;
+        }
+
+        const tbody = document.getElementById('unauthorizedDetailsBody');
+        if (data && Array.isArray(data) && data.length > 0) {
+            let html = '';
+            data.forEach(item => {
+                html += `
                     <tr>
-                        <td colspan="10" class="text-center text-muted">
-                            <i class="bx bx-check-circle"></i> No unauthorized access attempts found
-                        </td>
+                        <td><small class="text-muted">${item.time || 'N/A'}</small></td>
+                        <td><span class="badge bg-danger">${item.event || 'Unauthorized'}</span></td>
+                        <td>${item.full_name || 'Unknown'}</td>
+                        <td><small>${item.ic_no || 'N/A'}</small></td>
+                        <td>${item.company_name || 'N/A'}</td>
+                        <td><small>${item.contact_no || 'N/A'}</small></td>
+                        <td>${item.person_visited || 'N/A'}</td>
+                        <td><small class="text-muted">${item.reason || 'N/A'}</small></td>
+                        <td><small>${item.location || 'Unknown'}</small></td>
                     </tr>
                 `;
-                document.getElementById('totalRecords').textContent = '0';
-            }
-        })
-        .catch(error => {
-            console.error('Error:', error);
+            });
+            tbody.innerHTML = html;
+            document.getElementById('totalRecords').textContent = data.length;
+
+            setTimeout(() => {
+                initializeUnauthorizedTable();
+            }, 100);
+
+            showToast(`Loaded ${data.length} unauthorized access attempts`, 'success');
+        } else {
             tbody.innerHTML = `
                 <tr>
-                    <td colspan="10" class="text-center text-danger">
-                        Error loading data
+                    <td colspan="10" class="text-center text-muted">
+                        <i class="bx bx-check-circle"></i> No unauthorized access attempts found
                     </td>
                 </tr>
             `;
-        });
+            document.getElementById('totalRecords').textContent = '0';
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        const tbody = document.getElementById('unauthorizedDetailsBody');
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="10" class="text-center text-danger">
+                    Error loading data
+                </td>
+            </tr>
+        `;
+    });
+
 }
 
 function loadForcedEntryData() {
@@ -553,7 +572,6 @@ function loadForcedEntryData() {
                         <tr>
                             <td><small class="text-muted">${item.time || 'N/A'}</small></td>
                             <td><span class="badge bg-danger">${item.event || 'Forced Entry'}</span></td>
-                            <td><strong>${item.staff_no || 'N/A'}</strong></td>
                             <td>${item.full_name || 'Unknown'}</td>
                             <td><small>${item.ic_no || 'N/A'}</small></td>
                             <td>${item.company_name || 'N/A'}</td>
@@ -622,7 +640,6 @@ function loadOverstayData() {
                         <tr>
                             <td><small class="text-muted">${item.time || 'N/A'}</small></td>
                             <td><span class="badge bg-warning">${item.event || 'Overstay'}</span></td>
-                            <td><strong>${item.staff_no || 'N/A'}</strong></td>
                             <td>${item.full_name || 'Unknown'}</td>
                             <td><small>${item.ic_no || 'N/A'}</small></td>
                             <td>${item.company_name || 'N/A'}</td>
@@ -691,7 +708,7 @@ function exportUnauthorizedData() {
         return;
     }
     
-    let csv = 'Date & Time,Event,Staff No,Full Name,IC No,Company,Contact No,Person to Visit,Reason,Location\n';
+    let csv = 'Date & Time,Event,Full Name,IC No,Company,Contact No,Person to Visit,Reason,Location\n';
     
     unauthorizedData.forEach(item => {
         csv += `"${item.time || ''}","${item.event || ''}","${item.staff_no || ''}","${item.full_name || ''}","${item.ic_no || ''}","${item.company_name || ''}","${item.contact_no || ''}","${item.person_visited || ''}","${item.reason || ''}","${item.location || ''}"\n`;
@@ -707,7 +724,7 @@ function exportForcedEntryData() {
         return;
     }
     
-    let csv = 'Date & Time,Event,Staff No,Full Name,IC No,Company,Contact No,Person to Visit,Reason,Location\n';
+    let csv = 'Date & Time,Event,Full Name,IC No,Company,Contact No,Person to Visit,Reason,Location\n';
     
     forcedEntryData.forEach(item => {
         csv += `"${item.time || ''}","${item.event || ''}","${item.staff_no || ''}","${item.full_name || ''}","${item.ic_no || ''}","${item.company_name || ''}","${item.contact_no || ''}","${item.person_visited || ''}","${item.reason || ''}","${item.location || ''}"\n`;
@@ -723,7 +740,7 @@ function exportOverstayData() {
         return;
     }
     
-    let csv = 'Date & Time,Event,Staff No,Full Name,IC No,Company,Contact No,Person to Visit,Reason,Location,Check-in Time,Overstay Duration\n';
+    let csv = 'Date & Time,Event,Full Name,IC No,Company,Contact No,Person to Visit,Reason,Location,Check-in Time,Overstay Duration\n';
     
     overstayData.forEach(item => {
         csv += `"${item.time || ''}","${item.event || ''}","${item.staff_no || ''}","${item.full_name || ''}","${item.ic_no || ''}","${item.company_name || ''}","${item.contact_no || ''}","${item.person_visited || ''}","${item.reason || ''}","${item.location || ''}","${item.check_in_time || ''}","${item.overstay_duration || ''}"\n`;

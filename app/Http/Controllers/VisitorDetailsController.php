@@ -16,18 +16,22 @@ class VisitorDetailsController extends Controller
     protected $menuService;
     protected $javaBaseUrl;
     
-    public function __construct(MenuService $menuService)
+    public function __construct(MenuService $menuService, Request $request)
     {
         $this->menuService = $menuService;
 
-        $this->javaBaseUrl = env('JAVA_BACKEND_URL', 'http://127.0.0.1:8080');
+        $host = $request->getHost();
+        $scheme = $request->getScheme();
         
-        // Check agar .env me value set nahi hai to fallback
-        if (!$this->javaBaseUrl) {
-            $this->javaBaseUrl = 'http://127.0.0.1:8080'; // Default fallback
+        if (in_array($host, ['localhost', '127.0.0.1', '::1', 'localhost:8000'])) {
+            $this->javaBaseUrl = 'http://127.0.0.1:8080';
+        } else {
+            $scheme = $request->getScheme(); // http ya https
+            $this->javaBaseUrl = $scheme . '://' . $host . ':8080';
         }
-        
-        Log::info('Java Base URL set to: ' . $this->javaBaseUrl);
+        $this->javaBaseUrl = $scheme . '://' . $host . ':8080';
+        //dd($this->javaBaseUrl);
+        Log::info('Java Base URL (dynamic): ' . $this->javaBaseUrl);
     }
 
     /**
@@ -90,47 +94,143 @@ class VisitorDetailsController extends Controller
         }
     }
 
-    /**
-     * Call Java API based on search type
-     */
-    private function callJavaApi($searchTerm, $searchType)
-    {
-        try {
-            $javaBaseUrl = $this->javaBaseUrl;
-            
-            $params = [];
-            if ($searchType === 'staffNo') {
-                $params['staffNo'] = $searchTerm;
-            } elseif ($searchType === 'icNo') {
-                $params['icNo'] = $searchTerm;
-            } else {
-                $params['staffNo'] = $searchTerm;
-                $params['icNo'] = $searchTerm;
-            }
-            
-            Log::info('Calling Java API: ' . $javaBaseUrl . '/api/vendorpass/get-visitor-details-by-icno-or-staffno');
-            Log::info('With params: ', $params);
-            
-            $response = Http::timeout(30)
-                ->retry(2, 100)
-                ->get($javaBaseUrl . '/api/vendorpass/get-visitor-details-by-icno-or-staffno', $params);
-            
-            Log::info('Java API Response Status: ' . $response->status());
-            
-            if ($response->successful()) {
-                $data = $response->json();
-                Log::info('Java API Success: ' . json_encode($data));
-                return $data;
-            }
-            
-            Log::error('Java API Error: ' . $response->body());
-            return null;
-            
-        } catch (\Exception $e) {
-            Log::error('Java API Exception: ' . $e->getMessage());
-            return null;
+/**
+ * Call Java API based on search type
+ */
+// private function callJavaApi($searchTerm, $searchType)
+// {
+//     try {
+//         // ✅ Yeh wala javaBaseUrl use karein
+//         $javaBaseUrl = $this->javaBaseUrl;
+//         $cardStatus = false;
+        
+//         // ✅ Debug log add karein
+//         Log::info('=== VisitorDetailsController - Java API Call ===');
+//         Log::info('Java Base URL being used: ' . $javaBaseUrl);
+//         Log::info('Search Term: ' . $searchTerm);
+//         Log::info('Search Type: ' . $searchType);
+        
+//         $params = [];
+//         if ($searchType === 'staffNo') {
+//             $params['staffNo'] = $searchTerm;
+//         } elseif ($searchType === 'icNo') {
+//             $params['icNo'] = $searchTerm;
+//         } else {
+//             $params['staffNo'] = $searchTerm;
+//             $params['icNo'] = $searchTerm;
+//         }
+        
+//         $fullUrl = $javaBaseUrl . '/api/vendorpass/get-visitor-details-by-icno-or-staffno';
+//         Log::info('Full Java API URL: ' . $fullUrl);
+//         Log::info('With params: ', $params);
+        
+//         // ✅ Session se token lein agar available ho
+//         $token = session()->get('java_backend_token') ?? session()->get('java_auth_token');
+        
+//         $headers = [
+//             'Accept' => 'application/json',
+//             'Content-Type' => 'application/json'
+//         ];
+        
+//         if ($token) {
+//             $headers['x-auth-token'] = $token;
+//             Log::info('Token added to headers');
+//         }
+        
+//         Log::info('Making Java API call...');
+        
+//         $response = Http::withHeaders($headers)
+//             ->timeout(30)
+//             ->retry(2, 100)
+//             ->get($fullUrl, $params);
+        
+//         Log::info('Java API Response Status: ' . $response->status());
+//         Log::info('Java API Response Body: ' . $response->body());
+        
+//         if ($response->successful()) {
+//             $data = $response->json();
+//             Log::info('Java API Success: Data received');
+//             return $data;
+//         }
+        
+//         Log::error('Java API Error: ' . $response->body());
+//         return null;
+        
+//     } catch (\Exception $e) {
+//         Log::error('Java API Exception: ' . $e->getMessage());
+//         Log::error('Stack trace: ' . $e->getTraceAsString());
+//         return null;
+//     }
+// }
+
+private function callJavaApi($searchTerm, $searchType, $cardStatus = false)
+{
+    try {
+        // ✅ Yeh wala javaBaseUrl use karein
+        $javaBaseUrl = $this->javaBaseUrl;
+        
+        // ✅ Debug log add karein
+        Log::info('=== VisitorDetailsController - Java API Call ===');
+        Log::info('Java Base URL being used: ' . $javaBaseUrl);
+        Log::info('Search Term: ' . $searchTerm);
+        Log::info('Search Type: ' . $searchType);
+        Log::info('Card Status: ' . ($cardStatus ? 'true' : 'false'));
+        
+        $params = [];
+        if ($searchType === 'staffNo') {
+            $params['staffNo'] = $searchTerm;
+        } elseif ($searchType === 'icNo') {
+            $params['icNo'] = $searchTerm;
+        } else {
+            $params['staffNo'] = $searchTerm;
+            $params['icNo'] = $searchTerm;
         }
+        
+        // ✅ Card status parameter
+        $params['cardStatus'] = $cardStatus;
+        
+        $fullUrl = $javaBaseUrl . '/api/vendorpass/get-visitor-details';
+        Log::info('Full Java API URL: ' . $fullUrl);
+        Log::info('With params: ', $params);
+        
+        // ✅ Session se token lein agar available ho
+        $token = session()->get('java_backend_token') ?? session()->get('java_auth_token');
+        
+        $headers = [
+            'Accept' => 'application/json',
+            'Content-Type' => 'application/json'
+        ];
+        
+        if ($token) {
+            $headers['x-auth-token'] = $token;
+            Log::info('Token added to headers');
+        }
+        
+        Log::info('Making Java API call...');
+        
+        $response = Http::withHeaders($headers)
+            ->timeout(30)
+            ->retry(2, 100)
+            ->get($fullUrl, $params);
+        
+        Log::info('Java API Response Status: ' . $response->status());
+        Log::info('Java API Response Body: ' . $response->body());
+        
+        if ($response->successful()) {
+            $data = $response->json();
+            Log::info('Java API Success: Data received');
+            return $data;
+        }
+        
+        Log::error('Java API Error: ' . $response->body());
+        return null;
+        
+    } catch (\Exception $e) {
+        Log::error('Java API Exception: ' . $e->getMessage());
+        Log::error('Stack trace: ' . $e->getTraceAsString());
+        return null;
     }
+}
 
 private function isTurnstileCheckIn($locationName, $logTime, $staffNo)
 {
@@ -526,80 +626,101 @@ private function determineBySessionLogic($logRecord, $staffNo)
 /**
  * Updated getVisitorChronology function
  */
+
 public function getVisitorChronology(Request $request)
 {
     $request->validate([
-        'staff_no' => 'nullable|string',
         'ic_no' => 'required|string'
     ]);
 
     try {
-
-    
-
-        $staffNo = $request->input('staff_no');
         $icNo = $request->input('ic_no');
         
-        Log::info("Getting chronology for: StaffNo=$staffNo, ICNo=$icNo");
+        // ✅ NAYA: Sirf basic logs lo
+        $accessLogs = DB::table('device_access_logs')
+            ->where('staff_no', $icNo)
+            ->orderBy('created_at', 'asc') // Ascending order
+            ->get();
         
-        // 1. Get all access logs for this visitor
-        $accessLogs = $this->getAccessLogs($icNo);
-        Log::info("Total access logs: " . $accessLogs->count());
+        if ($accessLogs->isEmpty()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'No access logs found'
+            ]);
+        }
         
-        // 2. Get location timeline
-        $locationTimeline = $this->getLocationTimeline($accessLogs);
-        Log::info("Location timeline items: " . count($locationTimeline));
+        // ✅ NAYA: Simple timeline banao (NO TIME FILTER)
+        $locationTimeline = [];
         
-        // 3. Get visit dates
-        $visitDates = $this->getVisitDates($icNo);
-        Log::info("Visit dates found: " . json_encode($visitDates));
+        for ($i = 1; $i < count($accessLogs); $i++) {
+            $currentLog = $accessLogs[$i];
+            $previousLog = $accessLogs[$i - 1];
+            
+            $timeSpent = strtotime($currentLog->created_at) 
+                       - strtotime($previousLog->created_at);
+            
+            $locationTimeline[] = [
+                'from_location' => $previousLog->location_name ?? 'Unknown',
+                'to_location' => $currentLog->location_name ?? 'Unknown',
+                'entry_time' => $previousLog->created_at,
+                'exit_time' => $currentLog->created_at,
+                'time_spent' => $this->formatTime($timeSpent),
+                'access_granted' => $currentLog->access_granted ?? 1
+            ];
+        }
         
-        // 4. Group logs by visit session with normalized keys
-        $logsByVisitDate = $this->groupLogsByVisitSession($accessLogs, $icNo);
+        // ✅ NAYA: Simple date-wise grouping
+        $visitDates = [];
+        $logsByDate = [];
+        $timelineByDate = [];
         
-        // 5. Group timeline by visit session with normalized keys
-        $timelineByVisitDate = $this->groupTimelineByVisitSession($locationTimeline, $icNo);
+        foreach ($accessLogs as $log) {
+            $dateKey = date('d-M-Y', strtotime($log->created_at));
+            
+            if (!in_array($dateKey, $visitDates)) {
+                $visitDates[] = $dateKey;
+            }
+            
+            $logsByDate[$dateKey][] = $log;
+        }
         
-        // 6. Also ensure dates array has normalized keys
-        $normalizedDates = array_map([$this, 'normalizeDateKey'], $visitDates);
+        // ✅ NAYA: Timeline ko bhi date-wise group karo
+        foreach ($locationTimeline as $item) {
+            $dateKey = date('d-M-Y', strtotime($item['entry_time']));
+            $timelineByDate[$dateKey][] = $item;
+        }
         
-        // 7. Get other data
-        $visitSessions = $this->getVisitSessions($icNo);
+        // Dates ko latest first karo
+        usort($visitDates, function($a, $b) {
+            return strtotime($b) - strtotime($a);
+        });
+        
+        // ✅ NAYA: Yeh 3 fields ADD karo
         $currentStatus = $this->getCurrentStatus($icNo);
-        $totalTimeSpent = $this->calculateTotalTimeFromSessions($icNo);
-        $turnstileInfo = $this->getTurnstileInfo($icNo);
+        $totalTimeSpent = $this->calculateTotalTimeSpent($accessLogs);
         $summary = $this->generateSummary($icNo, $accessLogs);
-        $timeSinceLastCheckIn = $this->calculateTimeSinceLastCheckIn($icNo);
         
-        // 8. Return response with normalized keys
         return response()->json([
             'success' => true,
             'data' => [
-                'dates' => array_values(array_unique($normalizedDates)), // Unique normalized dates
-                'logs_by_date' => $logsByVisitDate,
-                'timeline_by_date' => $timelineByVisitDate,
-                'visit_sessions' => $visitSessions,
-                'current_status' => $currentStatus,
-                'total_time_spent' => $totalTimeSpent,
-                'turnstile_info' => $turnstileInfo,
-                'summary' => $summary,
-                'time_since_last_checkin' => $timeSinceLastCheckIn,
+                'dates' => $visitDates,
+                'logs_by_date' => $logsByDate,
+                'timeline_by_date' => $timelineByDate,
+                'current_status' => $currentStatus,  // ✅ ADDED
+                'total_time_spent' => $totalTimeSpent, // ✅ ADDED
+                'summary' => $summary, // ✅ ADDED
                 'all_access_logs' => $accessLogs,
                 'all_location_timeline' => $locationTimeline
             ]
         ]);
         
     } catch (\Exception $e) {
-        Log::error('Error fetching chronology: ' . $e->getMessage());
-        Log::error('Stack trace: ' . $e->getTraceAsString());
-        
         return response()->json([
             'success' => false,
-            'message' => 'Error fetching chronology data: ' . $e->getMessage()
-        ], 500);
+            'message' => 'Error: ' . $e->getMessage()
+        ]);
     }
 }
-
 /**
  * Get all access logs for visitor (ordered by latest first)
  */
@@ -638,41 +759,53 @@ private function getAccessLogs($icNo)
 /**
  * Get location timeline with durations (adjusted for descending order)
  */
+
 private function getLocationTimeline($accessLogs)
 {
     $timeline = [];
     
-    // Sort access logs in ascending order for timeline calculation
-    $sortedLogs = $accessLogs->sortBy('created_at')->values();
-    
-    foreach ($sortedLogs as $index => $log) {
-        if ($index === 0) continue;
+    for ($i = 1; $i < $accessLogs->count(); $i++) {
+        $currentLog = $accessLogs[$i];
+        $previousLog = $accessLogs[$i - 1];
         
-        $previousLog = $sortedLogs[$index - 1];
+        $timeSpent = strtotime($currentLog->created_at) 
+                   - strtotime($previousLog->created_at);
         
-        // Calculate time spent at previous location
-        $timeSpent = strtotime($log->created_at) - strtotime($previousLog->created_at);
-        $hours = floor($timeSpent / 3600);
-        $minutes = floor(($timeSpent % 3600) / 60);
-        $seconds = $timeSpent % 60;
         
         $timeline[] = [
-            'from_location' => $previousLog->location_name,
-            'to_location' => $log->location_name,
+            'from_location' => $previousLog->location_name ?? 'Unknown',
+            'to_location' => $currentLog->location_name ?? 'Unknown',
             'entry_time' => $previousLog->created_at,
-            'exit_time' => $log->created_at,
+            'exit_time' => $currentLog->created_at,
             'time_spent' => [
-                'hours' => $hours,
-                'minutes' => $minutes,
-                'seconds' => $seconds,
+                'hours' => floor($timeSpent / 3600),
+                'minutes' => floor(($timeSpent % 3600) / 60),
+                'seconds' => $timeSpent % 60,
                 'total_seconds' => $timeSpent
             ],
-            'access_granted' => $log->access_granted
+            'access_granted' => $currentLog->access_granted ?? 1
         ];
     }
     
     return $timeline;
 }
+
+
+private function formatTime($seconds)
+{
+    $hours = floor($seconds / 3600);
+    $minutes = floor(($seconds % 3600) / 60);
+    $seconds = $seconds % 60;
+    
+    return [
+        'hours' => $hours,
+        'minutes' => $minutes,
+        'seconds' => $seconds,
+        'total_seconds' => $seconds,
+        'formatted' => sprintf('%02d:%02d:%02d', $hours, $minutes, $seconds)
+    ];
+}
+
 
     // private function getCurrentStatus($staffNo)
     // {
@@ -955,25 +1088,29 @@ private function getTurnstileInfo($staffNo)
     /**
      * Generate summary of visitor's chronology
      */
-    private function generateSummary($staffNo, $accessLogs)
-    {
-        $uniqueLocations = $accessLogs->pluck('location_name')->unique()->values();
-        
-        $firstLog = $accessLogs->first();
-        $lastLog = $accessLogs->last();
-        
-        return [
-            'total_visits' => count($accessLogs),
-            'unique_locations_visited' => count($uniqueLocations),
-            'locations_list' => $uniqueLocations,
-            'first_visit' => $firstLog ? $firstLog->created_at : null,
-            'last_visit' => $lastLog ? $lastLog->created_at : null,
-            'successful_accesses' => $accessLogs->where('access_granted', 1)->count(),
-            'failed_accesses' => $accessLogs->where('access_granted', 0)->count(),
-            'acknowledged_logs' => $accessLogs->where('acknowledge', 1)->count()
-        ];
-    }
-
+     
+private function generateSummary($icNo, $accessLogs)
+{
+    $uniqueLocations = collect($accessLogs)->pluck('location_name')->unique()->values();
+    
+    $firstLog = collect($accessLogs)->first();
+    $lastLog = collect($accessLogs)->last();
+    
+    return [
+        'total_visits' => count($accessLogs),
+        'unique_locations_visited' => count($uniqueLocations),
+        'locations_list' => $uniqueLocations,
+        'first_visit' => $firstLog ? $firstLog->created_at : null,
+        'last_visit' => $lastLog ? $lastLog->created_at : null,
+        'successful_accesses' => collect($accessLogs)->where('access_granted', 1)->count(),
+        'failed_accesses' => collect($accessLogs)->where('access_granted', 0)->count(),
+        'unique_dates' => count(array_unique(
+            collect($accessLogs)->map(function($log) {
+                return date('d-M-Y', strtotime($log->created_at));
+            })->toArray()
+        ))
+    ];
+}
     /**
      * Get chronology from Java API (if available)
      */
@@ -1119,9 +1256,9 @@ private function generateCompleteTimeline($allLogs)
         $timeGap = \Carbon\Carbon::parse($currentLog->created_at)
             ->diffInMinutes(\Carbon\Carbon::parse($previousLog->created_at));
         
-        // اگر 2 گھنٹے سے زیادہ کا gap ہے تو نیا session شروع کریں
+        
         if ($timeGap > 120) {
-            // یہاں صرف اس pair کو skip کریں، لیکن next iteration جاری رکھیں
+         
             continue;
         }
         
@@ -1146,73 +1283,72 @@ private function generateCompleteTimeline($allLogs)
     return $timeline;
 }
 
-    private function getCurrentStatus($icNo)
-    {
-        // Check last access log
-        $lastLog = DB::table('device_access_logs')
-            ->where('staff_no', $icNo)
-            ->where('access_granted', 1)
-            ->orderBy('created_at', 'desc')
-            ->first();
-        
-        if (!$lastLog) {
-            return [
-                'status' => 'never_visited',
-                'message' => 'Never visited the building'
-            ];
-        }
-        
-        $lastLocation = strtolower($lastLog->location_name ?? '');
-        $isInBuilding = ($lastLocation === 'turnstile') ? false : true;
-        
-        if ($isInBuilding) {
-            return [
-                'status' => 'in_building',
-                'message' => 'Currently in building (last seen at: ' . $lastLog->location_name . ')'
-            ];
-        } else {
-            return [
-                'status' => 'out_of_building',
-                'message' => 'Currently out of building'
-            ];
-        }
-    }
-
-    private function calculateTotalTimeSpent($logs)
-    {
-        if ($logs->count() < 2) {
-            return [
-                'total_seconds' => 0,
-                'formatted' => '0h 0m 0s'
-            ];
-        }
-        
-        $sortedLogs = $logs->sortBy('created_at');
-        $totalSeconds = 0;
-        
-        for ($i = 1; $i < $sortedLogs->count(); $i++) {
-            $current = $sortedLogs->get($i);
-            $previous = $sortedLogs->get($i - 1);
-            
-            // Calculate time difference between consecutive logs
-            $timeDiff = \Carbon\Carbon::parse($current->created_at)
-                ->diffInSeconds(\Carbon\Carbon::parse($previous->created_at));
-            
-            // Only add if reasonable time gap (less than 4 hours)
-            if ($timeDiff < 14400) { // 4 hours
-                $totalSeconds += $timeDiff;
-            }
-        }
-        
-        $hours = floor($totalSeconds / 3600);
-        $minutes = floor(($totalSeconds % 3600) / 60);
-        $seconds = $totalSeconds % 60;
-        
+   private function getCurrentStatus($icNo)
+{
+    // Check last access log
+    $lastLog = DB::table('device_access_logs')
+        ->where('staff_no', $icNo)
+        ->orderBy('created_at', 'desc')
+        ->first();
+    
+    if (!$lastLog) {
         return [
-            'total_seconds' => $totalSeconds,
-            'formatted' => "{$hours}h {$minutes}m {$seconds}s"
+            'status' => 'never_visited',
+            'message' => 'Never visited the building'
         ];
     }
+    
+    $lastLocation = strtolower($lastLog->location_name ?? '');
+    $isInBuilding = ($lastLocation === 'turnstile') ? false : true;
+    
+    if ($isInBuilding) {
+        return [
+            'status' => 'in_building',
+            'message' => 'Currently in building (last seen at: ' . $lastLog->location_name . ')'
+        ];
+    } else {
+        return [
+            'status' => 'out_of_building',
+            'message' => 'Currently out of building'
+        ];
+    }
+}
+
+private function calculateTotalTimeSpent($logs)
+{
+    if ($logs->count() < 2) {
+        return [
+            'total_seconds' => 0,
+            'formatted' => '0h 0m 0s'
+        ];
+    }
+    
+    $sortedLogs = collect($logs)->sortBy('created_at');
+    $totalSeconds = 0;
+    
+    for ($i = 1; $i < $sortedLogs->count(); $i++) {
+        $current = $sortedLogs->get($i);
+        $previous = $sortedLogs->get($i - 1);
+        
+        // Calculate time difference between consecutive logs
+        $timeDiff = \Carbon\Carbon::parse($current->created_at)
+            ->diffInSeconds(\Carbon\Carbon::parse($previous->created_at));
+        
+        // Only add if reasonable time gap (less than 4 hours)
+        if ($timeDiff < 14400) { // 4 hours
+            $totalSeconds += $timeDiff;
+        }
+    }
+    
+    $hours = floor($totalSeconds / 3600);
+    $minutes = floor(($totalSeconds % 3600) / 60);
+    $seconds = $totalSeconds % 60;
+    
+    return [
+        'total_seconds' => $totalSeconds,
+        'formatted' => "{$hours}h {$minutes}m {$seconds}s"
+    ];
+}
 
 }
 

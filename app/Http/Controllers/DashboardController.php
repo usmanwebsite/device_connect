@@ -13,6 +13,8 @@ use App\Models\DeviceConnection;
 use App\Models\DeviceLocationAssign;
 use App\Models\SecurityAlertPriority;
 use App\Models\VendorLocation;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 
 class DashboardController extends Controller
 {
@@ -23,141 +25,191 @@ class DashboardController extends Controller
         $this->menuService = $menuService;
     }
 
-public function index(Request $request)
-{
-    try {
-        Log::info('=== Dashboard Accessed ===');
-        // dd('hello');
+    public function index(Request $request)
+    {
+        try {
+            Log::info('=== Dashboard Accessed ===');
+            
+            $perPage = 10; // Items per page
 
-        $token = session()->get('java_backend_token') ?? session()->get('java_auth_token');
-        
-        $angularMenu = [];
-        if ($token) {
-            try {
-                $angularMenu = $this->menuService->getFilteredAngularMenuWithToken($token);
+            $token = session()->get('java_backend_token') ?? session()->get('java_auth_token');
+            
+            $angularMenu = [];
+            if ($token) {
+                try {
+                    $angularMenu = $this->menuService->getFilteredAngularMenuWithToken($token);
 
-                $userAccessData = $this->menuService->getUserAccessData();
-                if ($userAccessData && isset($userAccessData['user_id'])) {
-                    session()->put('java_user_id', $userAccessData['user_id']);
-                    Log::info('User ID saved in dashboard session:', ['user_id' => $userAccessData['user_id']]);
-                }
-                
-                if (empty($angularMenu) || (is_array($angularMenu) && count($angularMenu) === 0)) {
-                    Log::warning('Empty angularMenu returned. Redirecting user.');
+                    $userAccessData = $this->menuService->getUserAccessData();
+                    if ($userAccessData && isset($userAccessData['user_id'])) {
+                        session()->put('java_user_id', $userAccessData['user_id']);
+                        Log::info('User ID saved in dashboard session:', ['user_id' => $userAccessData['user_id']]);
+                    }
+                    
+                    if (empty($angularMenu) || (is_array($angularMenu) && count($angularMenu) === 0)) {
+                        Log::warning('Empty angularMenu returned. Redirecting user.');
+                        return redirect()->away(config('app.angular_url'))
+                            ->with('error', 'Session expired. Please login again.');
+                    }
+                    
+                } catch (\Exception $e) {
+                    Log::error('Menu error: ' . $e->getMessage());
+                    $angularMenu = [];
                     return redirect()->away(config('app.angular_url'))
                         ->with('error', 'Session expired. Please login again.');
                 }
-                
-            } catch (\Exception $e) {
-                Log::error('Menu error: ' . $e->getMessage());
-                $angularMenu = [];
+            } else {
+                Log::error('NO TOKEN FOUND IN DASHBOARD!');
                 return redirect()->away(config('app.angular_url'))
                     ->with('error', 'Session expired. Please login again.');
             }
-        } else {
-            Log::error('NO TOKEN FOUND IN DASHBOARD!');
-            return redirect()->away(config('app.angular_url'))
-                ->with('error', 'Session expired. Please login again.');
-        }
-        
-        $userAccessData = $this->menuService->getUserAccessData();
-
-        $todayAppointmentCount = 0;
-        $upcomingAppointments = [];
-        $todayAppointments = [];
-        
-        if ($userAccessData && isset($userAccessData['today_appointment_count'])) {
-            $todayAppointments = collect($userAccessData['today_appointments'] ?? [])
-                ->unique('staff_no')
-                ->values()
-                ->toArray();
             
-            // ✅ FIX 1: Count based on unique appointments
-            $todayAppointmentCount = count($todayAppointments);
-            $upcomingAppointments = $userAccessData['upcoming_appointments'] ?? [];
+            $userAccessData = $this->menuService->getUserAccessData();
+
+            $todayAppointmentCount = 0;
+            $upcomingAppointments = [];
+            $todayAppointments = [];
+            
+            if ($userAccessData && isset($userAccessData['today_appointment_count'])) {
+                $todayAppointments = collect($userAccessData['today_appointments'] ?? [])
+                    ->unique('staff_no')
+                    ->values()
+                    ->toArray();
+                
+                $todayAppointmentCount = count($todayAppointments);
+                $upcomingAppointments = $userAccessData['upcoming_appointments'] ?? [];
+            }
+            
+            // ✅ FIX: Single source of truth
+            $visitorsOnSite = $this->getCurrentVisitorsOnSite();
+            $criticalAlert = $this->getCriticalSecurityAlertWithPriority();
+            
+            $twentyFourHoursAgo = Carbon::now()->subHours(24);
+            $deniedAccessCount24h = $this->getDeniedAccessCount24h();
+
+            // ===============================
+            // ✅ 1. ACTIVE SECURITY ALERTS PAGINATION
+            // ===============================
+            $activeSecurityAlerts = DeviceAccessLog::where('access_granted', 0)
+                ->where('acknowledge', 0)
+                ->orderBy('created_at', 'desc')
+                ->paginate($perPage, ['*'], 'active_alerts_page');
+
+            $activeSecurityAlertsCount = $activeSecurityAlerts->total(); // Total count from pagination
+
+            $hourlyTrafficData = $this->getHourlyTrafficData();
+
+            // ===============================
+            // ✅ 2. VISITOR OVERSTAY PAGINATION
+            // ===============================
+            $visitorOverstayAlerts = $this->getUnacknowledgedOverstayAlerts();
+            $visitorOverstayCount = count($visitorOverstayAlerts);
+            
+            // Convert array to pagination
+            $overstayPage = $request->get('overstay_page', 1);
+            $overstayOffset = ($overstayPage - 1) * $perPage;
+            $paginatedOverstayAlerts = array_slice($visitorOverstayAlerts, $overstayOffset, $perPage);
+
+            // ===============================
+            // ✅ 3. DENIED ACCESS (24 HOURS) PAGINATION
+            // ===============================
+            $deniedAccessCount = DeviceAccessLog::where('access_granted', 0)
+                ->where('acknowledge', 0)
+                ->whereRaw('created_at >= CURDATE()')
+                ->count();
+
+            $deniedAccessLogs24h = DeviceAccessLog::where('access_granted', 0)
+                ->where('acknowledge', 0)
+                ->whereRaw('created_at >= CURDATE()')
+                ->orderBy('created_at', 'desc')
+                ->paginate($perPage, ['*'], 'denied_access_page');
+            
+            // ===============================
+            // ✅ 4. UPCOMING APPOINTMENTS PAGINATION
+            // ===============================
+            $upcomingPage = $request->get('upcoming_page', 1);
+            $upcomingOffset = ($upcomingPage - 1) * $perPage;
+            $paginatedUpcomingAppointments = array_slice($upcomingAppointments, $upcomingOffset, $perPage);
+            
+            // ===============================
+            // ✅ 5. TODAY'S CHECKOUTS
+            // ===============================
+            $checkoutsTodayAllData = $this->getCheckoutsTodayModalData(false); // All data
+            $checkOutsTodayCount = count($checkoutsTodayAllData);
+            
+            // Convert array to pagination
+            $checkoutsPage = $request->get('checkouts_page', 1);
+            $checkoutsOffset = ($checkoutsPage - 1) * $perPage;
+            $paginatedCheckoutsData = array_slice($checkoutsTodayAllData, $checkoutsOffset, $perPage);
+
+            // ===============================
+            // ✅ ENRICH ALL DATA
+            // ===============================
+            $enrichedActiveSecurityAlerts = $this->getEnrichedDeniedAccessLogs($activeSecurityAlerts);
+            $enrichedDeniedAccessLogs24h = $this->getEnrichedDeniedAccessLogs($deniedAccessLogs24h);
+            $enrichedOverstayAlerts = $this->getEnrichedOverstayAlerts($paginatedOverstayAlerts);
+
+            // ✅ FIX: Keep backward compatibility for existing blade code
+            $enrichedDeniedAccessLogs = $enrichedDeniedAccessLogs24h; // Alias for backward compatibility
+
+            return view('dashboard', compact(
+                'angularMenu', 
+                'todayAppointmentCount', 
+                'visitorsOnSite',
+                'todayAppointments',
+                'upcomingAppointments',
+                'paginatedUpcomingAppointments', // ✅ Paginated upcoming appointments
+                'activeSecurityAlerts', // ✅ Paginated object for Active Security Alerts
+                'enrichedActiveSecurityAlerts', // ✅ Enriched data for Active Security Alerts modal
+                'activeSecurityAlertsCount',
+                'hourlyTrafficData',
+                'visitorOverstayCount',   
+                'deniedAccessCount24h',
+                'deniedAccessCount',      
+                'deniedAccessLogs24h', // ✅ Paginated denied access (24 hours)
+                'enrichedDeniedAccessLogs24h', // ✅ Enriched data for denied access modal
+                'enrichedDeniedAccessLogs', // ✅ For backward compatibility (Access Denied Modal)
+                'visitorOverstayAlerts',    
+                'paginatedOverstayAlerts', // ✅ Paginated overstay alerts
+                'enrichedOverstayAlerts',   // ✅ Enriched paginated overstay alerts
+                'checkOutsTodayCount',
+                'paginatedCheckoutsData', // ✅ Paginated checkouts data
+                'checkoutsTodayAllData', // ✅ Keep all data for count
+                'criticalAlert',
+                'perPage', // ✅ Pass perPage for pagination calculations
+                'request'
+            ));
+        } catch (\Exception $e) {
+            Log::error('Dashboard error: ' . $e->getMessage());
+            Log::error('Stack trace: ' . $e->getTraceAsString());
+            
+            return view('dashboard', [
+                'angularMenu' => [],
+                'todayAppointmentCount' => 0,
+                'visitorsOnSite' => [],
+                'todayAppointments' => [],
+                'upcomingAppointments' => [],
+                'paginatedUpcomingAppointments' => [],
+                'activeSecurityAlerts' => collect(),
+                'enrichedActiveSecurityAlerts' => [],
+                'activeSecurityAlertsCount' => 0,
+                'hourlyTrafficData' => $this->getDefaultHourlyTrafficData(),
+                'visitorOverstayCount' => 0,
+                'deniedAccessCount' => 0,
+                'deniedAccessCount24h' => 0,
+                'checkOutsTodayCount' => 0,
+                'deniedAccessLogs24h' => collect(),
+                'enrichedDeniedAccessLogs24h' => [],
+                'enrichedDeniedAccessLogs' => [], // ✅ Add this
+                'visitorOverstayAlerts' => [],
+                'paginatedOverstayAlerts' => [],
+                'enrichedOverstayAlerts' => [],
+                'paginatedCheckoutsData' => [],
+                'checkoutsTodayAllData' => [],
+                'criticalAlert' => null,
+                'perPage' => 10
+            ]);
         }
-        
-        $visitorsOnSite = $this->getCurrentVisitorsOnSite();
-        
-        // ✅ UPDATED: Get critical alert with new priority logic
-        $criticalAlert = $this->getCriticalSecurityAlertWithPriority();
-
-        $twentyFourHoursAgo = Carbon::now()->subHours(24);
-        $deniedAccessCount24h = $this->getDeniedAccessCount24h();
-
-        // Counts for cards
-        $activeSecurityAlertsCount = DeviceAccessLog::where('access_granted', 0)
-            ->where('acknowledge', 0)
-            ->count();
-
-        $hourlyTrafficData = $this->getHourlyTrafficData();
-
-        // Get overstay alerts (unacknowledged only)
-        $allDeviceUsers = DeviceAccessLog::where('access_granted', 1)->get();
-        $visitorOverstayAlerts = $this->getUnacknowledgedOverstayAlerts($allDeviceUsers);
-        $visitorOverstayCount = count($visitorOverstayAlerts);
-
-        $deniedAccessCount = DeviceAccessLog::where('access_granted', 0)
-            ->where('acknowledge', 0)
-            ->count();
-
-        // Get enriched data for modals
-        $deniedAccessLogs = DeviceAccessLog::where('access_granted', 0)
-            ->where('acknowledge', 0)
-            ->where('created_at', '>=', $twentyFourHoursAgo)
-            ->orderBy('created_at', 'desc')
-            ->get();
-
-        $enrichedDeniedAccessLogs = $this->getEnrichedDeniedAccessLogs($deniedAccessLogs);
-        $enrichedOverstayAlerts = $this->getEnrichedOverstayAlerts($visitorOverstayAlerts);
-
-        // ✅ FIX 2: Get checkouts data first, then count
-        $checkoutsTodayModalData = $this->getCheckoutsTodayModalData();
-        $checkOutsTodayCount = count($checkoutsTodayModalData);
-
-        return view('dashboard', compact(
-            'angularMenu', 
-            'todayAppointmentCount', 
-            'visitorsOnSite',
-            'todayAppointments',
-            'upcomingAppointments',
-            'activeSecurityAlertsCount',
-            'hourlyTrafficData',
-            'visitorOverstayCount',   
-            'deniedAccessCount24h',    // ✅ Changed variable name 
-            'deniedAccessCount',      
-            'deniedAccessLogs',        
-            'visitorOverstayAlerts',    
-            'enrichedDeniedAccessLogs', 
-            'enrichedOverstayAlerts',   
-            'checkOutsTodayCount',       
-            'checkoutsTodayModalData',    
-            'criticalAlert'
-        ));
-    } catch (\Exception $e) {
-        Log::error('Dashboard error: ' . $e->getMessage());
-        
-        return view('dashboard', [
-            'angularMenu' => [],
-            'todayAppointmentCount' => 0,
-            'visitorsOnSite' => [],
-            'todayAppointments' => [],
-            'upcomingAppointments' => [],
-            'activeSecurityAlertsCount' => 0,
-            'hourlyTrafficData' => $this->getDefaultHourlyTrafficData(),
-            'visitorOverstayCount' => 0,
-            'deniedAccessCount' => 0,
-            'deniedAccessCount24h' => 0,
-            'checkOutsTodayCount' => 0,
-            'checkoutsTodayModalData' => [],
-            'deniedAccessLogs' => collect(),
-            'visitorOverstayAlerts' => [],
-            'enrichedDeniedAccessLogs' => [],
-            'enrichedOverstayAlerts' => [],
-            'criticalAlert' => null
-        ]);
     }
-}
 
 private function getCriticalSecurityAlertWithPriority()
 {
@@ -178,16 +230,18 @@ private function getCriticalSecurityAlertWithPriority()
         
         // Get Access Denied alerts with their priority
         $accessDeniedAlerts = DeviceAccessLog::where('access_granted', 0)
-            ->where('acknowledge', 0)
+            ->where('acknowledge', 0)            
             ->orderBy('created_at', 'desc')
+            ->limit(12)
             ->get();
-        
+
+
         foreach ($accessDeniedAlerts as $alert) {
             $priority = $accessDeniedPriority ? strtolower($accessDeniedPriority->priority) : 'low';
             
             // ✅ FIX: Handle empty staff_no case
             $visitorDetails = $this->getVisitorDetailsForAlert($alert->staff_no ?? $alert->card_no ?? '');
-            
+            // dd($visitorDetails);
             $processedLocation = $this->processTurnstileLocationForAlert($alert);
             
             $allAlerts->push([
@@ -205,7 +259,6 @@ private function getCriticalSecurityAlertWithPriority()
                 'visitor_name' => $visitorDetails['fullName'] ?? 'Unknown Visitor' // ✅ Add visitor name here
             ]);
         }
-        
         // Get Visitor Overstay alerts with their priority
         $overstayAlerts = $this->getUnacknowledgedOverstayAlerts();
         
@@ -264,9 +317,9 @@ private function getCriticalSecurityAlertWithPriority()
                     'card_no' => $alert->card_no ?? '',   // ✅ Use card_no when staff_no is empty
                     'location' => $topAlert['display_location'],
                     'original_location' => $topAlert['original_location'],
-                    'created_at' => $createdAt->format('h:i A'),
+                    'created_at' => $createdAt->format('Y-m-d h:i A'),
                     'time_ago' => $timeAgo,
-                    'malaysia_time' => Carbon::now('Asia/Kuala_Lumpur')->format('h:i A'), 
+                    'malaysia_time' => Carbon::now('Asia/Kuala_Lumpur')->format('Y-m-d h:i A'), 
                     'reason' => $alert->reason ?? 'Other Reason',
                     'visitor_name' => $visitorName, // ✅ Already fetched above
                     'incident_type' => 'Unauthorized Access Attempt',
@@ -285,8 +338,8 @@ private function getCriticalSecurityAlertWithPriority()
                     'card_no' => $alert['card_no'] ?? '',   // ✅ Use card_no when staff_no is empty
                     'location' => $topAlert['display_location'],
                     'original_location' => $topAlert['original_location'],
-                    'created_at' => Carbon::parse($alert['check_in_time'])->format('h:i A'),
-                    'malaysia_time' => $currentTime->format('h:i A'), 
+                    'created_at' => Carbon::parse($alert['check_in_time'])->format('Y-m-d h:i A'),
+                    'malaysia_time' => $currentTime->format('Y-m-d h:i A'), 
                     'time_ago' => Carbon::parse($alert['check_in_time'])->diffForHumans(), 
                     'visitor_name' => $alert['visitor_name'],
                     'incident_type' => 'Visitor Overstay Alert',
@@ -313,6 +366,98 @@ private function getCriticalSecurityAlertWithPriority()
         return null;
     }
 }
+
+public function getSecurityAlertsData(Request $request)
+{
+    try {
+        Log::info('=== Security Alerts DataTable AJAX Request ===');
+        
+        // DataTable parameters
+        $draw = $request->get('draw');
+        $start = $request->get('start', 0);
+        $length = $request->get('length', 10);
+        $searchValue = $request->get('search')['value'] ?? '';
+        $orderColumnIndex = $request->get('order')[0]['column'] ?? 0;
+        $orderDir = $request->get('order')[0]['dir'] ?? 'desc';
+        
+        // Column names mapping (Actions column remove कर दिया)
+        $columns = [
+            0 => 'id',           // #
+            1 => 'visitor_name', // Visitor Name
+            2 => 'contact_no',   // Contact No
+            3 => 'ic_no',        // IC No
+            4 => 'host',         // Host
+            5 => 'location',     // Location
+            6 => 'reason',       // Reason
+            7 => 'created_at',   // Date & Time
+            // 8 => 'actions'    // REMOVED
+        ];
+        
+        $orderColumn = $columns[$orderColumnIndex] ?? 'created_at';
+        
+        // Base query
+        $query = DeviceAccessLog::where('access_granted', 0)
+            ->where('acknowledge', 0);
+        
+        // Apply search filter
+        if (!empty($searchValue)) {
+            $query->where(function($q) use ($searchValue) {
+                $q->where('staff_no', 'like', '%' . $searchValue . '%')
+                  ->orWhere('card_no', 'like', '%' . $searchValue . '%')
+                  ->orWhere('location_name', 'like', '%' . $searchValue . '%')
+                  ->orWhere('reason', 'like', '%' . $searchValue . '%');
+            });
+        }
+        
+        // Get total records
+        $totalRecords = $query->count();
+        
+        // Apply ordering and pagination
+        $query->orderBy($orderColumn, $orderDir)
+              ->skip($start)
+              ->take($length);
+        
+        $logs = $query->get();
+        
+        // Prepare data for DataTable (actions column remove कर दिया)
+        $data = [];
+        foreach ($logs as $index => $log) {
+            $visitorDetails = $this->getVisitorDetailsForAlert($log->staff_no);
+            
+            $data[] = [
+                'DT_RowIndex' => $start + $index + 1,
+                'visitor_name' => $visitorDetails['fullName'] ?? 'N/A',
+                'contact_no' => $visitorDetails['contactNo'] ?? 'N/A',
+                'ic_no' => $visitorDetails['icNo'] ?? 'N/A',
+                'host' => $visitorDetails['personVisited'] ?? 'N/A',
+                'location' => $log->location_name ?? 'Unknown Location',
+                'reason' => $log->reason ?: 'Other Reason',
+                'date_time' => Carbon::parse($log->created_at)->format('d M Y h:i A'),
+                // 'actions' => '<button class="btn btn-sm btn-info view-details" data-id="'.$log->id.'"><i class="fas fa-eye"></i> View</button>' // REMOVED
+            ];
+        }
+        
+        return response()->json([
+            'draw' => intval($draw),
+            'recordsTotal' => $totalRecords,
+            'recordsFiltered' => $totalRecords,
+            'data' => $data
+        ]);
+        
+    } catch (\Exception $e) {
+        Log::error('Error in getSecurityAlertsData: ' . $e->getMessage());
+        Log::error('Stack trace: ' . $e->getTraceAsString());
+        
+        return response()->json([
+            'draw' => intval($request->get('draw', 1)),
+            'recordsTotal' => 0,
+            'recordsFiltered' => 0,
+            'data' => [],
+            'error' => $e->getMessage()
+        ], 500);
+    }
+}
+
 
 // ✅ NEW: Process Turnstile location for Access Denied alerts
 private function processTurnstileLocationForAlert($alert)
@@ -411,16 +556,42 @@ private function processTurnstileLocationForOverstay($alert)
 private function getUnacknowledgedOverstayAlerts($allDeviceUsers = null)
 {
     try {
-        if (!$allDeviceUsers) {
-            $allDeviceUsers = DeviceAccessLog::where('access_granted', 1)->get();
-        }
+// dd('345678');
+    $allDeviceUsers = DB::table('device_access_logs as v')
+        ->join(
+            DB::raw('(
+                SELECT staff_no, MAX(created_at) AS last_access
+                FROM device_access_logs
+                WHERE created_at >= NOW() - INTERVAL 2 DAY AND access_granted=1
+                GROUP BY staff_no
+            ) last'),
+            function ($join) {
+                $join->on('v.staff_no', '=', 'last.staff_no')
+                     ->on('v.created_at', '=', 'last.last_access');
+            }
+        )
+
+        ->join('device_connections as dc', 'dc.device_id', '=', 'v.device_id')
+
+        ->join('device_location_assigns as dal', 'dal.device_id', '=', 'dc.id')
+
+        ->where('v.location_name', '!=', '13. TURNSTILE')
+        ->whereIn('dal.is_type', ['check_out'])
+        ->limit(12)
+
+        ->select([
+            'v.*'
+        ])
+        ->get();
+        // dd($allDeviceUsers);
         
         $currentTime = now();
         $overstayAlerts = [];
         
         foreach ($allDeviceUsers as $user) {
+            // dd($user);
             try {
-                if (empty($user['location_name'])) {
+                if (empty($user->location_name)) {
                     continue;
                 }
                 
@@ -430,7 +601,7 @@ private function getUnacknowledgedOverstayAlerts($allDeviceUsers = null)
                 }
                 
                 // Get API data
-                $javaApiResponse = $this->callJavaVendorApi($user['staff_no']);
+                $javaApiResponse = $this->callJavaVendorApi($user->staff_no);
                 
                 if ($javaApiResponse && isset($javaApiResponse['data'])) {
                     $visitorData = $javaApiResponse['data'];
@@ -452,19 +623,19 @@ private function getUnacknowledgedOverstayAlerts($allDeviceUsers = null)
                             
                             $overstayAlerts[] = [
                                 'visitor_name' => $visitorData['fullName'] ?? 'N/A',
-                                'staff_no' => $user['staff_no'],
-                                'card_no' => $user['card_no'] ?? null,
+                                'staff_no' => $user->staff_no,
+                                'card_no' => $user->card_no ?? null,
                                 'expected_end_time' => $dateOfVisitTo->format('d M Y h:i A'),
                                 'current_time' => $currentTime->format('d M Y h:i A'),
-                                'check_in_time' => Carbon::parse($user['created_at'])->format('d M Y h:i A'),
+                                'check_in_time' => Carbon::parse($user->created_at)->format('d M Y h:i A'),
                                 'location' => $processedLocation,
-                                'original_location' => $user['location_name'] ?? 'Unknown Location',
+                                'original_location' => $user->location_name ?? 'Unknown Location',
                                 'overstay_minutes' => $overstayMinutes,
                                 'overstay_duration' => $overstayHours . ' hours ' . $remainingMinutes . ' minutes',
                                 'host' => $visitorData['personVisited'] ?? 'N/A',
                                 'contact_no' => $visitorData['contactNo'] ?? 'N/A',
                                 'ic_no' => $visitorData['icNo'] ?? 'N/A',
-                                'device_id' => $user['device_id'],
+                                'device_id' => $user->device_id,
                                 'date_of_visit_from' => $dateOfVisitFrom ? $dateOfVisitFrom->format('Y-m-d H:i:s') : null,
                                 'date_of_visit_to' => $dateOfVisitTo->format('Y-m-d H:i:s'),
                                 'log_id' => $user->id
@@ -473,20 +644,23 @@ private function getUnacknowledgedOverstayAlerts($allDeviceUsers = null)
                     }
                 }
             } catch (\Exception $e) {
-                Log::error('Error checking overstay for staff_no ' . $user['staff_no'] . ': ' . $e->getMessage());
+                // dd($e->getMessage());
+                Log::error('Error checking overstay for staff_no ' . $user->staff_no . ': ' . $e->getMessage());
                 continue;
+
             }
         }
         
         return $overstayAlerts;
         
     } catch (\Exception $e) {
+        // dd($e->getMessage());
         Log::error('Error getting unacknowledged overstay alerts: ' . $e->getMessage());
         return [];
     }
 }
 
-    private function getCurrentVisitorsOnSite()
+    private function getCurrentVisitorsOnSite($paginate = false, $perPage = 10)
     {
         try {
             Log::info('=== Starting getCurrentVisitorsOnSite ===');
@@ -573,9 +747,6 @@ private function getUnacknowledgedOverstayAlerts($allDeviceUsers = null)
             $currentVisitors = [];
             
             foreach ($visitorStatus as $staffNo => $status) {
-                // Visitor currently on-site hai agar:
-                // 1. Uska check_in hai
-                // 2. Uska check_out nahi hai, ya check_in latest check_out se baad ka hai
                 $isCurrentlyOnSite = false;
                 
                 if ($status['last_check_in_log']) {
@@ -607,6 +778,12 @@ private function getUnacknowledgedOverstayAlerts($allDeviceUsers = null)
             
             Log::info('Total visitors on-site: ' . count($currentVisitors));
             Log::info('=== End getCurrentVisitorsOnSite ===');
+
+                    // Return paginated or all results
+            if ($paginate) {
+                $currentVisitors = collect($currentVisitors);
+                return $currentVisitors->forPage(request()->get('visitors_page', 1), $perPage)->values()->toArray();
+            }
             
             return $currentVisitors;
             
@@ -655,25 +832,35 @@ private function getUnacknowledgedOverstayAlerts($allDeviceUsers = null)
 
     private function getVisitorDetailsForAlert($staffNo)
     {
-        try {
+        $cacheKey = "visitor_details_{$staffNo}";
+    $cacheTtl = 300; // 5 minutes
+
+    try {
+        return Cache::remember($cacheKey, $cacheTtl, function () use ($staffNo) {
+
             $javaApiResponse = $this->callJavaVendorApi($staffNo);
-            
+
             if ($javaApiResponse && isset($javaApiResponse['data'])) {
                 return $javaApiResponse['data'];
             }
-            
+
             return [
                 'fullName' => 'Unknown Visitor',
                 'personVisited' => 'N/A'
             ];
-            
-        } catch (\Exception $e) {
-            Log::error('Error getting visitor details for alert: ' . $e->getMessage());
-            return [
-                'fullName' => 'Unknown Visitor',
-                'personVisited' => 'N/A'
-            ];
-        }
+        });
+
+    } catch (\Exception $e) {
+        Log::error('Error getting visitor details for alert', [
+            'staffNo' => $staffNo,
+            'error'   => $e->getMessage()
+        ]);
+
+        return [
+            'fullName' => 'Unknown Visitor',
+            'personVisited' => 'N/A'
+        ];
+    }
     }
 
 public function acknowledgeAlert(Request $request)
@@ -904,7 +1091,7 @@ public function acknowledgeAlert(Request $request)
     public function refreshDashboardCounts()
     {
         try {
-            $twentyFourHoursAgo = Carbon::now()->subHours(24);
+            $twentyFourHoursAgo = Carbon::now()->subHours(24);            
             
             // ✅ 1. Access Denied Count - LAST 24 HOURS ONLY
             $deniedAccessCount24h = DeviceAccessLog::where('access_granted', 0)
@@ -1037,10 +1224,13 @@ private function getEnrichedDeniedAccessLogs($deniedAccessLogs)
 {
     $enrichedLogs = [];
 
-    foreach ($deniedAccessLogs as $log) {
+    // Agar $deniedAccessLogs pagination object hai toh items() use karein
+    $logs = $deniedAccessLogs instanceof \Illuminate\Pagination\LengthAwarePaginator 
+            ? $deniedAccessLogs->items() 
+            : $deniedAccessLogs;
+
+    foreach ($logs as $log) {
         Log::info('Processing denied access log ID: ' . $log->id);
-        Log::info('IC No from DB: ' . $log->ic_no);
-        Log::info('Staff No from DB: ' . $log->staff_no);
         
         try {
             // ✅ Dynamic approach: Pehle ic_no try karein, phir staff_no
@@ -1072,8 +1262,6 @@ private function getEnrichedDeniedAccessLogs($deniedAccessLogs)
             // ✅ Java API call with dynamic identifier
             $javaApiResponse = $this->callJavaVendorApi($identifier);
             
-            Log::info('API Response for ' . $identifier . ': ', ['response' => isset($javaApiResponse['status']) ? $javaApiResponse['status'] : 'No response']);
-
             if ($javaApiResponse && isset($javaApiResponse['data'])) {
                 $visitorData = $javaApiResponse['data'];
                 
@@ -1397,6 +1585,35 @@ private function callJavaVendorApi($staffNo)
         ];
     }
 
+    public function getVisitorsOnSitePaginated(Request $request)
+    {
+        try {
+            $perPage = $request->get('per_page', 10);
+            $page = $request->get('page', 1);
+            
+            $visitors = $this->getCurrentVisitorsOnSite(false); // All data
+            
+            // Manual pagination
+            $offset = ($page - 1) * $perPage;
+            $paginatedData = array_slice($visitors, $offset, $perPage);
+            
+            return response()->json([
+                'success' => true,
+                'data' => $paginatedData,
+                'total' => count($visitors),
+                'per_page' => $perPage,
+                'current_page' => $page,
+                'last_page' => ceil(count($visitors) / $perPage)
+            ]);
+            
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage()
+            ], 500);
+        }
+    }
+
     public function getCheckoutsTodayModalDataAjax(Request $request)
     {
         try {
@@ -1420,7 +1637,7 @@ private function callJavaVendorApi($staffNo)
         }
     }
 
-    private function getCheckoutsTodayModalData()
+    private function getCheckoutsTodayModalData($paginate = false, $perPage = 10)
     {
         try {
             Log::info('=== Starting getCheckoutsTodayModalData (Updated Logic) ===');
@@ -1509,6 +1726,12 @@ private function callJavaVendorApi($staffNo)
             }
             
             Log::info('Total filtered checkout records (only "Out" type): ' . count($checkoutRecords));
+
+            if ($paginate) {
+                $checkoutRecords = collect($checkoutRecords);
+                return $checkoutRecords->forPage(request()->get('checkouts_page', 1), $perPage)->values()->toArray();
+            }
+
             return $checkoutRecords;
             
         } catch (\Exception $e) {
@@ -1518,70 +1741,86 @@ private function callJavaVendorApi($staffNo)
         }
     }
 
-private function getCheckinLogForStaffNo($staffNo, $date)
-{
-    try {
-        Log::info("Looking for check-in log for staff_no: {$staffNo}");
-        
-        // Sabhi logs le lo
-        $allLogs = DeviceAccessLog::where('staff_no', $staffNo)
-            ->whereDate('created_at', $date)
-            ->where('access_granted', 1)
-            ->orderBy('created_at', 'asc')
-            ->get();
-        
-        foreach ($allLogs as $log) {
-            // Same logic use karein location process ke liye
-            $vendorLocation = VendorLocation::where('name', $log->location_name)->first();
-            
-            if (!$vendorLocation) {
-                continue;
-            }
-            
-            $deviceConnection = DeviceConnection::where('device_id', $log->device_id)->first();
-            
-            if (!$deviceConnection) {
-                continue;
-            }
-            
-            $deviceLocationAssign = DeviceLocationAssign::where('device_id', $deviceConnection->id)
-                ->where('location_id', $vendorLocation->id)
-                ->first();
-            
-            if ($deviceLocationAssign && $deviceLocationAssign->is_type === 'check_in') {
-                Log::info("Found check-in log ID: {$log->id} for staff_no: {$staffNo}");
-                return $log;
-            }
-        }
-        
-        Log::info("No check-in log found for staff_no: {$staffNo}");
-        return null;
-        
-    } catch (\Exception $e) {
-        Log::error('Error in getCheckinLogForStaffNo: ' . $e->getMessage());
-        return null;
-    }
-}
 
+
+    private function getPaginatedTodayAppointments($perPage = 10)
+    {
+        try {
+            $userAccessData = $this->menuService->getUserAccessData();
+            
+            if ($userAccessData && isset($userAccessData['today_appointments'])) {
+                $todayAppointments = collect($userAccessData['today_appointments'] ?? [])
+                    ->unique('staff_no')
+                    ->values()
+                    ->toArray();
+                
+                // Paginate manually
+                $page = request()->get('today_page', 1);
+                $offset = ($page - 1) * $perPage;
+                return array_slice($todayAppointments, $offset, $perPage);
+            }
+            
+            return [];
+        } catch (\Exception $e) {
+            Log::error('Error getting paginated today appointments: ' . $e->getMessage());
+            return [];
+        }
+    }
+
+    private function getCheckinLogForStaffNo($staffNo, $date)
+    {
+        try {
+            Log::info("Looking for check-in log for staff_no: {$staffNo}");
+            
+            // Sabhi logs le lo
+            $allLogs = DeviceAccessLog::where('staff_no', $staffNo)
+                ->whereDate('created_at', $date)
+                ->where('access_granted', 1)
+                ->orderBy('created_at', 'asc')
+                ->get();
+            
+            foreach ($allLogs as $log) {
+                // Same logic use karein location process ke liye
+                $vendorLocation = VendorLocation::where('name', $log->location_name)->first();
+                
+                if (!$vendorLocation) {
+                    continue;
+                }
+                
+                $deviceConnection = DeviceConnection::where('device_id', $log->device_id)->first();
+                
+                if (!$deviceConnection) {
+                    continue;
+                }
+                
+                $deviceLocationAssign = DeviceLocationAssign::where('device_id', $deviceConnection->id)
+                    ->where('location_id', $vendorLocation->id)
+                    ->first();
+                
+                if ($deviceLocationAssign && $deviceLocationAssign->is_type === 'check_in') {
+                    Log::info("Found check-in log ID: {$log->id} for staff_no: {$staffNo}");
+                    return $log;
+                }
+            }
+            
+            Log::info("No check-in log found for staff_no: {$staffNo}");
+            return null;
+            
+        } catch (\Exception $e) {
+            Log::error('Error in getCheckinLogForStaffNo: ' . $e->getMessage());
+            return null;
+        }
+    }
 
 private function getDeniedAccessCount24h()
 {
     try {
-        $twentyFourHoursAgo = Carbon::now()->subHours(24);
-        
-        // Pehle clear condition check karein
-        $count = DeviceAccessLog::where('access_granted', 0)
+        return DeviceAccessLog::where('access_granted', 0)
             ->where('acknowledge', 0)
-            ->where('created_at', '>=', $twentyFourHoursAgo)
+            ->whereRaw('created_at >= CURDATE()')
+            ->orderBy('created_at', 'desc')
             ->count();
-            
-        Log::info('Denied Access 24h Count:', [
-            'count' => $count,
-            'from_time' => $twentyFourHoursAgo->format('Y-m-d H:i:s'),
-            'to_time' => now()->format('Y-m-d H:i:s')
-        ]);
-        
-        return $count;
+            // dd($count->toSql()); 
     } catch (\Exception $e) {
         Log::error('Error in getDeniedAccessCount24h: ' . $e->getMessage());
         return 0;
@@ -1664,14 +1903,14 @@ public function getVisitorDetails(Request $request)
                 ->where('created_at', '>=', $twentyFourHoursAgo)
                 ->count();
                 
-            Log::info('Refresh On-Site Debug:', [
-                'visitors_count' => count($visitorsOnSite),
-                'denied_access_24h' => $debugDeniedCount,
-                'time_range' => [
-                    'from' => $twentyFourHoursAgo->format('Y-m-d H:i:s'),
-                    'to' => now()->format('Y-m-d H:i:s')
-                ]
-            ]);
+            // Log::info('Refresh On-Site Debug:', [
+            //     'visitors_count' => count($visitorsOnSite),
+            //     'denied_access_24h' => $debugDeniedCount,
+            //     'time_range' => [
+            //         'from' => $twentyFourHoursAgo->format('Y-m-d H:i:s'),
+            //         'to' => now()->format('Y-m-d H:i:s')
+            //     ]
+            // ]);
             return response()->json([
                 'success' => true,
                 'visitors' => $visitorsOnSite,
@@ -1707,14 +1946,14 @@ public function getVisitorDetails(Request $request)
                 ->select('id', 'staff_no', 'card_no', 'created_at', 'updated_at', 'access_granted', 'acknowledge')
                 ->get();
                 
-            Log::info('Denied Access Count Refresh:', [
-                'count' => $count,
-                'records_found' => $records->toArray(),
-                'time_range' => [
-                    'from' => $twentyFourHoursAgo->format('Y-m-d H:i:s'),
-                    'to' => now()->format('Y-m-d H:i:s')
-                ]
-            ]);
+            // Log::info('Denied Access Count Refresh:', [
+            //     'count' => $count,
+            //     'records_found' => $records->toArray(),
+            //     'time_range' => [
+            //         'from' => $twentyFourHoursAgo->format('Y-m-d H:i:s'),
+            //         'to' => now()->format('Y-m-d H:i:s')
+            //     ]
+            // ]);
             
             return response()->json([
                 'success' => true,
@@ -1785,5 +2024,234 @@ public function getVisitorDetails(Request $request)
             return 'N/A';
         }
     }
+
+public function getUpcomingAppointmentsAjax(Request $request)
+{
+    try {
+        $perPage = 10;
+        $page = $request->get('page', 1);
+        
+        // Get user access data
+        $userAccessData = $this->menuService->getUserAccessData();
+        $upcomingAppointments = $userAccessData['upcoming_appointments'] ?? [];
+        
+        // Log for debugging
+        Log::info('Upcoming appointments data:', [
+            'total_count' => count($upcomingAppointments),
+            'current_page' => $page,
+            'per_page' => $perPage
+        ]);
+        
+        // Manual pagination
+        $offset = ($page - 1) * $perPage;
+        $paginatedData = array_slice($upcomingAppointments, $offset, $perPage);
+        
+        Log::info('Paginated data:', [
+            'count' => count($paginatedData),
+            'data' => $paginatedData
+        ]);
+        
+        $html = '';
+        if (!empty($paginatedData)) {
+            foreach ($paginatedData as $index => $appointment) {
+                $html .= '
+                <tr>
+                    <td>' . ($offset + $index + 1) . '</td>
+                    <td>' . ($appointment['full_name'] ?? 'N/A') . '</td>
+                    <td>' . ($appointment['contact_no'] ?? 'N/A') . '</td>
+                    <td>' . ($appointment['ic_no'] ?? 'N/A') . '</td>
+                    <td>' . ($appointment['name_of_person_visited'] ?? 'N/A') . '</td>
+                    <td>' . (\Carbon\Carbon::parse($appointment['date_from'] ?? now())->format('M d, Y')) . '</td>
+                    <td>' . (\Carbon\Carbon::parse($appointment['date_from'] ?? now())->format('h:i A')) . '</td>
+                    <td>' . ($appointment['purpose'] ?? 'N/A') . '</td>
+                </tr>';
+            }
+        } else {
+            $html = '
+            <tr>
+                <td colspan="8" class="text-center">No upcoming appointments found.</td>
+            </tr>';
+        }
+        
+        // ✅ CUSTOM PAGINATION GENERATE KAREIN
+        $totalPages = ceil(count($upcomingAppointments) / $perPage);
+        $paginationHtml = $this->generateCustomPaginationHtml($page, $totalPages);
+        
+        return response()->json([
+            'success' => true,
+            'html' => $html,
+            'pagination' => $paginationHtml,
+            'current_page' => $page,
+            'total_pages' => $totalPages,
+            'total_items' => count($upcomingAppointments)
+        ]);
+        
+    } catch (\Exception $e) {
+        Log::error('Error in getUpcomingAppointmentsAjax: ' . $e->getMessage());
+        Log::error('Stack trace: ' . $e->getTraceAsString());
+        
+        return response()->json([
+            'success' => false,
+            'message' => 'Error loading data: ' . $e->getMessage(),
+            'html' => '<tr><td colspan="8" class="text-center text-danger">Error loading data. Please try again.</td></tr>',
+            'pagination' => ''
+        ], 500);
+    }
+}
+
+
+private function generateCustomPaginationHtml($currentPage, $totalPages)
+{
+    if ($totalPages <= 1) {
+        return '';
+    }
+    
+    $html = '<nav aria-label="Page navigation"><ul class="pagination justify-content-center">';
+    
+    // Previous button
+    if ($currentPage > 1) {
+        $html .= '<li class="page-item">';
+        $html .= '<a class="page-link pagination-link" href="#" data-page="' . ($currentPage - 1) . '">Previous</a>';
+        $html .= '</li>';
+    } else {
+        $html .= '<li class="page-item disabled">';
+        $html .= '<span class="page-link">Previous</span>';
+        $html .= '</li>';
+    }
+    
+    // Always show page 1
+    if ($currentPage == 1) {
+        $html .= '<li class="page-item active">';
+        $html .= '<span class="page-link">1</span>';
+        $html .= '</li>';
+    } else {
+        $html .= '<li class="page-item">';
+        $html .= '<a class="page-link pagination-link" href="#" data-page="1">1</a>';
+        $html .= '</li>';
+    }
+    
+    // Show ellipsis if current page > 5
+    if ($currentPage > 5) {
+        $html .= '<li class="page-item disabled">';
+        $html .= '<span class="page-link">...</span>';
+        $html .= '</li>';
+    }
+    
+    // Calculate start and end of middle pages
+    $start = max(2, $currentPage - 2);
+    $end = min($totalPages - 1, $currentPage + 2);
+    
+    // Show middle pages
+    for ($i = $start; $i <= $end; $i++) {
+        if ($i > 1 && $i < $totalPages) {
+            if ($i == $currentPage) {
+                $html .= '<li class="page-item active">';
+                $html .= '<span class="page-link">' . $i . '</span>';
+                $html .= '</li>';
+            } else {
+                $html .= '<li class="page-item">';
+                $html .= '<a class="page-link pagination-link" href="#" data-page="' . $i . '">' . $i . '</a>';
+                $html .= '</li>';
+            }
+        }
+    }
+    
+    // Show ellipsis if current page < totalPages - 4
+    if ($currentPage < $totalPages - 4) {
+        $html .= '<li class="page-item disabled">';
+        $html .= '<span class="page-link">...</span>';
+        $html .= '</li>';
+    }
+    
+    // Show last page if totalPages > 1
+    if ($totalPages > 1) {
+        if ($currentPage == $totalPages) {
+            $html .= '<li class="page-item active">';
+            $html .= '<span class="page-link">' . $totalPages . '</span>';
+            $html .= '</li>';
+        } else {
+            $html .= '<li class="page-item">';
+            $html .= '<a class="page-link pagination-link" href="#" data-page="' . $totalPages . '">' . $totalPages . '</a>';
+            $html .= '</li>';
+        }
+    }
+    
+    // Next button
+    if ($currentPage < $totalPages) {
+        $html .= '<li class="page-item">';
+        $html .= '<a class="page-link pagination-link" href="#" data-page="' . ($currentPage + 1) . '">Next</a>';
+        $html .= '</li>';
+    } else {
+        $html .= '<li class="page-item disabled">';
+        $html .= '<span class="page-link">Next</span>';
+        $html .= '</li>';
+    }
+    
+    $html .= '</ul></nav>';
+    
+    return $html;
+}
+
+// DashboardController.php में नया method add करें
+
+public function getActiveSecurityAlertsAjax(Request $request)
+{
+    try {
+        $perPage = 10;
+        $page = $request->get('page', 1);
+        
+        // Get paginated data
+        $activeSecurityAlerts = DeviceAccessLog::where('access_granted', 0)
+            ->where('acknowledge', 0)
+            ->orderBy('created_at', 'desc')
+            ->paginate($perPage, ['*'], 'page');
+        
+        $enrichedLogs = $this->getEnrichedDeniedAccessLogs($activeSecurityAlerts);
+        
+        // Prepare HTML
+        $html = '';
+        if (count($enrichedLogs) > 0) {
+            foreach ($enrichedLogs as $index => $enrichedLog) {
+                $html .= '
+                <tr>
+                    <td>' . (($activeSecurityAlerts->currentPage() - 1) * $perPage + $index + 1) . '</td>
+                    <td>' . ($enrichedLog['visitor_details']['fullName'] ?? 'N/A') . '</td>
+                    <td>' . ($enrichedLog['visitor_details']['contactNo'] ?? 'N/A') . '</td>
+                    <td>' . ($enrichedLog['visitor_details']['icNo'] ?? 'N/A') . '</td>
+                    <td>' . ($enrichedLog['visitor_details']['personVisited'] ?? 'N/A') . '</td>
+                    <td>' . ($enrichedLog['log']->location_name ?? 'Unknown Location') . '</td>
+                    <td>' . ($enrichedLog['log']->reason ?: 'Other Reason') . '</td>
+                    <td>' . (\Carbon\Carbon::parse($enrichedLog['log']->created_at)->format('d M Y h:i A')) . '</td>
+                </tr>';
+            }
+        } else {
+            $html = '<tr><td colspan="8" class="text-center">No active security alerts found.</td></tr>';
+        }
+        
+        // ✅ CUSTOM PAGINATION GENERATE KAREIN
+        $paginationHtml = $this->generateCustomPaginationHtml(
+            $activeSecurityAlerts->currentPage(), 
+            $activeSecurityAlerts->lastPage()
+        );
+        
+        return response()->json([
+            'success' => true,
+            'html' => $html,
+            'pagination' => $paginationHtml,
+            'current_page' => $activeSecurityAlerts->currentPage(),
+            'total' => $activeSecurityAlerts->total(),
+            'per_page' => $perPage,
+            'total_pages' => $activeSecurityAlerts->lastPage()
+        ]);
+        
+    } catch (\Exception $e) {
+        Log::error('Error getting paginated security alerts: ' . $e->getMessage());
+        return response()->json([
+            'success' => false,
+            'message' => 'Error loading data'
+        ], 500);
+    }
+}
+
 }
 

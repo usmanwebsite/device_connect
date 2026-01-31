@@ -89,7 +89,7 @@
                     <div class="col-12 col-sm-6 col-md-3 mb-3 mb-md-0">
                         <div class="stat-card">
                             <h2 id="totalStaffCount">0</h2>
-                            <p>Total VISITOR</p>
+                            <p>TOTAL VISITOR</p>
                         </div>
                     </div>
                     <div class="col-12 col-sm-6 col-md-9 d-flex align-items-center">

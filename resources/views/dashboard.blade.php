@@ -55,7 +55,8 @@
                     <p class="label mb-1">Time</p>
                     <p class="value mb-0">
                         @if($criticalAlert['alert_type'] == 'access_denied')
-                            {{ $criticalAlert['created_at'] ?? '' }} ({{ $criticalAlert['time_ago'] ?? '' }})
+                            {{ $criticalAlert['created_at'] ?? '' }} 
+                            {{-- ({{ $criticalAlert['time_ago'] ?? '' }}) --}}
                         @else
                             {{ $criticalAlert['created_at'] ?? '' }}
                         @endif
@@ -280,6 +281,7 @@
 
 </div>
 {{-- Modal 1: Visitors On-Site --}}
+
 <div class="modal fade" id="visitorsOnSiteModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-xl">
         <div class="modal-content">
@@ -289,9 +291,10 @@
             </div>
             <div class="modal-body">
                 <div class="table-responsive">
-                    <table class="table table-hover">
+                    <table class="table table-hover" id="visitorsOnSiteTable">
                         <thead>
                             <tr>
+                                <th>#</th>
                                 <th>Visitor Name</th>
                                 <th>Host</th>
                                 <th>Check-in Time</th>
@@ -300,8 +303,9 @@
                             </tr>
                         </thead>
                         <tbody>
-                            @foreach($visitorsOnSite as $visitor)
+                            @foreach($visitorsOnSite as $index => $visitor)
                             <tr>
+                                <td>{{ $loop->index + 1 }}</td>
                                 <td>{{ $visitor['full_name'] ?? 'N/A' }}</td>
                                 <td>{{ $visitor['person_visited'] ?? 'N/A' }}</td>
                                 <td>{{ \Carbon\Carbon::parse($visitor['created_at'])->format('h:i A') }}</td>
@@ -312,7 +316,7 @@
                             
                             @if(empty($visitorsOnSite))
                             <tr>
-                                <td colspan="5" class="text-center">No visitors currently on-site</td>
+                                <td colspan="6" class="text-center">No visitors currently on-site</td>
                             </tr>
                             @endif
                         </tbody>
@@ -331,14 +335,15 @@
     <div class="modal-dialog modal-xl">
         <div class="modal-content">
             <div class="modal-header">
-            <h5 class="modal-title">Today's Appointments ({{ count(collect($todayAppointments)->unique('staff_no')) }})</h5>
+                <h5 class="modal-title">Today's Appointments</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
                 <div class="table-responsive">
-                    <table class="table table-hover">
+                    <table class="table table-hover" id="expectedTodayTable">
                         <thead>
                             <tr>
+                                <th>#</th>
                                 <th>Visitor Name</th>
                                 <th>Host</th>
                                 <th>Appointment Time</th>
@@ -347,8 +352,9 @@
                             </tr>
                         </thead>
                         <tbody>
-                            @foreach(collect($todayAppointments)->unique('staff_no') as $appointment)
+                            @foreach($todayAppointments as $index => $appointment)
                             <tr>
+                                <td>{{ $loop->index + 1 }}</td>
                                 <td>{{ $appointment['full_name'] ?? 'N/A' }}</td>
                                 <td>{{ $appointment['name_of_person_visited'] ?? 'N/A' }}</td>
                                 <td>{{ \Carbon\Carbon::parse($appointment['date_from'])->format('h:i A') }}</td>
@@ -359,7 +365,7 @@
                             
                             @if(empty($todayAppointments))
                             <tr>
-                                <td colspan="5" class="text-center">No appointments today</td>
+                                <td colspan="6" class="text-center">No appointments today</td>
                             </tr>
                             @endif
                         </tbody>
@@ -372,102 +378,24 @@
         </div>
     </div>
 </div>
+
 {{-- Modal 3: Check-outs Today (Dynamic Data) --}}
 <div class="modal fade" id="checkoutsTodayModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-xl">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title">Today's Check-outs ({{ count($checkoutsTodayModalData) }})</h5>
+                <h5 class="modal-title">Today's Check-outs</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
-                @if(!empty($checkoutsTodayModalData))
-                    <div class="table-responsive">
-                        <table class="table table-hover">
-                            <thead>
-                                <tr>
-                                    <th>#</th>
-                                    <th>Visitor Name</th>
-                                    <th>Host</th>
-                                    <th>Check-in Time</th>
-                                    <th>Check-out Time</th>
-                                    <th>Duration</th>
-                                    <th>Staff No</th>
-                                    <th>Location</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                @foreach($checkoutsTodayModalData as $index => $checkout)
-                                <tr>
-                                    <td>{{ $index + 1 }}</td>
-                                    <td>{{ $checkout['visitor_name'] }}</td>
-                                    <td>{{ $checkout['host'] }}</td>
-                                    <td>{{ $checkout['check_in_time'] }}</td>
-                                    <td>{{ $checkout['check_out_time'] }}</td>
-                                    <td>{{ $checkout['duration'] }}</td>
-                                    <td>{{ $checkout['staff_no'] }}</td>
-                                    <td>{{ $checkout['location'] }}</td>
-                                </tr>
-                                @endforeach
-                            </tbody>
-                        </table>
+                <!-- Content will be loaded via AJAX -->
+                <div id="checkoutsModalContent">
+                    <div class="text-center py-4">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        <p class="mt-2">Loading check-out data...</p>
                     </div>
-                @else
-                    <div class="alert alert-info">
-                        <p class="mb-0">No check-outs found for today that match both conditions (Turnstile location and check_out type).</p>
-                    </div>
-                @endif
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-            </div>
-        </div>
-    </div>
-</div>
-{{-- Modal 4: Active Security Alerts --}}
-<div class="modal fade" id="securityAlertsModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-xl">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">Active Security Alerts - Access Denied Records</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                <div class="table-responsive">
-                    <table class="table table-hover">
-                        <thead>
-                            <tr>
-                                {{-- <th>Staff No</th> --}}
-                                <th>Visitor Name</th>
-                                <th>Contact No</th>
-                                <th>IC No</th>
-                                <th>Host</th>
-                                <th>Location</th>
-                                <th>Reason</th>
-                                <th>Date & Time</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @foreach($enrichedDeniedAccessLogs as $enrichedLog)
-                            <tr>
-                                {{-- <td>{{ $enrichedLog['log']->staff_no }}</td> --}}
-                                <td>{{ $enrichedLog['visitor_details']['fullName'] }}</td>
-                                <td>{{ $enrichedLog['visitor_details']['contactNo'] }}</td>
-                                <td>{{ $enrichedLog['visitor_details']['icNo'] }}</td>
-                                <td>{{ $enrichedLog['visitor_details']['personVisited'] }}</td>
-                                <td>{{ $enrichedLog['log']->location_name ?? 'Unknown Location' }}</td>
-                                <td>{{ $enrichedLog['log']->reason ? $enrichedLog['log']->reason : 'Other Reason' }}</td>
-                                <td>{{ \Carbon\Carbon::parse($enrichedLog['log']->created_at)->format('d M Y h:i A') }}</td>
-                            </tr>
-                            @endforeach
-                            
-                            @if(empty($enrichedDeniedAccessLogs))
-                            <tr>
-                                <td colspan="8" class="text-center">No security alerts found</td>
-                            </tr>
-                            @endif
-                        </tbody>
-                    </table>
                 </div>
             </div>
             <div class="modal-footer">
@@ -476,6 +404,31 @@
         </div>
     </div>
 </div>
+
+{{-- Security Alerts Modal में AJAX based content --}}
+<div class="modal fade" id="securityAlertsModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Active Security Alerts</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="securityAlertsModalBody">
+                {{-- Content will be loaded via AJAX --}}
+                <div class="text-center py-4">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <p class="mt-2">Loading security alerts...</p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 {{-- NEW: Access Denied Modal --}}
 <div class="modal fade" id="accessDeniedModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-xl">
@@ -486,10 +439,9 @@
             </div>
             <div class="modal-body">
                 <div class="table-responsive">
-                    <table class="table table-hover">
+                    <table class="table table-hover" id="accessDeniedTable">
                         <thead>
                             <tr>
-                                {{-- <th>Staff No</th> --}}
                                 <th>Visitor Name</th>
                                 <th>Contact No</th>
                                 <th>IC No</th>
@@ -502,7 +454,6 @@
                         <tbody>
                             @foreach($enrichedDeniedAccessLogs as $enrichedLog)
                             <tr>
-                                {{-- <td>{{ $enrichedLog['log']->staff_no }}</td> --}}
                                 <td>{{ $enrichedLog['visitor_details']['fullName'] }}</td>
                                 <td>{{ $enrichedLog['visitor_details']['contactNo'] }}</td>
                                 <td>{{ $enrichedLog['visitor_details']['icNo'] }}</td>
@@ -512,12 +463,6 @@
                                 <td>{{ \Carbon\Carbon::parse($enrichedLog['log']->created_at)->format('d M Y h:i A') }}</td>
                             </tr>
                             @endforeach
-                            
-                            @if(empty($enrichedDeniedAccessLogs))
-                            <tr>
-                                <td colspan="8" class="text-center">No access denied incidents found</td>
-                            </tr>
-                            @endif
                         </tbody>
                     </table>
                 </div>
@@ -528,6 +473,7 @@
         </div>
     </div>
 </div>
+
 {{-- NEW: Visitor Overstay Modal --}}
 <div class="modal fade" id="visitorOverstayModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-xl">
@@ -538,11 +484,10 @@
             </div>
             <div class="modal-body">
                 <div class="table-responsive">
-                    <table class="table table-hover">
+                    <table class="table table-hover" id="visitorOverstayTable">
                         <thead>
                             <tr>
                                 <th>Visitor Name</th>
-                                {{-- <th>Staff No</th> --}}
                                 <th>Host</th>
                                 <th>Contact No</th>
                                 <th>IC No</th>
@@ -557,7 +502,6 @@
                             @foreach($enrichedOverstayAlerts as $alert)
                             <tr>
                                 <td>{{ $alert['visitor_name'] }}</td>
-                                {{-- <td>{{ $alert['staff_no'] }}</td> --}}
                                 <td>{{ $alert['host'] }}</td>
                                 <td>{{ $alert['contact_no'] ?? 'N/A' }}</td>
                                 <td>{{ $alert['ic_no'] ?? 'N/A' }}</td>
@@ -568,12 +512,6 @@
                                 <td class="text-danger fw-bold">{{ $alert['overstay_duration'] }}</td>
                             </tr>
                             @endforeach
-                            
-                            @if(empty($enrichedOverstayAlerts))
-                            <tr>
-                                <td colspan="10" class="text-center">No visitor overstay alerts found</td>
-                            </tr>
-                            @endif
                         </tbody>
                     </table>
                 </div>
@@ -584,43 +522,51 @@
         </div>
     </div>
 </div>
-{{-- Updated: Upcoming Appointments Modal (Simple List) --}}
+
+{{-- Updated: Upcoming Appointments Modal with AJAX --}}
 <div class="modal fade" id="upcomingAppointmentsModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-lg">
+    <div class="modal-dialog modal-xl">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title">Upcoming Appointments ({{ count($upcomingAppointments) }})</h5>
+                <h5 class="modal-title">Upcoming Appointments</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
-                @if(!empty($upcomingAppointments))
+                {{-- Loading Spinner --}}
+                <div id="upcomingAppointmentsLoading" class="text-center d-none">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <p class="mt-2">Loading appointments...</p>
+                </div>
+                
+                {{-- Content Container --}}
+                <div id="upcomingAppointmentsContent">
                     <div class="table-responsive">
-                        <table class="table table-hover">
+                        <table class="table table-hover" id="upcomingAppointmentsTable">
                             <thead>
                                 <tr>
+                                    <th>#</th>
                                     <th>Visitor Name</th>
+                                    <th>Contact No</th>
+                                    <th>IC No</th>
+                                    <th>Host</th>
                                     <th>Appointment Date</th>
                                     <th>Appointment Time</th>
-                                    <th>Host</th>
+                                    <th>Purpose</th>
                                 </tr>
                             </thead>
-                            <tbody>
-                                @foreach($upcomingAppointments as $appointment)
-                                <tr>
-                                    <td>{{ $appointment['full_name'] ?? 'N/A' }}</td>
-                                    <td>{{ \Carbon\Carbon::parse($appointment['date_from'])->format('M d, Y') }}</td>
-                                    <td>{{ \Carbon\Carbon::parse($appointment['date_from'])->format('h:i A') }}</td>
-                                    <td>{{ $appointment['name_of_person_visited'] ?? 'N/A' }}</td>
-                                </tr>
-                                @endforeach
+                            <tbody id="upcomingAppointmentsBody">
+                                {{-- Data will be loaded via AJAX --}}
                             </tbody>
                         </table>
                     </div>
-                @else
-                    <div class="alert alert-info">
-                        <p class="mb-0">No upcoming appointments found.</p>
+                    
+                    {{-- Pagination Container --}}
+                    <div id="upcomingAppointmentsPagination" class="d-flex justify-content-center mt-3">
+                        {{-- Pagination will be loaded via AJAX --}}
                     </div>
-                @endif
+                </div>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
@@ -628,6 +574,7 @@
         </div>
     </div>
 </div>
+
 {{-- Chart.js Dynamic Graph --}}
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
@@ -649,7 +596,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // Initialize DataTable
     const onSiteTable = $('#onSiteTable').DataTable({
         pageLength: 5, // 5 records per page
-        lengthMenu: [[5, 10, 25, 50], [5, 10, 25, 50]],
+        lengthMenu: [[5, 10, 25, 50, -1], [5, 10, 25, 50, "All"]], // ✅ FIX: Updated lengthMenu
         responsive: true,
         language: {
             search: "_INPUT_",
@@ -697,7 +644,13 @@ document.addEventListener('DOMContentLoaded', function() {
         .then(response => response.json())
         .then(data => {
             if (data.success) {
+                // ✅ Get current page length before updating
+                const table = $('#onSiteTable').DataTable();
+                const currentPageLength = table.page.len();
+
                 updateTableData(data.visitors);
+
+                table.page.len(currentPageLength).draw();
                 
                 // Update count in card
                 const visitorsCard = document.querySelector('.stat-card.clickable-card:nth-child(1) h2');
@@ -760,32 +713,108 @@ function updateTableData(visitors) {
         ]);
     }
     
-    table.draw();
+    table.draw(false);
 }
 
-
-
-// Upcoming Appointments Modal Show Function
 function showUpcomingAppointmentsModal() {
     const modal = new bootstrap.Modal(document.getElementById('upcomingAppointmentsModal'));
     
-    // Optional: Sort appointments by date before showing
-    const tableBody = document.querySelector('#upcomingAppointmentsModal tbody');
-    if (tableBody) {
-        const rows = Array.from(tableBody.querySelectorAll('tr'));
-        
-        rows.sort((a, b) => {
-            const dateA = new Date(a.cells[5].textContent + ' ' + a.cells[6].textContent);
-            const dateB = new Date(b.cells[5].textContent + ' ' + b.cells[6].textContent);
-            return dateA - dateB;
-        });
-        
-        // Clear and re-append sorted rows
-        tableBody.innerHTML = '';
-        rows.forEach(row => tableBody.appendChild(row));
-    }
+    // Load data when modal opens
+    $('#upcomingAppointmentsModal').on('shown.bs.modal', function() {
+        loadUpcomingAppointments(1);
+    });
     
     modal.show();
+}
+
+function loadUpcomingAppointments(page = 1) {
+    console.log('Loading upcoming appointments, page:', page);
+    
+    // Show loading
+    $('#upcomingAppointmentsLoading').removeClass('d-none');
+    $('#upcomingAppointmentsContent').addClass('d-none');
+    
+    // Fetch data via AJAX
+    fetch(`/vms/dashboard/upcoming-appointments-ajax?page=${page}`)
+        .then(response => response.json())
+        .then(data => {
+            console.log('Upcoming appointments data received:', data);
+            
+            $('#upcomingAppointmentsLoading').addClass('d-none');
+            $('#upcomingAppointmentsContent').removeClass('d-none');
+            
+            if (data.success) {
+                // Update table body
+                $('#upcomingAppointmentsBody').html(data.html);
+                
+                // ✅ CUSTOM PAGINATION SET KAREIN
+                if (data.pagination) {
+                    $('#upcomingAppointmentsPagination').html(data.pagination);
+                } else {
+                    $('#upcomingAppointmentsPagination').html('');
+                }
+                
+                // DataTable initialize
+                if ($.fn.DataTable.isDataTable('#upcomingAppointmentsTable')) {
+                    $('#upcomingAppointmentsTable').DataTable().destroy();
+                }
+                
+                // Pagination events attach karein
+                attachPaginationEvents();
+            } else {
+                // Error handling
+            }
+        })
+        .catch(error => {
+            // Error handling
+        });
+}
+
+function initUpcomingAppointmentsDataTable() {
+    // Only initialize if not already initialized
+    if (!$.fn.DataTable.isDataTable('#upcomingAppointmentsTable')) {
+        $('#upcomingAppointmentsTable').DataTable({
+            pageLength: 10,
+            lengthMenu: [[5, 10, 25, 50, -1], [5, 10, 25, 50, "All"]],
+            responsive: true,
+            order: [[5, 'asc'], [6, 'asc']], // Sort by date then time
+            language: {
+                search: "_INPUT_",
+                searchPlaceholder: "Search appointments...",
+                lengthMenu: "Show _MENU_ entries",
+                info: "Showing _START_ to _END_ of _TOTAL_ appointments",
+                infoEmpty: "Showing 0 to 0 of 0 appointments",
+                infoFiltered: "(filtered from _MAX_ total appointments)",
+                paginate: {
+                    first: "First",
+                    last: "Last",
+                    next: "Next",
+                    previous: "Previous"
+                }
+            },
+            drawCallback: function(settings) {
+                // Hide DataTable's own pagination since we have custom AJAX pagination
+                $(this.api().table().container()).find('.dataTables_paginate').hide();
+            }
+        });
+    }
+}
+
+
+function attachPaginationEvents() {
+    // Remove existing event listeners
+    $('.pagination-link').off('click');
+    
+    // Attach new event listeners
+    $('.pagination-link').on('click', function(e) {
+        e.preventDefault();
+        const page = $(this).data('page');
+        loadUpcomingAppointments(page);
+        
+        // Update active state
+        $('.page-item').removeClass('active');
+        $(this).closest('.page-item').addClass('active');
+    });
 }
 
 // Also make the whole card clickable if there are appointments
@@ -802,6 +831,25 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     }
+    
+    // Clean up modal events when closed
+    $('#upcomingAppointmentsModal').on('hidden.bs.modal', function() {
+        // Destroy DataTable if exists
+        if ($.fn.DataTable.isDataTable('#upcomingAppointmentsTable')) {
+            $('#upcomingAppointmentsTable').DataTable().destroy();
+        }
+        
+        // Clear content
+        $('#upcomingAppointmentsBody').html('');
+        $('#upcomingAppointmentsPagination').html('');
+    });
+    
+    // Clean up security alerts modal events
+    $('#securityAlertsModal').on('hidden.bs.modal', function() {
+        if ($.fn.DataTable.isDataTable('#securityAlertsDataTable')) {
+            $('#securityAlertsDataTable').DataTable().destroy();
+        }
+    });
 });
 
 // Initialize chart with default data
@@ -856,121 +904,7 @@ function initializeChart(labels, data) {
         }
     });
 }
-// Modal Show Functions
-function showVisitorsOnSiteModal() {
-    const modal = new bootstrap.Modal(document.getElementById('visitorsOnSiteModal'));
-    modal.show();
-}
-function showExpectedTodayModal() {
-    const modal = new bootstrap.Modal(document.getElementById('expectedTodayModal'));
-    modal.show();
-}
 
-function showCheckoutsTodayModal() {
-    const modal = new bootstrap.Modal(document.getElementById('checkoutsTodayModal'));
-    
-    // Show loading while fetching fresh data
-    const modalBody = document.querySelector('#checkoutsTodayModal .modal-body');
-    const originalContent = modalBody.innerHTML; // Store original content
-    
-    modalBody.innerHTML = `
-        <div class="text-center py-4">
-            <div class="spinner-border text-primary" role="status">
-                <span class="visually-hidden">Loading...</span>
-            </div>
-            <p class="mt-2">Loading latest check-out data...</p>
-        </div>
-    `;
-    
-    modal.show();   
-    // Fetch latest data via AJAX
-    fetch('/dashboard/checkouts-today-modal-data', {
-        method: 'GET',
-        headers: {
-            'Content-Type': 'application/json',
-            'X-CSRF-TOKEN': '{{ csrf_token() }}'
-        }
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            updateCheckoutsModalContent(data.data);
-        } else {
-            modalBody.innerHTML = `
-                <div class="alert alert-danger">
-                    <p class="mb-0">Error loading check-outs data: ${data.message || 'Unknown error'}</p>
-                </div>
-                ${originalContent}
-            `;
-        }
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        modalBody.innerHTML = `
-            <div class="alert alert-danger">
-                <p class="mb-0">Error loading check-outs data. Please try again.</p>
-            </div>
-            ${originalContent}
-        `;
-    });
-}
-function updateCheckoutsModalContent(checkoutsData) {
-    const modalBody = document.querySelector('#checkoutsTodayModal .modal-body');
-    const modalTitle = document.querySelector('#checkoutsTodayModal .modal-title');
-    
-    if (checkoutsData.length > 0) {
-        let html = `
-            <div class="table-responsive">
-                <table class="table table-hover">
-                    <thead>
-                        <tr>
-                            <th>#</th>
-                            <th>Visitor Name</th>
-                            <th>Host</th>
-                            <th>Check-in Time</th>
-                            <th>Check-out Time</th>
-                            <th>Duration</th>
-                            <th>Staff No</th>
-                            <th>Location</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-        `;        
-        checkoutsData.forEach((checkout, index) => {
-            html += `
-                <tr>
-                    <td>${index + 1}</td>
-                    <td>${checkout.visitor_name || 'N/A'}</td>
-                    <td>${checkout.host || 'N/A'}</td>
-                    <td>${checkout.check_in_time || 'N/A'}</td>
-                    <td>${checkout.check_out_time || 'N/A'}</td>
-                    <td>${checkout.duration || 'N/A'}</td>
-                    <td>${checkout.staff_no || 'N/A'}</td>
-                    <td>${checkout.location || 'N/A'}</td>
-                </tr>
-            `;
-        });
-        
-        html += `
-                    </tbody>
-                </table>
-            </div>
-        `;
-        
-        modalBody.innerHTML = html;
-    } else {
-        modalBody.innerHTML = `
-            <div class="alert alert-info">
-                <p class="mb-0">No check-outs found for today that match both conditions:</p>
-                <ul class="mb-0">
-                    <li>Location: Turnstile</li>
-                    <li>Device Type: check_out</li>
-                </ul>
-            </div>
-        `;
-        modalTitle.textContent = 'Today\'s Check-outs (0)';
-    }
-}
 
 
 let currentCriticalAlertId = null;
@@ -1165,59 +1099,281 @@ function closeCriticalAlert() {
     });
 }
 
-// ✅ Reset modal when opened from Active Security Alerts card
+
+// Function for Active Security Alerts pagination
+function updateActiveAlertsPage(page) {
+    // Modal close करें
+    const modal = bootstrap.Modal.getInstance(document.getElementById('securityAlertsModal'));
+    if (modal) {
+        modal.hide();
+    }
+    
+    // URL बनाएं और redirect करें
+    const url = new URL(window.location.href);
+    url.searchParams.set('active_alerts_page', page);
+    
+    // Page reload करें
+    window.location.href = url.toString();
+}
+
 function showSecurityAlertsModal() {
     const modal = new bootstrap.Modal(document.getElementById('securityAlertsModal'));
-    const modalTitle = document.querySelector('#securityAlertsModal .modal-title');
-    const modalBody = document.querySelector('#securityAlertsModal .modal-body');
     
-    // Reset to original content
-    modalTitle.textContent = 'Active Security Alerts - Access Denied Records';
+    // Modal खुलने पर data load करें
+    $('#securityAlertsModal').on('shown.bs.modal', function() {
+        loadActiveSecurityAlerts(1);
+    });
     
-    // Show original content (from PHP)
-    @if(!empty($enrichedDeniedAccessLogs))
-        const originalHtml = `
-            <div class="table-responsive">
-                <table class="table table-hover">
-                    <thead>
-                        <tr>
-                            <th>Staff No</th>
-                            <th>Visitor Name</th>
-                            <th>Host</th>
-                            <th>Contact No</th>
-                            <th>IC No</th>
-                            <th>Location</th>
-                            <th>Reason</th>
-                            <th>Date & Time</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @foreach($enrichedDeniedAccessLogs as $enrichedLog)
-                        <tr>
-                            <td>{{ $enrichedLog['visitor_details']['fullName'] }}</td>
-                            <td>{{ $enrichedLog['visitor_details']['personVisited'] }}</td>
-                            <td>{{ $enrichedLog['visitor_details']['contactNo'] }}</td>
-                            <td>{{ $enrichedLog['visitor_details']['icNo'] }}</td>
-                            <td>{{ $enrichedLog['log']->location_name ?? 'Unknown Location' }}</td>
-                            <td>{{ $enrichedLog['log']->reason ? $enrichedLog['log']->reason : 'Other Reason' }}</td>
-                            <td>{{ \Carbon\Carbon::parse($enrichedLog['log']->created_at)->format('d M Y h:i A') }}</td>
-                        </tr>
-                        @endforeach
-                    </tbody>
-                </table>
-            </div>
-        `;
-        modalBody.innerHTML = originalHtml;
-    @else
-        modalBody.innerHTML = `
-            <div class="alert alert-info">
-                <p class="mb-0">No security alerts found</p>
-            </div>
-        `;
-    @endif
+    // Modal बंद होने पर event clean करें
+    $('#securityAlertsModal').on('hidden.bs.modal', function() {
+        // Destroy DataTable if exists
+        if ($.fn.DataTable.isDataTable('#securityAlertsDataTable')) {
+            $('#securityAlertsDataTable').DataTable().destroy();
+        }
+        
+        // ✅ IMPORTANT: Clean up all pagination events
+        $(document).off('click', '.pagination-link');
+        $('.pagination-link').off('click');
+    });
     
     modal.show();
 }
+
+function loadActiveSecurityAlerts(page = 1) {
+    const modalBody = $('#securityAlertsModalBody');
+    
+    modalBody.html(`
+        <div class="text-center py-4">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+            <p class="mt-2">Loading security alerts...</p>
+        </div>
+    `);
+    
+    // ✅ ADD: Clean up previous events before loading new content
+    $(document).off('click', '.pagination-link');
+    $('.pagination-link').off('click');
+    
+    // Fetch data via AJAX
+    fetch(`/vms/dashboard/active-security-alerts-ajax?page=${page}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                const html = `
+                    <div class="table-responsive">
+                        <table class="table table-hover" id="securityAlertsDataTable">
+                            <thead>
+                                <tr>
+                                    <th>#</th>
+                                    <th>Visitor Name</th>
+                                    <th>Contact No</th>
+                                    <th>IC No</th>
+                                    <th>Host</th>
+                                    <th>Location</th>
+                                    <th>Reason</th>
+                                    <th>Date & Time</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${data.html}
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    ${data.pagination ? `
+                    <div class="d-flex justify-content-center mt-3">
+                        ${data.pagination}
+                    </div>
+                    <div class="text-center text-muted mt-2">
+                        Showing ${(data.current_page - 1) * data.per_page + 1} 
+                        to ${Math.min(data.current_page * data.per_page, data.total)} 
+                        of ${data.total} entries
+                    </div>
+                    ` : ''}
+                `;
+                
+                modalBody.html(html);
+                
+                // ✅ UPDATE: Initialize DataTable with proper destroy first
+                if ($.fn.DataTable.isDataTable('#securityAlertsDataTable')) {
+                    $('#securityAlertsDataTable').DataTable().destroy();
+                }
+                
+                $('#securityAlertsDataTable').DataTable({
+                    pageLength: 10,
+                    lengthMenu: [[5, 10, 25, 50, -1], [5, 10, 25, 50, "All"]],
+                    responsive: true,
+                    order: [[7, 'desc']], // Sort by date column
+                    searching: true,
+                    paging: false, // We have custom pagination
+                    info: false,
+                    language: {
+                        search: "_INPUT_",
+                        searchPlaceholder: "Search alerts..."
+                    }
+                });
+                
+                // ✅ UPDATE: Attach pagination events AFTER content is loaded
+                attachSecurityAlertsPaginationEvents();
+            } else {
+                modalBody.html(`
+                    <div class="alert alert-danger">
+                        <p class="mb-0">Error loading security alerts: ${data.message || 'Unknown error'}</p>
+                    </div>
+                `);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            modalBody.html(`
+                <div class="alert alert-danger">
+                    <p class="mb-0">Error loading security alerts. Please try again.</p>
+                </div>
+            `);
+        });
+}
+
+function attachSecurityAlertsPaginationEvents() {
+    // First, remove ALL existing pagination events
+    $(document).off('click', '.pagination-link');
+    
+    // Use event delegation for dynamic content
+    $(document).on('click', '.pagination-link', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        
+        // Check if link is disabled
+        if ($(this).parent().hasClass('disabled') || $(this).hasClass('disabled')) {
+            return false;
+        }
+        
+        const page = $(this).data('page');
+        if (page) {
+            console.log('Loading page:', page);
+            loadActiveSecurityAlerts(page);
+        }
+        
+        return false;
+    });
+}
+
+function attachAllPaginationEvents() {
+    // Remove all existing pagination events
+    $(document).off('click', '.pagination-link');
+    
+    // Attach to upcoming appointments
+    $(document).on('click', '#upcomingAppointmentsPagination .pagination-link', function(e) {
+        e.preventDefault();
+        const page = $(this).data('page');
+        loadUpcomingAppointments(page);
+    });
+    
+    // Attach to security alerts
+    $(document).on('click', '#securityAlertsModalBody .pagination-link', function(e) {
+        e.preventDefault();
+        const page = $(this).data('page');
+        loadActiveSecurityAlerts(page);
+    });
+}
+
+// ✅ Initialize on page load
+document.addEventListener('DOMContentLoaded', function() {
+    attachAllPaginationEvents();
+});
+
+function loadSecurityAlertsViaAjax() {
+    const modal = new bootstrap.Modal(document.getElementById('securityAlertsModal'));
+    
+    modal.show();
+    
+    // Show loading
+    $('#securityAlertsDataTable tbody').html(`
+        <tr>
+            <td colspan="9" class="text-center">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <p class="mt-2">Loading security alerts...</p>
+            </td>
+        </tr>
+    `);
+    
+    // Fetch data via AJAX
+    $.ajax({
+        url: '/dashboard/security-alerts-data',
+        type: 'GET',
+        dataType: 'json',
+        success: function(response) {
+            if (response.success && response.data.length > 0) {
+                let html = '';
+                response.data.forEach(function(alert, index) {
+                    html += `
+                        <tr>
+                            <td>${index + 1}</td>
+                            <td>${alert.visitor_name}</td>
+                            <td>${alert.contact_no}</td>
+                            <td>${alert.ic_no}</td>
+                            <td>${alert.host}</td>
+                            <td>${alert.location}</td>
+                            <td>${alert.reason}</td>
+                            <td>${alert.date_time}</td>
+                            <td>
+                                <button class="btn btn-sm btn-info view-details" data-id="${alert.id}">
+                                    <i class="fas fa-eye"></i> View
+                                </button>
+                            </td>
+                        </tr>
+                    `;
+                });
+                $('#securityAlertsDataTable tbody').html(html);
+                
+                // Initialize client-side DataTable
+                if ($.fn.DataTable.isDataTable('#securityAlertsDataTable')) {
+                    $('#securityAlertsDataTable').DataTable().destroy();
+                }
+                
+                $('#securityAlertsDataTable').DataTable({
+                    pageLength: 10,
+                    lengthMenu: [[5, 10, 25, 50, -1], [5, 10, 25, 50, "All"]],
+                    responsive: true,
+                    order: [[7, 'desc']],
+                    language: {
+                        search: "_INPUT_",
+                        searchPlaceholder: "Search alerts...",
+                        lengthMenu: "Show _MENU_ entries",
+                        info: "Showing _START_ to _END_ of _TOTAL_ alerts",
+                        infoEmpty: "Showing 0 to 0 of 0 alerts",
+                        infoFiltered: "(filtered from _MAX_ total alerts)",
+                        paginate: {
+                            first: "First",
+                            last: "Last",
+                            next: "Next",
+                            previous: "Previous"
+                        }
+                    }
+                });
+            } else {
+                $('#securityAlertsDataTable tbody').html(`
+                    <tr>
+                        <td colspan="9" class="text-center">No active security alerts found</td>
+                    </tr>
+                `);
+            }
+        },
+        error: function(xhr, status, error) {
+            console.error('Error loading security alerts:', error);
+            $('#securityAlertsDataTable tbody').html(`
+                <tr>
+                    <td colspan="9" class="text-center text-danger">
+                        Error loading data. Please try again.
+                    </td>
+                </tr>
+            `);
+        }
+    });
+}
+
 
 function updateCriticalAlert(alertData) {
     let html = '';
@@ -1396,10 +1552,6 @@ function refreshDashboardCounts() {
     });
 }
 
-function showSecurityAlertsModal() {
-    const modal = new bootstrap.Modal(document.getElementById('securityAlertsModal'));
-    modal.show();
-}
 function loadGraphData() {
     const fromDate = document.getElementById('graphFromDate').value;
     const toDate = document.getElementById('graphToDate').value;
@@ -1468,6 +1620,385 @@ function adjustCriticalAlertWidth() {
         criticalAlert.style.width = '100%'; // Always 100%
         criticalAlert.style.maxWidth = maxWidth + 'px';
     }
+}
+
+
+// DataTable Initialization
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialize Access Denied Table
+    if ($('#accessDeniedTable').length) {
+        $('#accessDeniedTable').DataTable({
+            pageLength: 10,
+            lengthMenu: [[5, 10, 25, 50, -1], [5, 10, 25, 50, "All"]],
+            responsive: true,
+            order: [[6, 'desc']], // Sort by date column descending
+            language: {
+                search: "_INPUT_",
+                searchPlaceholder: "Search incidents...",
+                lengthMenu: "Show _MENU_ entries",
+                info: "Showing _START_ to _END_ of _TOTAL_ incidents",
+                infoEmpty: "Showing 0 to 0 of 0 incidents",
+                infoFiltered: "(filtered from _MAX_ total incidents)",
+                paginate: {
+                    first: "First",
+                    last: "Last",
+                    next: "Next",
+                    previous: "Previous"
+                }
+            }
+        });
+    }
+
+    // Initialize Visitor Overstay Table
+    if ($('#visitorOverstayTable').length) {
+        $('#visitorOverstayTable').DataTable({
+            pageLength: 10,
+            lengthMenu: [[5, 10, 25, 50, -1], [5, 10, 25, 50, "All"]],
+            responsive: true,
+            order: [[5, 'desc']], // Sort by check-in time descending
+            language: {
+                search: "_INPUT_",
+                searchPlaceholder: "Search overstays...",
+                lengthMenu: "Show _MENU_ entries",
+                info: "Showing _START_ to _END_ of _TOTAL_ overstays",
+                infoEmpty: "Showing 0 to 0 of 0 overstays",
+                infoFiltered: "(filtered from _MAX_ total overstays)",
+                paginate: {
+                    first: "First",
+                    last: "Last",
+                    next: "Next",
+                    previous: "Previous"
+                }
+            },
+            columnDefs: [
+                {
+                    targets: 8, // Overstay Duration column
+                    className: 'text-center'
+                }
+            ]
+        });
+    }
+});
+
+
+
+function updateVisitorsPage(page) {
+    const url = new URL(window.location.href);
+    url.searchParams.set('visitors_page', page);
+    window.location.href = url.toString();
+}
+
+function updateTodayPage(page) {
+    const url = new URL(window.location.href);
+    url.searchParams.set('today_page', page);
+    window.location.href = url.toString();
+}
+
+function updateCheckoutsPage(page) {
+    const url = new URL(window.location.href);
+    url.searchParams.set('checkouts_page', page);
+    window.location.href = url.toString();
+}
+
+// Modal Show Functions
+function showVisitorsOnSiteModal() {
+    const modal = new bootstrap.Modal(document.getElementById('visitorsOnSiteModal'));
+    
+    // Initialize DataTable when modal opens
+    setTimeout(function() {
+        if ($.fn.DataTable.isDataTable('#visitorsOnSiteTable')) {
+            $('#visitorsOnSiteTable').DataTable().destroy();
+        }
+        
+        $('#visitorsOnSiteTable').DataTable({
+            pageLength: 10,
+            lengthMenu: [[5, 10, 25, 50, -1], [5, 10, 25, 50, "All"]],
+            responsive: true,
+            order: [[3, 'desc']],
+            language: {
+                search: "_INPUT_",
+                searchPlaceholder: "Search visitors...",
+                lengthMenu: "Show _MENU_ entries",
+                info: "Showing _START_ to _END_ of _TOTAL_ visitors",
+                infoEmpty: "Showing 0 to 0 of 0 visitors",
+                infoFiltered: "(filtered from _MAX_ total visitors)",
+                paginate: {
+                    first: "First",
+                    last: "Last",
+                    next: "Next",
+                    previous: "Previous"
+                }
+            }
+        });
+    }, 100);
+    
+    modal.show();
+}
+
+function showExpectedTodayModal() {
+    const modal = new bootstrap.Modal(document.getElementById('expectedTodayModal'));
+    
+    // Initialize DataTable when modal opens
+    setTimeout(function() {
+        if ($.fn.DataTable.isDataTable('#expectedTodayTable')) {
+            $('#expectedTodayTable').DataTable().destroy();
+        }
+        
+        $('#expectedTodayTable').DataTable({
+            pageLength: 10,
+            lengthMenu: [[5, 10, 25, 50, -1], [5, 10, 25, 50, "All"]],
+            responsive: true,
+            order: [[3, 'asc']],
+            language: {
+                search: "_INPUT_",
+                searchPlaceholder: "Search appointments...",
+                lengthMenu: "Show _MENU_ entries",
+                info: "Showing _START_ to _END_ of _TOTAL_ appointments",
+                infoEmpty: "Showing 0 to 0 of 0 appointments",
+                infoFiltered: "(filtered from _MAX_ total appointments)",
+                paginate: {
+                    first: "First",
+                    last: "Last",
+                    next: "Next",
+                    previous: "Previous"
+                }
+            }
+        });
+    }, 100);
+    
+    modal.show();
+}
+
+function showCheckoutsTodayModal() {
+    const modal = new bootstrap.Modal(document.getElementById('checkoutsTodayModal'));
+    
+    // Show loading
+    $('#checkoutsModalContent').html(`
+        <div class="text-center py-4">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+            <p class="mt-2">Loading latest check-out data...</p>
+        </div>
+    `);
+    
+    modal.show();
+    
+    // Fetch latest data via AJAX
+    fetch('/vms/dashboard/checkouts-today-modal-data', {
+        method: 'GET',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-TOKEN': '{{ csrf_token() }}'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            updateCheckoutsModalContent(data.data);
+        } else {
+            $('#checkoutsModalContent').html(`
+                <div class="alert alert-danger">
+                    <p class="mb-0">Error loading check-outs data: ${data.message || 'Unknown error'}</p>
+                </div>
+            `);
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        $('#checkoutsModalContent').html(`
+            <div class="alert alert-danger">
+                <p class="mb-0">Error loading check-outs data. Please try again.</p>
+            </div>
+        `);
+    });
+}
+
+function updateCheckoutsModalContent(checkoutsData) {
+    let html = '';
+    
+    if (checkoutsData.length > 0) {
+        html = `
+            <div class="table-responsive">
+                <table class="table table-hover" id="checkoutsTodayTable">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Visitor Name</th>
+                            <th>Host</th>
+                            <th>Check-in Time</th>
+                            <th>Check-out Time</th>
+                            <th>Duration</th>
+                            <th>Staff No</th>
+                            <th>Location</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+        `;
+        
+        checkoutsData.forEach((checkout, index) => {
+            html += `
+                <tr>
+                    <td>${index + 1}</td>
+                    <td>${checkout.visitor_name || 'N/A'}</td>
+                    <td>${checkout.host || 'N/A'}</td>
+                    <td>${checkout.check_in_time || 'N/A'}</td>
+                    <td>${checkout.check_out_time || 'N/A'}</td>
+                    <td>${checkout.duration || 'N/A'}</td>
+                    <td>${checkout.staff_no || 'N/A'}</td>
+                    <td>${checkout.location || 'N/A'}</td>
+                </tr>
+            `;
+        });
+        
+        html += `
+                    </tbody>
+                </table>
+            </div>
+        `;
+    } else {
+        html = `
+            <div class="alert alert-info">
+                <p class="mb-0">No check-outs found for today that match both conditions:</p>
+                <ul class="mb-0">
+                    <li>Location: Turnstile</li>
+                    <li>Device Type: check_out</li>
+                </ul>
+            </div>
+        `;
+    }
+    
+    $('#checkoutsModalContent').html(html);
+    
+    // Initialize DataTable if we have data
+    if (checkoutsData.length > 0) {
+        setTimeout(function() {
+            if ($.fn.DataTable.isDataTable('#checkoutsTodayTable')) {
+                $('#checkoutsTodayTable').DataTable().destroy();
+            }
+            
+            $('#checkoutsTodayTable').DataTable({
+                pageLength: 10,
+                lengthMenu: [[5, 10, 25, 50, -1], [5, 10, 25, 50, "All"]],
+                responsive: true,
+                order: [[4, 'desc']],
+                language: {
+                    search: "_INPUT_",
+                    searchPlaceholder: "Search check-outs...",
+                    lengthMenu: "Show _MENU_ entries",
+                    info: "Showing _START_ to _END_ of _TOTAL_ check-outs",
+                    infoEmpty: "Showing 0 to 0 of 0 check-outs",
+                    infoFiltered: "(filtered from _MAX_ total check-outs)",
+                    paginate: {
+                        first: "First",
+                        last: "Last",
+                        next: "Next",
+                        previous: "Previous"
+                    }
+                }
+            });
+        }, 100);
+    }
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    // ✅ FIX: Use client-side DataTables instead of server-side
+    // Visitors On-Site Table
+    if ($('#visitorsOnSiteTable').length) {
+        $('#visitorsOnSiteTable').DataTable({
+            pageLength: 10,
+            lengthMenu: [[5, 10, 25, 50, -1], [5, 10, 25, 50, "All"]],
+            responsive: true,
+            order: [[3, 'desc']], // Sort by check-in time
+            language: {
+                search: "_INPUT_",
+                searchPlaceholder: "Search visitors...",
+                lengthMenu: "Show _MENU_ entries",
+                info: "Showing _START_ to _END_ of _TOTAL_ visitors",
+                infoEmpty: "Showing 0 to 0 of 0 visitors",
+                infoFiltered: "(filtered from _MAX_ total visitors)",
+                paginate: {
+                    first: "First",
+                    last: "Last",
+                    next: "Next",
+                    previous: "Previous"
+                }
+            }
+        });
+    }
+    
+    // Today's Appointments Table
+    if ($('#expectedTodayTable').length) {
+        $('#expectedTodayTable').DataTable({
+            pageLength: 10,
+            lengthMenu: [[5, 10, 25, 50, -1], [5, 10, 25, 50, "All"]],
+            responsive: true,
+            order: [[3, 'asc']], // Sort by appointment time
+            language: {
+                search: "_INPUT_",
+                searchPlaceholder: "Search appointments...",
+                lengthMenu: "Show _MENU_ entries",
+                info: "Showing _START_ to _END_ of _TOTAL_ appointments",
+                infoEmpty: "Showing 0 to 0 of 0 appointments",
+                infoFiltered: "(filtered from _MAX_ total appointments)",
+                paginate: {
+                    first: "First",
+                    last: "Last",
+                    next: "Next",
+                    previous: "Previous"
+                }
+            }
+        });
+    }
+    
+    // Check-outs Today Table
+    if ($('#checkoutsTodayTable').length) {
+        $('#checkoutsTodayTable').DataTable({
+            pageLength: 10,
+            lengthMenu: [[5, 10, 25, 50, -1], [5, 10, 25, 50, "All"]],
+            responsive: true,
+            order: [[4, 'desc']], // Sort by check-out time
+            language: {
+                search: "_INPUT_",
+                searchPlaceholder: "Search check-outs...",
+                lengthMenu: "Show _MENU_ entries",
+                info: "Showing _START_ to _END_ of _TOTAL_ check-outs",
+                infoEmpty: "Showing 0 to 0 of 0 check-outs",
+                infoFiltered: "(filtered from _MAX_ total check-outs)",
+                paginate: {
+                    first: "First",
+                    last: "Last",
+                    next: "Next",
+                    previous: "Previous"
+                }
+            }
+        });
+    }
+});
+
+// DataTable initialization function
+function initSecurityAlertsDataTable() {
+    if ($.fn.DataTable.isDataTable('#securityAlertsDataTable')) {
+        $('#securityAlertsDataTable').DataTable().destroy();
+    }
+    
+    $('#securityAlertsDataTable').DataTable({
+        pageLength: 10,
+        lengthMenu: [[5, 10, 25, 50, -1], [5, 10, 25, 50, "All"]],
+        responsive: true,
+        order: [[7, 'desc']], // Sort by date column
+        searching: true,
+        paging: false, // हमारा custom pagination है
+        info: false,
+        language: {
+            search: "_INPUT_",
+            searchPlaceholder: "Search alerts..."
+        },
+        drawCallback: function(settings) {
+            // DataTable के अपने pagination buttons hide करें
+            $(this.api().table().container()).find('.dataTables_paginate').hide();
+        }
+    });
 }
 
 // Window resize par function call karein

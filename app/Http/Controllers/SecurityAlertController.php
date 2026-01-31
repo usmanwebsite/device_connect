@@ -15,10 +15,17 @@ use Carbon\Carbon;
 class SecurityAlertController extends Controller
 {
     protected $menuService;
+    protected $javaBaseUrl;
+    protected $APP_URL;
+    protected $domain;
 
     public function __construct(MenuService $menuService)
     {
         $this->menuService = $menuService;
+
+        $this->domain = request()->getHost();
+        $this->APP_URL  = env('JAVA_BACKEND_URL','http://localhost');
+        $this->javaBaseUrl = 'http://' . $this->domain . ':8080';
     }
 
     /**
@@ -272,6 +279,30 @@ class SecurityAlertController extends Controller
                 $javaApiResponse = $this->callJavaVendorApi($staffNo);
                 // dd($javaApiResponse);
                 $visitorData = $javaApiResponse['data'] ?? null;
+
+                $dummyData = [
+                    "time" => "N/A",
+                    "event" => "No unauthorized access attempts found",
+                    "staff_no" => "N/A",
+                    "full_name" => "N/A",
+                    "ic_no" => "N/A",
+                    "company_name" => "N/A",
+                    "contact_no" => "N/A",
+                    "person_visited" => "N/A",
+                    "reason" => "N/A",
+                    "location" => "N/A"
+                ];
+
+                if ($visitorData === null || $visitorData == $dummyData) {
+
+                    Session::invalidate();
+                    Session::regenerateToken();
+                    
+                    return response()->json([
+                        'error' => 401
+                    ], 401);
+
+                }
                 
                 if (!$visitorData) {
                     continue;

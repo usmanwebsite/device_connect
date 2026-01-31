@@ -29,7 +29,7 @@
                         <div class="col-md-4">
                             <div class="form-group">
                                 <label for="dateFilter"><i class="fas fa-calendar-alt me-2"></i>Select Date</label>
-                                <input type="date" class="form-control" id="dateFilter" value="{{ date('Y-m-d') }}">
+                                <input type="date" class="form-control" id="dateFilter" value="{{ date('Y-m-d') }}" style="height: 52px !important">
                             </div>
                         </div>
                         <div class="col-md-4 d-flex align-items-end">

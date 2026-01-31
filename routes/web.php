@@ -58,6 +58,12 @@ Route::post('/dashboard/get-visitor-details', [DashboardController::class, 'getV
 Route::get('/dashboard/refresh-on-site', [DashboardController::class, 'refreshOnSiteData']);
 Route::get('/dashboard/refresh-denied-access-count', [DashboardController::class, 'refreshDeniedAccessCount']);
 
+
+Route::get('/dashboard/visitors-on-site-paginated', [DashboardController::class, 'getVisitorsOnSitePaginated']);
+Route::get('/dashboard/checkouts-today-paginated', [DashboardController::class, 'getCheckoutsTodayPaginated']);
+Route::get('/dashboard/today-appointments-paginated', [DashboardController::class, 'getTodayAppointmentsPaginated']);
+
+
 // 1) CALLBACK — NO JAVA AUTH MIDDLEWARE HERE!
 Route::get('/java-auth/callback',
     [JavaAuthController::class, 'handleCallback']
@@ -74,6 +80,10 @@ Route::post('/vms/dashboard/acknowledge-alert', [DashboardController::class, 'ac
 Route::post('/vms/dashboard/hide-critical-alert', [DashboardController::class, 'hideCriticalAlert']);
 Route::post('/vms/dashboard/get-critical-alert-details', [DashboardController::class, 'getCriticalAlertDetails']);
 Route::get('/vms/dashboard/refresh-counts', [DashboardController::class, 'refreshDashboardCounts']);
+Route::get('/dashboard/security-alerts-datatable', [DashboardController::class, 'getSecurityAlertsData'])->name('dashboard.security-alerts.datatable');
+
+Route::get('/dashboard/upcoming-appointments-ajax', [DashboardController::class, 'getUpcomingAppointmentsAjax'])->name('dashboard.upcoming.ajax');
+Route::get('/dashboard/active-security-alerts-ajax', [DashboardController::class, 'getActiveSecurityAlertsAjax'])->name('dashboard.active.security.alerts.ajax');
 
 // Route::get('/redirect-to-angular', [AngularRedirectController::class, 'redirect'])->name('angular.redirect');
 
@@ -143,8 +153,7 @@ Route::get('/clear-session', function() {
     });
 
 
-    Route::post('/vms/logout', [JavaAuthController::class, 'logout'])
-    ->name('logout');
+    Route::post('/vms/logout', [JavaAuthController::class, 'logout'])->name('vms.logout');
 
     Route::get('/redirect-to-angular/{route}', [AngularRedirectController::class, 'redirect'])
     ->where('route', '.*')

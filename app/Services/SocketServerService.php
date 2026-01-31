@@ -194,41 +194,27 @@ private function handleOpenDoorRequest($sock, $data, $ip)
         return;
     }
     
-    // Ye staffNo Java API se aata hai, database mein store NAHI hota
     $staffNoFromJava = $apiData['staffNo'] ?? null;
     $visitorData = $apiData['visitorData'] ?? [];
     $visitorTypeId = $visitorData['visitorTypeId'] ?? null;
     
     echo "[" . date('H:i:s') . "] 👤 IC No (Database mein store hoga): $icNo, Staff No from Java: $staffNoFromJava, Visitor Type ID: $visitorTypeId\n";
 
-if (empty($dateOfVisitFrom) || empty($dateOfVisitTo)) {
-    $reason = 'Visit period not defined for visitor';
-
-    echo "[" . date('H:i:s') . "] ❌ $reason\n";
-
-    $this->sendAlarm(
-        $sock,
-        $deviceId,
-        $decryptedCardId,
-        $reason,
-        $icNo,
-        $locationName
-    );
-    return; // ⛔ STOP FLOW HERE
-}
-
-try {
-    $fromDate = \Carbon\Carbon::parse($dateOfVisitFrom);
-    $toDate   = \Carbon\Carbon::parse($dateOfVisitTo);
-    $now      = now();
-
-    echo "[" . date('H:i:s') . "] 📅 Visit Window: {$fromDate} → {$toDate}\n";
-    echo "[" . date('H:i:s') . "] 🕒 Current Time: {$now}\n";
-
-    if ($now->lt($fromDate) || $now->gt($toDate)) {
-        $reason = "Visit period expired or not yet started";
+    // ✅ STEP: Pehle date variables ko extract karo
+    $dateOfVisitFrom = $visitorData['dateOfVisitFrom'] ?? null;
+    $dateOfVisitTo   = $visitorData['dateOfVisitTo'] ?? null;
+    
+    // ✅ DEBUG: Dekho kya data aa raha hai
+    echo "[" . date('H:i:s') . "] 📅 Date of Visit From: " . ($dateOfVisitFrom ?? 'NULL') . "\n";
+    echo "[" . date('H:i:s') . "] 📅 Date of Visit To: " . ($dateOfVisitTo ?? 'NULL') . "\n";
+    echo "[" . date('H:i:s') . "] 📊 Visitor Data Keys: " . implode(', ', array_keys($visitorData)) . "\n";
+    
+    // ✅ Ab check karo visit dates
+    if (empty($dateOfVisitFrom) || empty($dateOfVisitTo)) {
+        $reason = 'Visit period not defined for visitor';
 
         echo "[" . date('H:i:s') . "] ❌ $reason\n";
+        echo "[" . date('H:i:s') . "] ❌ From: " . ($dateOfVisitFrom ?? 'NULL') . ", To: " . ($dateOfVisitTo ?? 'NULL') . "\n";
 
         $this->sendAlarm(
             $sock,
@@ -241,24 +227,49 @@ try {
         return; // ⛔ STOP FLOW HERE
     }
 
-    echo "[" . date('H:i:s') . "] ✅ Visit period is valid\n";
+    // ✅ Ab try-catch block mein parse karo
+    try {
+        $fromDate = \Carbon\Carbon::parse($dateOfVisitFrom);
+        $toDate   = \Carbon\Carbon::parse($dateOfVisitTo);
+        $now      = now();
 
-} catch (\Exception $e) {
-    $reason = 'Invalid visit date format';
+        echo "[" . date('H:i:s') . "] 📅 Visit Window: {$fromDate} → {$toDate}\n";
+        echo "[" . date('H:i:s') . "] 🕒 Current Time: {$now}\n";
 
-    echo "[" . date('H:i:s') . "] ❌ {$reason}: {$e->getMessage()}\n";
+        if ($now->lt($fromDate) || $now->gt($toDate)) {
+            $reason = "Visit period expired or not yet started";
 
-    $this->sendAlarm(
-        $sock,
-        $deviceId,
-        $decryptedCardId,
-        $reason,
-        $icNo,
-        $locationName
-    );
-    return; // ⛔ STOP FLOW HERE
-}
+            echo "[" . date('H:i:s') . "] ❌ $reason\n";
 
+            $this->sendAlarm(
+                $sock,
+                $deviceId,
+                $decryptedCardId,
+                $reason,
+                $icNo,
+                $locationName
+            );
+            return; // ⛔ STOP FLOW HERE
+        }
+
+        echo "[" . date('H:i:s') . "] ✅ Visit period is valid\n";
+
+    } catch (\Exception $e) {
+        $reason = 'Invalid visit date format';
+
+        echo "[" . date('H:i:s') . "] ❌ {$reason}: {$e->getMessage()}\n";
+
+        $this->sendAlarm(
+            $sock,
+            $deviceId,
+            $decryptedCardId,
+            $reason,
+            $icNo,
+            $locationName
+        );
+        return; // ⛔ STOP FLOW HERE
+    }
+    
     // ✅ Step 3: Get location from device assignment
     $locationInfo = $this->getDeviceLocationInfo($deviceId);
     
@@ -272,59 +283,6 @@ try {
     $isType = $locationInfo['is_type']; // check_in or check_out
 
     echo "[" . date('H:i:s') . "] 📍 Location: $locationName, Type: $isType\n";
-
-    // ✅ IMPORTANT: Turnstile check-in verification (SIMPLIFIED)
-    if (strtolower($locationName) === 'turnstile') {
-        if ($isType === 'check_out') {
-            echo "[" . date('H:i:s') . "] 🚪 Processing Turnstile Check-Out\n";
-            // Allow check-out without requiring check-in first
-        } else {
-            echo "[" . date('H:i:s') . "] 🚪 Processing Turnstile Check-In\n";
-            // Log Turnstile check-in
-        }
-    } else {
-        // For non-Turnstile locations, check if user has checked in at Turnstile first
-        echo "[" . date('H:i:s') . "] 🔍 Checking if user checked in at Turnstile first\n";
-        
-        // ✅ SIMPLIFIED CHECK: Only check if user has any successful access at Turnstile today
-        $hasCheckedIn = DB::table('device_access_logs')
-            ->where('staff_no', $icNo)
-            ->where('location_name', 'Turnstile')
-            ->where('access_granted', 1)
-            ->whereDate('created_at', now()->toDateString())
-            ->exists();
-        
-        echo "[" . date('H:i:s') . "] 📊 Simple check query executed\n";
-        
-        // Debug: Show all Turnstile logs for this user today
-        $turnstileLogs = DB::table('device_access_logs')
-            ->where('staff_no', $icNo)
-            ->where('location_name', 'Turnstile')
-            ->whereDate('created_at', now()->toDateString())
-            ->orderBy('created_at', 'desc')
-            ->get();
-        
-        echo "[" . date('H:i:s') . "] 📋 Turnstile logs for user $icNo:\n";
-        foreach ($turnstileLogs as $log) {
-            echo "  - " . $log->location_name . " at " . $log->created_at . 
-                 " (access: " . $log->access_granted . ", staff_no: " . $log->staff_no . ")\n";
-        }
-        
-        if (!$hasCheckedIn) {
-            echo "[" . date('H:i:s') . "] ❌ User has not checked in at Turnstile yet\n";
-            $this->sendAlarm(
-                $sock,
-                $deviceId,
-                $decryptedCardId,
-                "Must check in at Turnstile first before accessing $locationName",
-                $icNo,
-                $locationName
-            );
-            return;
-        }
-        
-        echo "[" . date('H:i:s') . "] ✅ User has checked in at Turnstile (found " . $turnstileLogs->count() . " logs)\n";
-    }
 
     // ✅ Step 4: Check visitor type and path
     if (!$visitorTypeId) {
@@ -349,207 +307,273 @@ try {
         return;
     }
 
-    // ✅ Step 5: Get door sequence
     $doorSequence = explode(',', $path->doors);
     $doorSequence = array_map('trim', $doorSequence);
+    $doorSequence = array_map('strtoupper', $doorSequence); // Convert to uppercase for consistency
     
     echo "[" . date('H:i:s') . "] 🚪 Path sequence: " . implode(' → ', $doorSequence) . "\n";
-
-    // Check if current door is in the sequence
-    if (!in_array($locationName, $doorSequence)) {
-        echo "[" . date('H:i:s') . "] ❌ Current door '$locationName' not in path sequence\n";
-        $this->sendAlarm($sock, $deviceId, $decryptedCardId, "Door '$locationName' not in path", $icNo, $locationName);
+    
+    $locationInPath = false;
+    foreach ($doorSequence as $door) {
+        if (strtoupper($door) === strtoupper($locationName)) {
+            $locationInPath = true;
+            break;
+        }
+    }
+    
+    if (!$locationInPath) {
+        echo "[" . date('H:i:s') . "] ❌ Location '$locationName' not in visitor's assigned path\n";
+        echo "[" . date('H:i:s') . "] 📋 Visitor's path: " . implode(' → ', $doorSequence) . "\n";
+        $this->sendAlarm(
+            $sock,
+            $deviceId,
+            $decryptedCardId,
+            "Location '$locationName' not allowed for this visitor type",
+            $icNo,
+            $locationName
+        );
         return;
+    }
+    
+    echo "[" . date('H:i:s') . "] ✅ Location '$locationName' found in visitor's path\n";
+    
+    echo "[" . date('H:i:s') . "] 🔍 Processing access for: $locationName (Type: $isType)\n";
+    
+    
+    // For non-Turnstile locations, check if user has checked in at Turnstile first
+    if (strtoupper($locationName) !== 'TURNSTILE') {
+        echo "[" . date('H:i:s') . "] 🔍 Checking if user checked in at Turnstile first\n";
+        
+        // ✅ SIMPLIFIED CHECK: Only check if user has any successful access at Turnstile today
+        $hasCheckedIn = DB::table('device_access_logs')
+            ->where('staff_no', $icNo)
+            ->where('location_name', 'TURNSTILE')
+            ->where('access_granted', 1)
+            ->whereDate('created_at', now()->toDateString())
+            ->exists();
+        
+        echo "[" . date('H:i:s') . "] 📊 Simple check query executed\n";
+        
+        // Debug: Show all Turnstile logs for this user today
+        $turnstileLogs = DB::table('device_access_logs')
+            ->where('staff_no', $icNo)
+            ->where('location_name', 'TURNSTILE')
+            ->whereDate('created_at', now()->toDateString())
+            ->orderBy('created_at', 'desc')
+            ->get();
+        
+        echo "[" . date('H:i:s') . "] 📋 Turnstile logs for user $icNo:\n";
+        foreach ($turnstileLogs as $log) {
+            echo "  - " . $log->location_name . " at " . $log->created_at . 
+                 " (access: " . $log->access_granted . ", staff_no: " . $log->staff_no . ")\n";
+        }
+        
+        // if (!$hasCheckedIn) {
+        //     echo "[" . date('H:i:s') . "] ❌ User has not checked in at Turnstile yet\n";
+        //     $this->sendAlarm(
+        //         $sock,
+        //         $deviceId,
+        //         $decryptedCardId,
+        //         "Must check in at Turnstile first before accessing $locationName",
+        //         $icNo,
+        //         $locationName
+        //     );
+        //     return;
+        // }
+        
+        echo "[" . date('H:i:s') . "] ✅ User has checked in at Turnstile (found " . $turnstileLogs->count() . " logs)\n";
+    } else {
+        echo "[" . date('H:i:s') . "] 🚪 Processing Turnstile access (Type: $isType)\n";
     }
 
     // ✅ Step 6: Sequence check
     $isSequenceFlag = env('isSequenceFlag', 'Off');
     
-if (strtolower($isSequenceFlag) === 'on') {
-    echo "[" . date('H:i:s') . "] 🔄 Sequence check is ENABLED\n";
-
-    $previousLogs = DB::table('device_access_logs')
-        ->where('staff_no', $icNo)
-        ->where('access_granted', 1)
-        ->whereIn('location_name', $doorSequence)
-        ->orderBy('created_at', 'desc')
-        ->get();
-
-    if ($previousLogs->count() > 0) {
-        $lastAccessedDoor = $previousLogs->first()->location_name;
-        $lastAccessType = $previousLogs->first()->reason ?? '';
+    if (strtolower($isSequenceFlag) === 'on') {
+        echo "[" . date('H:i:s') . "] 🔄 Sequence check is ENABLED\n";
         
-        echo "[" . date('H:i:s') . "] 📍 Last accessed door: $lastAccessedDoor\n";
-        echo "[" . date('H:i:s') . "] 📝 Last access reason: $lastAccessType\n";
-
-        // Case-insensitive array_search
-        $currentIndex = $this->caseInsensitiveArraySearch($locationName, $doorSequence);
-        $lastIndex = $this->caseInsensitiveArraySearch($lastAccessedDoor, $doorSequence);
-
-        echo "[" . date('H:i:s') . "] 📊 Current index: $currentIndex, Last index: $lastIndex\n";
-
-        if ($currentIndex === false) {
-            echo "[" . date('H:i:s') . "] ❌ Current location not found in sequence\n";
-            $this->sendAlarm($sock, $deviceId, $decryptedCardId, 
-                "Location not in sequence", $icNo, $locationName);
-            return;
-        }
-
-        // ✅ IMPORTANT: Allow special cases for circular path
-        $firstDoor = $doorSequence[0];
-        $lastDoor = $doorSequence[count($doorSequence) - 1];
-        
-        // DEBUG: Check if this is a new visit session
-        $todayCheckIns = DB::table('device_access_logs')
+        // Ab sequence logic execute karo
+        $previousLogs = DB::table('device_access_logs')
             ->where('staff_no', $icNo)
-            ->where('location_name', 'Turnstile')
             ->where('access_granted', 1)
-            ->whereDate('created_at', now()->toDateString())
-            ->count();
-        
-        $todayCheckOuts = DB::table('device_access_logs')
-            ->where('staff_no', $icNo)
-            ->where('location_name', 'Turnstile')
-            ->where('access_granted', 1)
-            ->whereDate('created_at', now()->toDateString())
-            ->where(function($query) {
-                $query->where('reason', 'like', '%check-out%')
-                      ->orWhere('reason', 'like', '%Check-Out%');
-            })
-            ->count();
-        
-        echo "[" . date('H:i:s') . "] 📊 Today's stats - Check-ins: $todayCheckIns, Check-outs: $todayCheckOuts\n";
-        
-        // Case 1: Starting new session (first check-in of the day)
-        if ($todayCheckIns === 0 && $todayCheckOuts === 0 && 
-            strtolower($locationName) === strtolower($firstDoor) && 
-            $isType === 'check_in') {
-            echo "[" . date('H:i:s') . "] ✅ First check-in of the day - starting new session\n";
-        }
-        // Case 2: User completed previous session and wants to start new one
-        elseif ($todayCheckIns > 0 && $todayCheckOuts > 0 && 
-                $todayCheckIns === $todayCheckOuts &&
-                strtolower($locationName) === strtolower($firstDoor) && 
-                $isType === 'check_in') {
-            echo "[" . date('H:i:s') . "] 🔄 Previous session completed, starting new session\n";
-        }
-        // Case 3: User checking out from Turnstile (completing sequence)
-        elseif (strtolower($locationName) === strtolower($lastDoor) && 
-                $isType === 'check_out' &&
-                $lastIndex === count($doorSequence) - 2) { // Last index should be second last door
-            echo "[" . date('H:i:s') . "] ✅ User completed all rooms, allowing check-out from Turnstile\n";
-        }
-        // Case 4: Normal sequence progression
-        elseif ($currentIndex === $lastIndex + 1) {
-            echo "[" . date('H:i:s') . "] ✅ Normal sequence progression\n";
-        }
-elseif ($currentIndex === $lastIndex) {
-    // Check if re-entry is allowed for this door
-    if (strtolower($locationName) === 'turnstile' && $isType === 'check_in') {
-        // Allow Turnstile re-entry only if previous was check-out
-        $lastTurnstileLog = DB::table('device_access_logs')
-            ->where('staff_no', $icNo)
-            ->where('location_name', 'Turnstile')
-            ->where('access_granted', 1)
-            ->whereDate('created_at', now()->toDateString())
+            ->whereIn('location_name', $doorSequence)
             ->orderBy('created_at', 'desc')
-            ->first();
-        
-        // ✅ FIXED: Check multiple conditions for check-out
-        if ($lastTurnstileLog) {
-            $lastReason = strtolower($lastTurnstileLog->reason ?? '');
-            $lastIsType = $this->getIsTypeFromDeviceAssignment($lastTurnstileLog->device_id);
+            ->get();
+
+        if ($previousLogs->count() > 0) {
+            $lastAccessedDoor = $previousLogs->first()->location_name;
+            $lastAccessType = $previousLogs->first()->reason ?? '';
             
-            $isPreviousCheckOut = (
-                strpos($lastReason, 'check-out') !== false || 
-                strpos($lastReason, 'check out') !== false ||
-                $lastIsType === 'check_out'
-            );
+            echo "[" . date('H:i:s') . "] 📍 Last accessed door: $lastAccessedDoor\n";
+            echo "[" . date('H:i:s') . "] 📝 Last access reason: $lastAccessType\n";
+
+            // Case-insensitive array_search
+            $currentIndex = $this->caseInsensitiveArraySearch($locationName, $doorSequence);
+            $lastIndex = $this->caseInsensitiveArraySearch($lastAccessedDoor, $doorSequence);
+
+            echo "[" . date('H:i:s') . "] 📊 Current index: $currentIndex, Last index: $lastIndex\n";
+
+            if ($currentIndex === false) {
+                echo "[" . date('H:i:s') . "] ❌ Current location not found in sequence\n";
+                $this->sendAlarm($sock, $deviceId, $decryptedCardId, 
+                    "Location not in sequence", $icNo, $locationName);
+                return;
+            }
+
+            // ✅ IMPORTANT: Allow special cases for circular path
+            $firstDoor = $doorSequence[0];
+            $lastDoor = $doorSequence[count($doorSequence) - 1];
             
-            if ($isPreviousCheckOut) {
-                echo "[" . date('H:i:s') . "] 🔄 Previous was check-out, allowing new check-in\n";
-            } else {
-                echo "[" . date('H:i:s') . "] ❌ Cannot check-in at Turnstile again. Previous was not check-out.\n";
-                echo "[" . date('H:i:s') . "] ❌ Last reason: {$lastTurnstileLog->reason}, IsType: $lastIsType\n";
+            // DEBUG: Check if this is a new visit session
+            $todayCheckIns = DB::table('device_access_logs')
+                ->where('staff_no', $icNo)
+                ->where('location_name', 'TURNSTILE')
+                ->where('access_granted', 1)
+                ->whereDate('created_at', now()->toDateString())
+                ->count();
+            
+            $todayCheckOuts = DB::table('device_access_logs')
+                ->where('staff_no', $icNo)
+                ->where('location_name', 'TURNSTILE')
+                ->where('access_granted', 1)
+                ->whereDate('created_at', now()->toDateString())
+                ->where(function($query) {
+                    $query->where('reason', 'like', '%check-out%')
+                          ->orWhere('reason', 'like', '%Check-Out%');
+                })
+                ->count();
+            
+            echo "[" . date('H:i:s') . "] 📊 Today's stats - Check-ins: $todayCheckIns, Check-outs: $todayCheckOuts\n";
+            
+            // Case 1: Starting new session (first check-in of the day)
+            if ($todayCheckIns === 0 && $todayCheckOuts === 0 && 
+                strtoupper($locationName) === strtoupper($firstDoor) && 
+                $isType === 'check_in') {
+                echo "[" . date('H:i:s') . "] ✅ First check-in of the day - starting new session\n";
+            }
+            // Case 2: User completed previous session and wants to start new one
+            elseif ($todayCheckIns > 0 && $todayCheckOuts > 0 && 
+                    $todayCheckIns === $todayCheckOuts &&
+                    strtoupper($locationName) === strtoupper($firstDoor) && 
+                    $isType === 'check_in') {
+                echo "[" . date('H:i:s') . "] 🔄 Previous session completed, starting new session\n";
+            }
+            // Case 3: User checking out from Turnstile (completing sequence)
+            elseif (strtoupper($locationName) === strtoupper($lastDoor) && 
+                    $isType === 'check_out' &&
+                    $lastIndex === count($doorSequence) - 2) { // Last index should be second last door
+                echo "[" . date('H:i:s') . "] ✅ User completed all rooms, allowing check-out from Turnstile\n";
+            }
+            // Case 4: Normal sequence progression
+            elseif ($currentIndex === $lastIndex + 1) {
+                echo "[" . date('H:i:s') . "] ✅ Normal sequence progression\n";
+            }
+            elseif ($currentIndex === $lastIndex) {
+                // Check if re-entry is allowed for this door
+                if (strtoupper($locationName) === 'TURNSTILE' && $isType === 'check_in') {
+                    // Allow Turnstile re-entry only if previous was check-out
+                    $lastTurnstileLog = DB::table('device_access_logs')
+                        ->where('staff_no', $icNo)
+                        ->where('location_name', 'TURNSTILE')
+                        ->where('access_granted', 1)
+                        ->whereDate('created_at', now()->toDateString())
+                        ->orderBy('created_at', 'desc')
+                        ->first();
+                    
+                    // ✅ FIXED: Check multiple conditions for check-out
+                    if ($lastTurnstileLog) {
+                        $lastReason = strtolower($lastTurnstileLog->reason ?? '');
+                        $lastIsType = $this->getIsTypeFromDeviceAssignment($lastTurnstileLog->device_id);
+                        
+                        $isPreviousCheckOut = (
+                            strpos($lastReason, 'check-out') !== false || 
+                            strpos($lastReason, 'check out') !== false ||
+                            $lastIsType === 'check_out'
+                        );
+                        
+                        if ($isPreviousCheckOut) {
+                            echo "[" . date('H:i:s') . "] 🔄 Previous was check-out, allowing new check-in\n";
+                        } else {
+                            echo "[" . date('H:i:s') . "] ❌ Cannot check-in at Turnstile again. Previous was not check-out.\n";
+                            echo "[" . date('H:i:s') . "] ❌ Last reason: {$lastTurnstileLog->reason}, IsType: $lastIsType\n";
+                            $this->sendAlarm(
+                                $sock,
+                                $deviceId,
+                                $decryptedCardId,
+                                "Cannot check-in again. Complete the sequence first.",
+                                $icNo,
+                                $locationName
+                            );
+                            return;
+                        }
+                    } else {
+                        echo "[" . date('H:i:s') . "] ❌ No previous Turnstile log found\n";
+                        $this->sendAlarm(
+                            $sock,
+                            $deviceId,
+                            $decryptedCardId,
+                            "No previous session found",
+                            $icNo,
+                            $locationName
+                        );
+                        return;
+                    }
+                } else {
+                    echo "[" . date('H:i:s') . "] ❌ Cannot re-enter same door without completing sequence\n";
+                    $this->sendAlarm(
+                        $sock,
+                        $deviceId,
+                        $decryptedCardId,
+                        "Cannot re-enter same location",
+                        $icNo,
+                        $locationName
+                    );
+                    return;
+                }
+            }
+            // Case 6: Sequence violation
+            else {
+                echo "[" . date('H:i:s') . "] ❌ Sequence violation! Expected: " .
+                    ($doorSequence[$lastIndex + 1] ?? 'END') . ", Got: $locationName\n";
+
                 $this->sendAlarm(
                     $sock,
                     $deviceId,
                     $decryptedCardId,
-                    "Cannot check-in again. Complete the sequence first.",
+                    "User valid but sequence not followed. Expected: " .
+                    ($doorSequence[$lastIndex + 1] ?? 'END') . ", Got: $locationName",
                     $icNo,
                     $locationName
                 );
                 return;
             }
         } else {
-            echo "[" . date('H:i:s') . "] ❌ No previous Turnstile log found\n";
-            $this->sendAlarm(
-                $sock,
-                $deviceId,
-                $decryptedCardId,
-                "No previous session found",
-                $icNo,
-                $locationName
-            );
-            return;
+            // First door must be first in sequence - CASE INSENSITIVE COMPARISON
+            $firstDoor = $doorSequence[0];
+            
+            // Case-insensitive comparison
+            if (strtoupper($locationName) !== strtoupper($firstDoor)) {
+                echo "[" . date('H:i:s') . "] ❌ Must start with first door: $firstDoor (case-insensitive check)\n";
+                $this->sendAlarm(
+                    $sock,
+                    $deviceId,
+                    $decryptedCardId,
+                    "Must start with first door: $firstDoor",
+                    $icNo,
+                    $locationName
+                );
+                return;
+            }
+            
+            echo "[" . date('H:i:s') . "] ✅ Starting sequence from first door: $firstDoor\n";
         }
     } else {
-        echo "[" . date('H:i:s') . "] ❌ Cannot re-enter same door without completing sequence\n";
-        $this->sendAlarm(
-            $sock,
-            $deviceId,
-            $decryptedCardId,
-            "Cannot re-enter same location",
-            $icNo,
-            $locationName
-        );
-        return;
+        echo "[" . date('H:i:s') . "] ⏭️ Sequence check is DISABLED\n";
+        
+        // ✅ **YAHA KOI AUR CHECK KI ZAROORAT NAHI HAI**
+        // ✅ **PATH CHECK PEHLE HI HO CHUKI HAI**
+        echo "[" . date('H:i:s') . "] ✅ Path check already passed, access allowed without sequence check\n";
     }
-}
-        // Case 6: Sequence violation
-        else {
-            echo "[" . date('H:i:s') . "] ❌ Sequence violation! Expected: " .
-                ($doorSequence[$lastIndex + 1] ?? 'END') . ", Got: $locationName\n";
-
-            $this->sendAlarm(
-                $sock,
-                $deviceId,
-                $decryptedCardId,
-                "User valid but sequence not followed. Expected: " .
-                ($doorSequence[$lastIndex + 1] ?? 'END') . ", Got: $locationName",
-                $icNo,
-                $locationName
-            );
-            return;
-        }
-    } else {
-        // First door must be first in sequence - CASE INSENSITIVE COMPARISON
-        $firstDoor = $doorSequence[0];
-        
-        // Case-insensitive comparison
-        if (strtolower($locationName) !== strtolower($firstDoor)) {
-            echo "[" . date('H:i:s') . "] ❌ Must start with first door: $firstDoor (case-insensitive check)\n";
-            $this->sendAlarm(
-                $sock,
-                $deviceId,
-                $decryptedCardId,
-                "Must start with first door: $firstDoor",
-                $icNo,
-                $locationName
-            );
-            return;
-        }
-        
-        echo "[" . date('H:i:s') . "] ✅ Starting sequence from first door: $firstDoor\n";
-        
-        // ✅ ALSO CHECK: If this is check_in Turnstile, allow access
-        if (strtolower($locationName) === 'turnstile' && $isType === 'check_in') {
-            echo "[" . date('H:i:s') . "] ✅ Check-in Turnstile - allowing access\n";
-        }
-    }
-} else {
-    echo "[" . date('H:i:s') . "] ⏭️ Sequence check is DISABLED\n";
-}
 
     // ✅ Step 7: Grant access
     $this->grantAccess($sock, $deviceId, $decryptedCardId, $icNo, $locationName, $isType, [
@@ -658,11 +682,10 @@ private function callJavaVendorApi($cardId)
         if (empty($vendorData) || !isset($vendorData['icNo'])) {
             echo "[" . date('H:i:s') . "] ❌ IC No not found for card or empty response\n";
             
-            // ✅ Return partial data with status 'error'
             return [
                 'status' => 'error',
                 'data' => [
-                    'vendorData' => $vendorData, // Pass whatever data we got
+                    'vendorData' => $vendorData,
                     'icNo' => $vendorData['icNo'] ?? null
                 ],
                 'message' => 'IC No not found for card'
@@ -672,6 +695,7 @@ private function callJavaVendorApi($cardId)
         $icNo = $vendorData['icNo'];
         $vendorStaffNo = $vendorData['staffNo'] ?? null;
         $status = $vendorData['status'] ?? false;
+        $cardStatus = true;
         
         if ($status !== true) {
             echo "[" . date('H:i:s') . "] ❌ Card status is not active\n";
@@ -689,13 +713,17 @@ private function callJavaVendorApi($cardId)
         echo "[" . date('H:i:s') . "] 🆔 IC No Found: $icNo, Staff No from vendor: $vendorStaffNo\n";
 
         // 🔹 STEP 2: Get visitor details by IC No
-        echo "[" . date('H:i:s') . "] 🔹 STEP 2: Getting visitor details by IC No: $icNo\n";
+        echo "[" . date('H:i:s') . "] 🔹 STEP 2: Getting visitor details by IC No: $icNo with cardStatus: " . ($cardStatus ? 'true' : 'false') . "\n";
 
         $visitorResponse = Http::withHeaders([
             'Accept' => 'application/json',
         ])->timeout(10)->get(
             $javaBaseUrl . '/api/vendorpass/get-visitor-details-by-icno-or-staffno',
-            ['icNo' => $icNo]
+            [
+                'icNo' => $icNo,
+                'cardNo' => $cardId,          
+                'cardStatus' => $cardStatus 
+            ]
         );
 
         echo "[" . date('H:i:s') . "] 📡 Visitor API Status: " . $visitorResponse->status() . "\n";

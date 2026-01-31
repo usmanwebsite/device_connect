@@ -16,7 +16,8 @@ class VerifyCsrfToken extends Middleware
         'vms/visitor-info-door/get-visitors',
         '/vms/visitor-info-door',
         '/vms/dashboard/get-critical-alert-details',
-        '/vms/encrypt',
-        '/vms/decrypt',
+        '/encrypt',
+        '/decrypt',
+        '/vms/logout',
     ];
 }

@@ -1222,41 +1222,18 @@ function displayTurnstileEntries(turnstileInfo) {
 }
 
 function displayDateButtons(dates, logsByDate, timelineByDate) {
-    console.log("=== DISPLAY DATE BUTTONS DEBUG ===");
+    console.log("=== DISPLAY DATE BUTTONS ===");
     console.log("Dates array:", dates);
-    console.log("Logs by date object:", logsByDate);
-    console.log("Timeline by date object:", timelineByDate);
+    console.log("Logs by date:", logsByDate);
+    console.log("Timeline by date:", timelineByDate);
     
     let dateButtonsHtml = '';
     
     dates.forEach((date, index) => {
-        // Try different key formats
-        const possibleKeys = [
-            date, // original format
-            date.trim(), // trimmed version
-            date.replace(/ /g, ''), // without spaces
-            formatDateForKey(date) // formatted key
-        ];
+        const logsCount = logsByDate[date] ? logsByDate[date].length : 0;
+        const timelineCount = timelineByDate[date] ? timelineByDate[date].length : 0;
         
-        let logsCount = 0;
-        let timelineCount = 0;
-        
-        // Try each possible key
-        for (let key of possibleKeys) {
-            if (logsByDate && logsByDate[key]) {
-                logsCount = logsByDate[key].length;
-                console.log(`Found logs for key: "${key}" with ${logsCount} logs`);
-                break;
-            }
-        }
-        
-        for (let key of possibleKeys) {
-            if (timelineByDate && timelineByDate[key]) {
-                timelineCount = timelineByDate[key].length;
-                console.log(`Found timeline for key: "${key}" with ${timelineCount} items`);
-                break;
-            }
-        }
+        console.log(`Date: ${date}, Logs: ${logsCount}, Timeline: ${timelineCount}`);
         
         const isActive = index === 0 ? 'active' : '';
         dateButtonsHtml += `
@@ -1264,6 +1241,7 @@ function displayDateButtons(dates, logsByDate, timelineByDate) {
                     data-date="${date}">
                 ${date}
                 <span class="badge badge-light ml-1">${logsCount} logs</span>
+                ${timelineCount > 0 ? `<span class="badge badge-info ml-1">${timelineCount} moves</span>` : ''}
             </button>
         `;
     });
@@ -1286,8 +1264,6 @@ function displayDateButtons(dates, logsByDate, timelineByDate) {
         const selectedDate = $(this).data('date');
         displayDataForDate(selectedDate, logsByDate, timelineByDate);
     });
-    
-    console.log("=== END DATE BUTTONS DEBUG ===");
 }
 
 // Helper function to format date for key matching
@@ -1319,46 +1295,20 @@ function formatDateForKey(dateString) {
 }
 
 function displayDataForDate(date, logsByDate, timelineByDate) {
-    console.log("=== DISPLAY DATA FOR DATE DEBUG ===");
+    console.log("=== DISPLAY DATA FOR DATE ===");
     console.log("Selected date:", date);
-    console.log("All logsByDate keys:", logsByDate ? Object.keys(logsByDate) : 'No logsByDate');
-    console.log("All timelineByDate keys:", timelineByDate ? Object.keys(timelineByDate) : 'No timelineByDate');
+    console.log("All dates available:", Object.keys(logsByDate));
     
-    // Try different key formats
-    const possibleKeys = [
-        date, // original format
-        date.trim(), // trimmed version
-        date.replace(/ /g, ''), // without spaces
-        formatDateForKey(date) // formatted key
-    ];
-    
-    let accessLogs = [];
-    let timeline = [];
-    
-    // Find logs for the date
-    for (let key of possibleKeys) {
-        if (logsByDate && logsByDate[key]) {
-            accessLogs = logsByDate[key];
-            console.log(`Found logs for key: "${key}"`);
-            break;
-        }
-    }
-    
-    // Find timeline for the date
-    for (let key of possibleKeys) {
-        if (timelineByDate && timelineByDate[key]) {
-            timeline = timelineByDate[key];
-            console.log(`Found timeline for key: "${key}"`);
-            break;
-        }
-    }
-    
-    console.log(`Access logs found: ${accessLogs.length}`);
-    console.log(`Timeline items found: ${timeline.length}`);
-    
-    // Update selected date info
+    // Show selected date info
     $('#selectedDateText').text(date);
     $('#selectedDateInfo').show();
+    
+    // Get logs and timeline for this date
+    const accessLogs = logsByDate[date] || [];
+    const timeline = timelineByDate[date] || [];
+    
+    console.log(`Access logs for ${date}:`, accessLogs.length);
+    console.log(`Timeline for ${date}:`, timeline.length);
     
     // Update indicators
     $('#logsDateIndicator').text(date);
@@ -1368,7 +1318,14 @@ function displayDataForDate(date, logsByDate, timelineByDate) {
     displayAccessLogsForDate(accessLogs);
     displayTimelineForDate(timeline);
     
-    console.log("=== END DISPLAY DATA DEBUG ===");
+    // If no data, show message
+    if (accessLogs.length === 0) {
+        console.warn("No access logs found for date:", date);
+    }
+    
+    if (timeline.length === 0) {
+        console.warn("No timeline found for date:", date);
+    }
 }
 
 function displayAccessLogsForDate(accessLogs) {
@@ -1416,19 +1373,12 @@ function displayAccessLogsForDate(accessLogs) {
 }
 
 function displayTimelineForDate(timeline) {
-    console.log("Timeline items received:", timeline);
-    console.log("Number of timeline items:", timeline ? timeline.length : 0);
+    console.log("Displaying timeline with", timeline.length, "items");
     
-    if (timeline && timeline.length > 0) {
-        console.log("First timeline item:", timeline[0]);
-        console.log("Last timeline item:", timeline[timeline.length - 1]);
-    }
     let timelineHtml = '';
     
     if (timeline && timeline.length > 0) {
-        console.log("Timeline items to display:", timeline);
-        
-        timelineHtml = timeline.map((item, index) => {
+        timeline.forEach((item, index) => {
             // Calculate time spent
             let timeSpentText = '-';
             if (item.time_spent) {
@@ -1449,7 +1399,7 @@ function displayTimelineForDate(timeline) {
                 ? '<span class="badge badge-success">GRANTED</span>' 
                 : '<span class="badge badge-danger">DENIED</span>';
             
-            return `
+            timelineHtml += `
                 <div class="timeline-item mb-3">
                     <div class="timeline-header d-flex justify-content-between align-items-center">
                         <span class="font-weight-bold">
@@ -1502,12 +1452,18 @@ function displayTimelineForDate(timeline) {
                     </div>
                 </div>
             `;
-        }).join('');
+        });
     } else {
         timelineHtml = `
             <div class="alert alert-info">
                 <i class="fas fa-info-circle mr-1"></i>
                 No movement data available for the selected date.
+                <br><small class="text-muted">This could be because:</small>
+                <ul class="mb-0">
+                    <li><small>Visitor only scanned at one location</small></li>
+                    <li><small>Time gaps between scans are too large</small></li>
+                    <li><small>No consecutive movements recorded</small></li>
+                </ul>
             </div>
         `;
     }
