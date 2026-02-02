@@ -284,22 +284,34 @@ let overstayTable = null;
 
 /* Load Incident Details */
 function loadDetails(id) {
+    if (!checkSessionBeforeRequest()) {
+        showToast('Session expired. Please login again.', 'error');
+        logoutAndRedirect();
+        return;
+    }
+    
     currentIncidentId = id;
     
-    if (id == 1) { // Forced Entry incident
+    if (id == 1) {
         showForcedEntrySection();
         loadForcedEntryData();
-    } else if (id == 2) { // Unauthorized Access incident
+    } else if (id == 2) {
         showUnauthorizedSection();
         loadUnauthorizedData();
-    } else if (id == 3) { // Visitor Overstay
+    } else if (id == 3) {
         showOverstaySection();
         loadOverstayData();
     } else {
         showRegularSection();
         
         fetch("/vms/security-alerts/details/" + id)
-            .then(res => res.json())
+            .then(response => {
+                if (response.status === 401) {
+                    logoutAndRedirect();
+                    return Promise.reject('Unauthorized');
+                }
+                return response.json();
+            })
             .then(data => {
                 let tbody = "";
                 if (data && Array.isArray(data)) {
@@ -458,88 +470,192 @@ function loadUnauthorizedData() {
         </tr>
     `;
     
-fetch('/vms/security-alerts/details/2')
-    .then(response => {
-        // Check for unauthorized
-        if (response.status === 401) {
-            const logoutUrl = "{{ route('vms.logout') }}";
-            const csrfToken = "{{ csrf_token() }}";
-
-            const form = document.createElement('form');
-            form.method = 'POST';
-            form.action = logoutUrl;
-
-            const tokenInput = document.createElement('input');
-            tokenInput.type = 'hidden';
-            tokenInput.name = '_token';
-            tokenInput.value = csrfToken;
-
-            form.appendChild(tokenInput);
-            document.body.appendChild(form);
-            form.submit();
-
-            return Promise.reject('Unauthorized'); // Stop further processing
-        }
-        // Continue with JSON if authorized
-        return response.json();
-    })
-    .then(data => {
-        unauthorizedData = data;
-
-        if (unauthorizedTable) {
-            unauthorizedTable.destroy();
-            unauthorizedTable = null;
-        }
-
-        const tbody = document.getElementById('unauthorizedDetailsBody');
-        if (data && Array.isArray(data) && data.length > 0) {
-            let html = '';
-            data.forEach(item => {
-                html += `
+    fetch('/vms/security-alerts/details/2')
+        .then(response => {
+            // ✅ Check for 401 status code
+            if (response.status === 401) {
+                console.log('Received 401 status, logging out...');
+                handleSessionExpired();
+                return Promise.reject('Unauthorized - 401 status');
+            }
+            
+            // ✅ Check if response is JSON
+            const contentType = response.headers.get("content-type");
+            if (!contentType || !contentType.includes("application/json")) {
+                console.warn('Response is not JSON, might be redirect');
+                handleSessionExpired();
+                return Promise.reject('Non-JSON response');
+            }
+            
+            return response.json();
+        })
+        .then(data => {
+            // ✅ Check if data contains error property with redirect
+            if (data && data.redirect === true) {
+                console.log('Data indicates redirect needed');
+                handleSessionExpired();
+                return;
+            }
+            
+            // ✅ Check if data contains error property
+            if (data && data.error === 401) {
+                console.log('Data contains error 401');
+                handleSessionExpired();
+                return;
+            }
+            
+            // ✅ Check if data is dummy/empty
+            const firstItem = data && data[0];
+            if (firstItem && firstItem.event === "No unauthorized access attempts found" && 
+                firstItem.staff_no === "N/A") {
+                console.log('Received dummy data, checking session...');
+                
+                // Ek baar aur verify karein ke session valid hai ya nahi
+                checkSessionValidity()
+                    .then(isValid => {
+                        if (!isValid) {
+                            handleSessionExpired();
+                        } else {
+                            // Session valid hai, bas data nahi hai
+                            displayUnauthorizedData(data);
+                        }
+                    })
+                    .catch(() => handleSessionExpired());
+                return;
+            }
+            
+            displayUnauthorizedData(data);
+        })
+        .catch(error => {
+            console.error('Error loading data:', error);
+            
+            if (error.message && (
+                error.message.includes('Unauthorized') || 
+                error.message.includes('Non-JSON') ||
+                error.message.includes('Failed to fetch'))) {
+                
+                handleSessionExpired();
+            } else {
+                const tbody = document.getElementById('unauthorizedDetailsBody');
+                tbody.innerHTML = `
                     <tr>
-                        <td><small class="text-muted">${item.time || 'N/A'}</small></td>
-                        <td><span class="badge bg-danger">${item.event || 'Unauthorized'}</span></td>
-                        <td>${item.full_name || 'Unknown'}</td>
-                        <td><small>${item.ic_no || 'N/A'}</small></td>
-                        <td>${item.company_name || 'N/A'}</td>
-                        <td><small>${item.contact_no || 'N/A'}</small></td>
-                        <td>${item.person_visited || 'N/A'}</td>
-                        <td><small class="text-muted">${item.reason || 'N/A'}</small></td>
-                        <td><small>${item.location || 'Unknown'}</small></td>
+                        <td colspan="10" class="text-center text-danger">
+                            <i class="bx bx-error"></i> Error loading data. Please try again.
+                        </td>
                     </tr>
                 `;
-            });
-            tbody.innerHTML = html;
-            document.getElementById('totalRecords').textContent = data.length;
+            }
+        });
+}
 
-            setTimeout(() => {
-                initializeUnauthorizedTable();
-            }, 100);
+function handleSessionExpired() {
+    console.log('Session expired, redirecting to login...');
+    showToast('Session expired. Redirecting to login...', 'error');
+    
+    // ✅ Use POST request for logout (with form submission)
+    performLogout();
+}
 
-            showToast(`Loaded ${data.length} unauthorized access attempts`, 'success');
-        } else {
-            tbody.innerHTML = `
-                <tr>
-                    <td colspan="10" class="text-center text-muted">
-                        <i class="bx bx-check-circle"></i> No unauthorized access attempts found
-                    </td>
-                </tr>
-            `;
-            document.getElementById('totalRecords').textContent = '0';
+function logoutAndRedirect() {
+    console.log('Redirecting to login...');
+    performLogout();
+}
+
+function performLogout() {
+    // Create a hidden form to submit POST request
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = '/vms/logout';
+    
+    // Add CSRF token
+    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
+    if (csrfToken) {
+        const tokenInput = document.createElement('input');
+        tokenInput.type = 'hidden';
+        tokenInput.name = '_token';
+        tokenInput.value = csrfToken;
+        form.appendChild(tokenInput);
+    }
+    
+    // Submit the form
+    document.body.appendChild(form);
+    form.submit();
+}
+
+function checkSessionValidity() {
+    return fetch('/vms/check-session', {
+        method: 'GET',
+        headers: {
+            'Accept': 'application/json',
         }
     })
-    .catch(error => {
-        console.error('Error:', error);
-        const tbody = document.getElementById('unauthorizedDetailsBody');
+    .then(response => response.json())
+    .then(data => data.valid === true)
+    .catch(() => false);
+}
+
+function displayUnauthorizedData(data) {
+    unauthorizedData = data;
+
+    if (unauthorizedTable) {
+        unauthorizedTable.destroy();
+        unauthorizedTable = null;
+    }
+
+    const tbody = document.getElementById('unauthorizedDetailsBody');
+    
+    if (data && Array.isArray(data) && data.length > 0) {
+        let html = '';
+        data.forEach(item => {
+            html += `
+                <tr>
+                    <td><small class="text-muted">${item.time || 'N/A'}</small></td>
+                    <td><span class="badge bg-danger">${item.event || 'Unauthorized'}</span></td>
+                    <td>${item.full_name || 'Unknown'}</td>
+                    <td><small>${item.ic_no || 'N/A'}</small></td>
+                    <td>${item.company_name || 'N/A'}</td>
+                    <td><small>${item.contact_no || 'N/A'}</small></td>
+                    <td>${item.person_visited || 'N/A'}</td>
+                    <td><small class="text-muted">${item.reason || 'N/A'}</small></td>
+                    <td><small>${item.location || 'Unknown'}</small></td>
+                </tr>
+            `;
+        });
+        tbody.innerHTML = html;
+        document.getElementById('totalRecords').textContent = data.length;
+
+        setTimeout(() => {
+            initializeUnauthorizedTable();
+        }, 100);
+
+        showToast(`Loaded ${data.length} unauthorized access attempts`, 'success');
+    } else {
         tbody.innerHTML = `
             <tr>
-                <td colspan="10" class="text-center text-danger">
-                    Error loading data
+                <td colspan="10" class="text-center text-muted">
+                    <i class="bx bx-check-circle"></i> No unauthorized access attempts found
                 </td>
             </tr>
         `;
-    });
+        document.getElementById('totalRecords').textContent = '0';
+    }
+}
 
+// logoutAndRedirect function ko simplify karein
+function logoutAndRedirect() {
+    console.log('Redirecting to login...');
+    
+    // Direct window.location use karein - yeh reliable hai
+    window.location.href = '/vms/logout';
+    
+    // Optional: Show message
+    showToast('Session expired. Redirecting to login...', 'warning');
+}
+
+
+function checkSessionBeforeRequest() {
+    // You can add additional checks here if needed
+    return true;
 }
 
 function loadForcedEntryData() {
@@ -556,59 +672,131 @@ function loadForcedEntryData() {
     `;
     
     fetch('/vms/security-alerts/details/1')
-        .then(response => response.json())
+        .then(response => {
+            // ✅ Check for 401 status code (same as unauthorized)
+            if (response.status === 401) {
+                console.log('Received 401 status in forced entry, logging out...');
+                handleSessionExpired();
+                return Promise.reject('Unauthorized - 401 status');
+            }
+            
+            // ✅ Check if response is JSON
+            const contentType = response.headers.get("content-type");
+            if (!contentType || !contentType.includes("application/json")) {
+                console.warn('Response is not JSON, might be redirect');
+                handleSessionExpired();
+                return Promise.reject('Non-JSON response');
+            }
+            
+            return response.json();
+        })
         .then(data => {
-            forcedEntryData = data;
-            
-            if (forcedEntryTable) {
-                forcedEntryTable.destroy();
-                forcedEntryTable = null;
+            // ✅ Check if data contains error property with redirect
+            if (data && data.redirect === true) {
+                console.log('Data indicates redirect needed in forced entry');
+                handleSessionExpired();
+                return;
             }
             
-            let html = '';
-            if (data && Array.isArray(data)) {
-                data.forEach(item => {
-                    html += `
-                        <tr>
-                            <td><small class="text-muted">${item.time || 'N/A'}</small></td>
-                            <td><span class="badge bg-danger">${item.event || 'Forced Entry'}</span></td>
-                            <td>${item.full_name || 'Unknown'}</td>
-                            <td><small>${item.ic_no || 'N/A'}</small></td>
-                            <td>${item.company_name || 'N/A'}</td>
-                            <td><small>${item.contact_no || 'N/A'}</small></td>
-                            <td>${item.person_visited || 'N/A'}</td>
-                            <td><small class="text-muted">${item.reason || 'N/A'}</small></td>
-                            <td><small>${item.location || 'Unknown'}</small></td>
-                        </tr>
-                    `;
-                });
+            // ✅ Check if data contains error property
+            if (data && data.error === 401) {
+                console.log('Data contains error 401 in forced entry');
+                handleSessionExpired();
+                return;
             }
             
-            tbody.innerHTML = html || `
-                <tr>
-                    <td colspan="10" class="text-center text-muted">
-                        No forced entry data found (acknowledge = 1)
-                    </td>
-                </tr>
-            `;
+            // ✅ Check if data is dummy/empty
+            const firstItem = data && data[0];
+            if (firstItem && firstItem.event === "No forced entry attempts found" && 
+                firstItem.staff_no === "N/A") {
+                console.log('Received dummy data in forced entry, checking session...');
+                
+                // Ek baar aur verify karein ke session valid hai ya nahi
+                checkSessionValidity()
+                    .then(isValid => {
+                        if (!isValid) {
+                            handleSessionExpired();
+                        } else {
+                            // Session valid hai, bas data nahi hai
+                            displayForcedEntryData(data);
+                        }
+                    })
+                    .catch(() => handleSessionExpired());
+                return;
+            }
             
-            // Initialize DataTable
-            setTimeout(() => {
-                initializeForcedEntryTable();
-            }, 100);
-            
+            displayForcedEntryData(data);
         })
         .catch(error => {
-            console.error('Error:', error);
-            tbody.innerHTML = `
+            console.error('Error loading forced entry data:', error);
+            
+            if (error.message && (
+                error.message.includes('Unauthorized') || 
+                error.message.includes('Non-JSON') ||
+                error.message.includes('Failed to fetch'))) {
+                
+                handleSessionExpired();
+            } else {
+                const tbody = document.getElementById('forcedEntryDetailsBody');
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="10" class="text-center text-danger">
+                            <i class="bx bx-error"></i> Error loading data. Please try again.
+                        </td>
+                    </tr>
+                `;
+            }
+        });
+}
+
+
+function displayForcedEntryData(data) {
+    forcedEntryData = data;
+    
+    if (forcedEntryTable) {
+        forcedEntryTable.destroy();
+        forcedEntryTable = null;
+    }
+    
+    const tbody = document.getElementById('forcedEntryDetailsBody');
+    let html = '';
+    
+    if (data && Array.isArray(data) && data.length > 0) {
+        data.forEach(item => {
+            html += `
                 <tr>
-                    <td colspan="10" class="text-center text-danger">
-                        Error loading data
-                    </td>
+                    <td><small class="text-muted">${item.time || 'N/A'}</small></td>
+                    <td><span class="badge bg-danger">${item.event || 'Forced Entry'}</span></td>
+                    <td>${item.full_name || 'Unknown'}</td>
+                    <td><small>${item.ic_no || 'N/A'}</small></td>
+                    <td>${item.company_name || 'N/A'}</td>
+                    <td><small>${item.contact_no || 'N/A'}</small></td>
+                    <td>${item.person_visited || 'N/A'}</td>
+                    <td><small class="text-muted">${item.reason || 'N/A'}</small></td>
+                    <td><small>${item.location || 'Unknown'}</small></td>
                 </tr>
             `;
         });
+        
+        tbody.innerHTML = html;
+        
+        // Initialize DataTable
+        setTimeout(() => {
+            initializeForcedEntryTable();
+        }, 100);
+        
+        showToast(`Loaded ${data.length} forced entry records`, 'success');
+    } else {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="10" class="text-center text-muted">
+                    No forced entry data found (acknowledge = 1)
+                </td>
+            </tr>
+        `;
+    }
 }
+
 
 function loadOverstayData() {
     const tbody = document.getElementById('overstayDetailsBody');
@@ -624,61 +812,133 @@ function loadOverstayData() {
     `;
     
     fetch('/vms/security-alerts/details/3')
-        .then(response => response.json())
+        .then(response => {
+            // ✅ Check for 401 status code (same as unauthorized)
+            if (response.status === 401) {
+                console.log('Received 401 status in overstay, logging out...');
+                handleSessionExpired();
+                return Promise.reject('Unauthorized - 401 status');
+            }
+            
+            // ✅ Check if response is JSON
+            const contentType = response.headers.get("content-type");
+            if (!contentType || !contentType.includes("application/json")) {
+                console.warn('Response is not JSON, might be redirect');
+                handleSessionExpired();
+                return Promise.reject('Non-JSON response');
+            }
+            
+            return response.json();
+        })
         .then(data => {
-            overstayData = data;
-            
-            if (overstayTable) {
-                overstayTable.destroy();
-                overstayTable = null;
+            // ✅ Check if data contains error property with redirect
+            if (data && data.redirect === true) {
+                console.log('Data indicates redirect needed in overstay');
+                handleSessionExpired();
+                return;
             }
             
-            let html = '';
-            if (data && Array.isArray(data)) {
-                data.forEach(item => {
-                    html += `
-                        <tr>
-                            <td><small class="text-muted">${item.time || 'N/A'}</small></td>
-                            <td><span class="badge bg-warning">${item.event || 'Overstay'}</span></td>
-                            <td>${item.full_name || 'Unknown'}</td>
-                            <td><small>${item.ic_no || 'N/A'}</small></td>
-                            <td>${item.company_name || 'N/A'}</td>
-                            <td><small>${item.contact_no || 'N/A'}</small></td>
-                            <td>${item.person_visited || 'N/A'}</td>
-                            <td><small class="text-muted">${item.reason || 'N/A'}</small></td>
-                            <td><small>${item.location || 'Unknown'}</small></td>
-                            <td><small>${item.check_in_time || 'N/A'}</small></td>
-                            <td><small class="text-danger">${item.overstay_duration || 'N/A'}</small></td>
-                        </tr>
-                    `;
-                });
+            // ✅ Check if data contains error property
+            if (data && data.error === 401) {
+                console.log('Data contains error 401 in overstay');
+                handleSessionExpired();
+                return;
             }
             
-            tbody.innerHTML = html || `
-                <tr>
-                    <td colspan="12" class="text-center text-muted">
-                        No overstay visitors found
-                    </td>
-                </tr>
-            `;
+            // ✅ Check if data is dummy/empty
+            const firstItem = data && data[0];
+            if (firstItem && firstItem.event === "No overstay visitors found" && 
+                firstItem.staff_no === "N/A") {
+                console.log('Received dummy data in overstay, checking session...');
+                
+                // Ek baar aur verify karein ke session valid hai ya nahi
+                checkSessionValidity()
+                    .then(isValid => {
+                        if (!isValid) {
+                            handleSessionExpired();
+                        } else {
+                            // Session valid hai, bas data nahi hai
+                            displayOverstayData(data);
+                        }
+                    })
+                    .catch(() => handleSessionExpired());
+                return;
+            }
             
-            // Initialize DataTable
-            setTimeout(() => {
-                initializeOverstayTable();
-            }, 100);
-            
+            displayOverstayData(data);
         })
         .catch(error => {
-            console.error('Error:', error);
-            tbody.innerHTML = `
+            console.error('Error loading overstay data:', error);
+            
+            if (error.message && (
+                error.message.includes('Unauthorized') || 
+                error.message.includes('Non-JSON') ||
+                error.message.includes('Failed to fetch'))) {
+                
+                handleSessionExpired();
+            } else {
+                const tbody = document.getElementById('overstayDetailsBody');
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="12" class="text-center text-danger">
+                            <i class="bx bx-error"></i> Error loading data. Please try again.
+                        </td>
+                    </tr>
+                `;
+            }
+        });
+}
+
+
+function displayOverstayData(data) {
+    overstayData = data;
+    
+    if (overstayTable) {
+        overstayTable.destroy();
+        overstayTable = null;
+    }
+    
+    const tbody = document.getElementById('overstayDetailsBody');
+    let html = '';
+    
+    if (data && Array.isArray(data) && data.length > 0) {
+        data.forEach(item => {
+            html += `
                 <tr>
-                    <td colspan="12" class="text-center text-danger">
-                        Error loading data
-                    </td>
+                    <td><small class="text-muted">${item.time || 'N/A'}</small></td>
+                    <td><span class="badge bg-warning">${item.event || 'Overstay'}</span></td>
+                    <td>${item.full_name || 'Unknown'}</td>
+                    <td><small>${item.ic_no || 'N/A'}</small></td>
+                    <td>${item.company_name || 'N/A'}</td>
+                    <td><small>${item.contact_no || 'N/A'}</small></td>
+                    <td>${item.person_visited || 'N/A'}</td>
+                    <td><small class="text-muted">${item.reason || 'N/A'}</small></td>
+                    <td><small>${item.location || 'Unknown'}</small></td>
+                    <td><small>${item.check_in_time || 'N/A'}</small></td>
+                    <td><small class="text-danger">${item.overstay_duration || 'N/A'}</small></td>
                 </tr>
             `;
         });
+        
+        tbody.innerHTML = html;
+        
+        // Initialize DataTable
+        setTimeout(() => {
+            initializeOverstayTable();
+        }, 100);
+        
+        showToast(`Loaded ${data.length} overstay visitor records`, 'success');
+    } else {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="12" class="text-center text-muted">
+                    No overstay visitors found
+                </td>
+            </tr>
+        `;
+    }
 }
+
 
 /* Refresh Unauthorized Data */
 function refreshUnauthorizedData() {
@@ -691,14 +951,14 @@ function refreshUnauthorizedData() {
 function refreshForcedEntryData() {
     if (currentIncidentId == 1) {
         showToast('Refreshing forced entry data...', 'info');
-        loadForcedEntryData();
+        loadForcedEntryData(); 
     }
 }
 
 function refreshOverstayData() {
     if (currentIncidentId == 3) {
         showToast('Refreshing overstay visitors data...', 'info');
-        loadOverstayData();
+        loadOverstayData(); 
     }
 }
 

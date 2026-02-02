@@ -70,7 +70,7 @@ class SecurityAlertController extends Controller
             
             if (!$token) {
                 Log::error('Java API Token missing in session!');
-                return null;
+                return ['status' => 'ERROR', 'message' => 'Token missing'];
             }
             
             $url = $javaBaseUrl . '/api/vendorpass/get-visitor-details?icNo=' . urlencode($staffNo);
@@ -88,10 +88,23 @@ class SecurityAlertController extends Controller
             if ($response->successful()) {
                 $data = $response->json();
                 Log::info('API Response Data: ', $data);
+                
+                // ✅ Check if Java API returned ERROR status
+                if (isset($data['status']) && $data['status'] === 'ERROR') {
+                    Log::error('Java API returned ERROR status: ' . ($data['message'] ?? 'Unknown error'));
+                    return ['status' => 'ERROR', 'message' => $data['message'] ?? 'Token expired'];
+                }
+                
                 return $data;
             } else {
                 Log::error('Java API error: ' . $response->status());
-                Log::error('Error body: ' . $response->body());
+                
+                // ✅ Check if 401 Unauthorized
+                if ($response->status() == 401) {
+                    Log::error('Java API returned 401 Unauthorized');
+                    return ['status' => 'ERROR', 'message' => 'Unauthorized'];
+                }
+                
                 return null;
             }
         } catch (\Exception $e) {
@@ -100,6 +113,7 @@ class SecurityAlertController extends Controller
             return null;
         }
     }
+
     
     public function index()
     {
@@ -259,101 +273,79 @@ class SecurityAlertController extends Controller
         return response()->json($details);
     }
 
-    private function getUnauthorizedAccessDetails()
-    {
-        try {
-            $unauthorizedLogs = DeviceAccessLog::where('access_granted', 0)
-                ->where('acknowledge',0)
-                ->orderBy('created_at', 'desc')
-                // ->take(50) 
-                ->get()
-                ->groupBy('staff_no');
-            
-            $details = [];
-            
-            foreach ($unauthorizedLogs as $staffNo => $logs) {
-                if (empty($staffNo)) {
-                    continue;
-                }
-                
-                $javaApiResponse = $this->callJavaVendorApi($staffNo);
-                // dd($javaApiResponse);
-                $visitorData = $javaApiResponse['data'] ?? null;
-
-                $dummyData = [
-                    "time" => "N/A",
-                    "event" => "No unauthorized access attempts found",
-                    "staff_no" => "N/A",
-                    "full_name" => "N/A",
-                    "ic_no" => "N/A",
-                    "company_name" => "N/A",
-                    "contact_no" => "N/A",
-                    "person_visited" => "N/A",
-                    "reason" => "N/A",
-                    "location" => "N/A"
-                ];
-
-                if ($visitorData === null || $visitorData == $dummyData) {
-
-                    Session::invalidate();
-                    Session::regenerateToken();
-                    
-                    return response()->json([
-                        'error' => 401
-                    ], 401);
-
-                }
-                
-                if (!$visitorData) {
-                    continue;
-                }
-                
-                $latestLog = $logs->first();
-                
-                $details[] = [
-                    'time' => $latestLog->created_at->format('Y-m-d h:i A'),
-                    'event' => 'Unauthorized Access Attempt',
-                    'staff_no' => $visitorData['staffNo'] ?? $staffNo,
-                    'full_name' => $visitorData['fullName'] ?? 'N/A',
-                    'ic_no' => $visitorData['icNo'] ?? 'N/A',
-                    'company_name' => $visitorData['companyName'] ?? 'N/A',
-                    'contact_no' => $visitorData['contactNo'] ?? 'N/A',
-                    'person_visited' => $visitorData['personVisited'] ?? 'N/A',
-                    'reason' => $visitorData['reason'] ?? 'N/A',
-                    'location' => $latestLog->location_name ?? 'N/A'
-                ];
-                
-                if (count($details) >= 15) {
-                    break;
-                }
-            }
-            
-            if (empty($details)) {
-                $details = [
-                    [
-                        'time' => 'N/A',
-                        'event' => 'No unauthorized access attempts found',
-                        'staff_no' => 'N/A',
-                        'full_name' => 'N/A',
-                        'ic_no' => 'N/A',
-                        'company_name' => 'N/A',
-                        'contact_no' => 'N/A',
-                        'person_visited' => 'N/A',
-                        'reason' => 'N/A',
-                        'location' => 'N/A'
-                    ]
-                ];
-            }
-            
-            return response()->json($details);
-            
-        } catch (\Exception $e) {
-            Log::error('Error in getUnauthorizedAccessDetails: ' . $e->getMessage());
+private function getUnauthorizedAccessDetails()
+{
+    try {
+        // ✅ FIRST check if session is valid
+        if (!session()->has('java_backend_token') && !session()->has('java_auth_token')) {
+            Log::error('Java token not found in session');
             
             return response()->json([
+                'error' => 401,
+                'message' => 'Session expired. Please login again.',
+                'redirect' => true
+            ], 401);
+        }
+        
+        $unauthorizedLogs = DeviceAccessLog::where('access_granted', 0)
+            ->where('acknowledge', 0)
+            ->orderBy('created_at', 'desc')
+            ->get()
+            ->groupBy('staff_no');
+        
+        $details = [];
+        
+        foreach ($unauthorizedLogs as $staffNo => $logs) {
+            if (empty($staffNo)) {
+                continue;
+            }
+            
+            $javaApiResponse = $this->callJavaVendorApi($staffNo);
+            
+            // ✅ Check if Java API returned session error
+            if (isset($javaApiResponse['status']) && $javaApiResponse['status'] === 'ERROR') {
+                Log::error('Java API returned ERROR, invalidating session');
+                
+                // Clear only Java-related sessions
+                session()->forget(['java_backend_token', 'java_auth_token', 'java_username', 'java_display_name']);
+                
+                return response()->json([
+                    'error' => 401,
+                    'message' => 'Session expired. Please login again.',
+                    'redirect' => true
+                ], 401);
+            }
+            
+            if (!$javaApiResponse || !isset($javaApiResponse['data'])) {
+                continue;
+            }
+            
+            $visitorData = $javaApiResponse['data'];
+            $latestLog = $logs->first();
+            
+            $details[] = [
+                'time' => $latestLog->created_at->format('Y-m-d h:i A'),
+                'event' => 'Unauthorized Access Attempt',
+                'staff_no' => $visitorData['staffNo'] ?? $staffNo,
+                'full_name' => $visitorData['fullName'] ?? 'N/A',
+                'ic_no' => $visitorData['icNo'] ?? 'N/A',
+                'company_name' => $visitorData['companyName'] ?? 'N/A',
+                'contact_no' => $visitorData['contactNo'] ?? 'N/A',
+                'person_visited' => $visitorData['personVisited'] ?? 'N/A',
+                'reason' => $visitorData['reason'] ?? 'N/A',
+                'location' => $latestLog->location_name ?? 'N/A'
+            ];
+            
+            if (count($details) >= 15) {
+                break;
+            }
+        }
+        
+        if (empty($details)) {
+            $details = [
                 [
-                    'time' => 'Error',
-                    'event' => 'Failed to load data',
+                    'time' => 'N/A',
+                    'event' => 'No unauthorized access attempts found',
                     'staff_no' => 'N/A',
                     'full_name' => 'N/A',
                     'ic_no' => 'N/A',
@@ -363,79 +355,105 @@ class SecurityAlertController extends Controller
                     'reason' => 'N/A',
                     'location' => 'N/A'
                 ]
-            ]);
+            ];
         }
+        
+        return response()->json($details);
+        
+    } catch (\Exception $e) {
+        Log::error('Error in getUnauthorizedAccessDetails: ' . $e->getMessage());
+        
+        return response()->json([
+            [
+                'time' => 'Error',
+                'event' => 'Failed to load data',
+                'staff_no' => 'N/A',
+                'full_name' => 'N/A',
+                'ic_no' => 'N/A',
+                'company_name' => 'N/A',
+                'contact_no' => 'N/A',
+                'person_visited' => 'N/A',
+                'reason' => 'N/A',
+                'location' => 'N/A'
+            ]
+        ]);
     }
+}
 
-    private function getForcedEntryDetails()
-    {
-        try {
-            $forcedEntryLogs = DeviceAccessLog::where('acknowledge', 1)
-                ->where('access_granted', 0) 
-                ->orderBy('created_at', 'desc')
-                ->get()
-                ->groupBy('staff_no');
-            
-            $details = [];
-            
-            foreach ($forcedEntryLogs as $staffNo => $logs) {
-                if (empty($staffNo)) {
-                    continue;
-                }
-                
-                $javaApiResponse = $this->callJavaVendorApi($staffNo);
-                $visitorData = $javaApiResponse['data'] ?? null;
-                
-                if (!$visitorData) {
-                    continue;
-                }
-                
-                $latestLog = $logs->first();
-                
-                $details[] = [
-                    'time' => $latestLog->created_at->format('Y-m-d h:i A'),
-                    'event' => 'Forced Entry Attempt',
-                    'staff_no' => $visitorData['staffNo'] ?? $staffNo,
-                    'full_name' => $visitorData['fullName'] ?? 'N/A',
-                    'ic_no' => $visitorData['icNo'] ?? 'N/A',
-                    'company_name' => $visitorData['companyName'] ?? 'N/A',
-                    'contact_no' => $visitorData['contactNo'] ?? 'N/A',
-                    'person_visited' => $visitorData['personVisited'] ?? 'N/A',
-                    'reason' => $visitorData['reason'] ?? 'N/A',
-                    'location' => $latestLog->location_name ?? 'N/A'
-                ];
-                
-                if (count($details) >= 15) {
-                    break;
-                }
-            }
-            
-            if (empty($details)) {
-                $details = [
-                    [
-                        'time' => 'N/A',
-                        'event' => 'No forced entry attempts found',
-                        'staff_no' => 'N/A',
-                        'full_name' => 'N/A',
-                        'ic_no' => 'N/A',
-                        'company_name' => 'N/A',
-                        'contact_no' => 'N/A',
-                        'person_visited' => 'N/A',
-                        'reason' => 'N/A',
-                        'location' => 'N/A'
-                    ]
-                ];
-            }
-            
-            return response()->json($details);
-            
-        } catch (\Exception $e) {
-            Log::error('Error in getForcedEntryDetails: ' . $e->getMessage());
+private function getForcedEntryDetails()
+{
+    try {
+        // ✅ FIRST check if session is valid (same as unauthorized access)
+        if (!session()->has('java_backend_token') && !session()->has('java_auth_token')) {
+            Log::error('Java token not found in session - Forced Entry');
             
             return response()->json([
+                'error' => 401,
+                'message' => 'Session expired. Please login again.',
+                'redirect' => true
+            ], 401);
+        }
+        
+        $forcedEntryLogs = DeviceAccessLog::where('acknowledge', 1)
+            ->where('access_granted', 0) 
+            ->orderBy('created_at', 'desc')
+            ->get()
+            ->groupBy('staff_no');
+        
+        $details = [];
+        
+        foreach ($forcedEntryLogs as $staffNo => $logs) {
+            if (empty($staffNo)) {
+                continue;
+            }
+            
+            $javaApiResponse = $this->callJavaVendorApi($staffNo);
+
+            // ✅ Check if Java API returned session error (same as unauthorized)
+            if (isset($javaApiResponse['status']) && $javaApiResponse['status'] === 'ERROR') {
+                Log::error('Java API returned ERROR in forced entry, invalidating session');
+                
+                // Clear only Java-related sessions
+                session()->forget(['java_backend_token', 'java_auth_token', 'java_username', 'java_display_name']);
+                
+                return response()->json([
+                    'error' => 401,
+                    'message' => 'Session expired. Please login again.',
+                    'redirect' => true
+                ], 401);
+            }
+
+            $visitorData = $javaApiResponse['data'] ?? null;
+            
+            if (!$visitorData) {
+                continue;
+            }
+            
+            $latestLog = $logs->first();
+            
+            $details[] = [
+                'time' => $latestLog->created_at->format('Y-m-d h:i A'),
+                'event' => 'Forced Entry Attempt',
+                'staff_no' => $visitorData['staffNo'] ?? $staffNo,
+                'full_name' => $visitorData['fullName'] ?? 'N/A',
+                'ic_no' => $visitorData['icNo'] ?? 'N/A',
+                'company_name' => $visitorData['companyName'] ?? 'N/A',
+                'contact_no' => $visitorData['contactNo'] ?? 'N/A',
+                'person_visited' => $visitorData['personVisited'] ?? 'N/A',
+                'reason' => $visitorData['reason'] ?? 'N/A',
+                'location' => $latestLog->location_name ?? 'N/A'
+            ];
+            
+            if (count($details) >= 15) {
+                break;
+            }
+        }
+        
+        if (empty($details)) {
+            $details = [
                 [
-                    'time' => 'Error',
-                    'event' => 'Failed to load data',
+                    'time' => 'N/A',
+                    'event' => 'No forced entry attempts found',
                     'staff_no' => 'N/A',
                     'full_name' => 'N/A',
                     'ic_no' => 'N/A',
@@ -445,81 +463,107 @@ class SecurityAlertController extends Controller
                     'reason' => 'N/A',
                     'location' => 'N/A'
                 ]
-            ]);
+            ];
         }
+        
+        return response()->json($details);
+        
+    } catch (\Exception $e) {
+        Log::error('Error in getForcedEntryDetails: ' . $e->getMessage());
+        
+        return response()->json([
+            [
+                'time' => 'Error',
+                'event' => 'Failed to load data',
+                'staff_no' => 'N/A',
+                'full_name' => 'N/A',
+                'ic_no' => 'N/A',
+                'company_name' => 'N/A',
+                'contact_no' => 'N/A',
+                'person_visited' => 'N/A',
+                'reason' => 'N/A',
+                'location' => 'N/A'
+            ]
+        ]);
     }
+}
 
-    private function getOverstayVisitorsDetails()
-    {
-        try {
-            $allDeviceUsers = DeviceAccessLog::where('access_granted', 1)->get();
-            $overstayAlerts = $this->getUnacknowledgedOverstayAlerts($allDeviceUsers);
-            
-            $details = [];
-            
-            foreach ($overstayAlerts as $alert) {
-                $javaApiResponse = $this->callJavaVendorApi($alert['staff_no']);
-                $visitorData = $javaApiResponse['data'] ?? null;
-                
-                if (!$visitorData) {
-                    continue;
-                }
-                
-                $currentTime = now();
-                $dateOfVisitTo = Carbon::parse($visitorData['dateOfVisitTo']);
-                
-                // Overstay duration calculate karein
-                $overstayMinutes = $currentTime->diffInMinutes($dateOfVisitTo);
-                $overstayHours = floor($overstayMinutes / 60);
-                $remainingMinutes = $overstayMinutes % 60;
-                
-                $details[] = [
-                    'time' => Carbon::parse($alert['created_at'])->format('Y-m-d h:i A'),
-                    'event' => 'Visitor Overstay',
-                    'staff_no' => $alert['staff_no'],
-                    'full_name' => $visitorData['fullName'] ?? 'N/A',
-                    'ic_no' => $visitorData['icNo'] ?? 'N/A',
-                    'company_name' => $visitorData['companyName'] ?? 'N/A',
-                    'contact_no' => $visitorData['contactNo'] ?? 'N/A',
-                    'person_visited' => $visitorData['personVisited'] ?? 'N/A',
-                    'reason' => 'Overstay: ' . $overstayHours . 'h ' . $remainingMinutes . 'm',
-                    'location' => $alert['location_name'] ?? 'N/A',
-                    'check_in_time' => Carbon::parse($alert['created_at'])->format('h:i A'),
-                    'expected_end_time' => $dateOfVisitTo->format('d M Y h:i A'),
-                    'overstay_duration' => $overstayHours . ' hours ' . $remainingMinutes . ' minutes'
-                ];
-                
-                if (count($details) >= 15) {
-                    break;
-                }
-            }
-            
-            if (empty($details)) {
-                $details = [
-                    [
-                        'time' => 'N/A',
-                        'event' => 'No overstay visitors found',
-                        'staff_no' => 'N/A',
-                        'full_name' => 'N/A',
-                        'ic_no' => 'N/A',
-                        'company_name' => 'N/A',
-                        'contact_no' => 'N/A',
-                        'person_visited' => 'N/A',
-                        'reason' => 'N/A',
-                        'location' => 'N/A'
-                    ]
-                ];
-            }
-            
-            return response()->json($details);
-            
-        } catch (\Exception $e) {
-            Log::error('Error in getOverstayVisitorsDetails: ' . $e->getMessage());
+private function getOverstayVisitorsDetails()
+{
+    try {
+        // ✅ FIRST check if session is valid (same as unauthorized access)
+        if (!session()->has('java_backend_token') && !session()->has('java_auth_token')) {
+            Log::error('Java token not found in session - Overstay Visitors');
             
             return response()->json([
+                'error' => 401,
+                'message' => 'Session expired. Please login again.',
+                'redirect' => true
+            ], 401);
+        }
+        
+        $allDeviceUsers = DeviceAccessLog::where('access_granted', 1)->get();
+        $overstayAlerts = $this->getUnacknowledgedOverstayAlerts($allDeviceUsers);
+        
+        $details = [];
+        
+        foreach ($overstayAlerts as $alert) {
+            $javaApiResponse = $this->callJavaVendorApi($alert['staff_no']);
+
+            // ✅ Check if Java API returned session error (same as unauthorized)
+            if (isset($javaApiResponse['status']) && $javaApiResponse['status'] === 'ERROR') {
+                Log::error('Java API returned ERROR in overstay visitors, invalidating session');
+                
+                // Clear only Java-related sessions
+                session()->forget(['java_backend_token', 'java_auth_token', 'java_username', 'java_display_name']);
+                
+                return response()->json([
+                    'error' => 401,
+                    'message' => 'Session expired. Please login again.',
+                    'redirect' => true
+                ], 401);
+            }
+
+            $visitorData = $javaApiResponse['data'] ?? null;
+            
+            if (!$visitorData) {
+                continue;
+            }
+            
+            $currentTime = now();
+            $dateOfVisitTo = Carbon::parse($visitorData['dateOfVisitTo']);
+            
+            // Overstay duration calculate karein
+            $overstayMinutes = $currentTime->diffInMinutes($dateOfVisitTo);
+            $overstayHours = floor($overstayMinutes / 60);
+            $remainingMinutes = $overstayMinutes % 60;
+            
+            $details[] = [
+                'time' => Carbon::parse($alert['created_at'])->format('Y-m-d h:i A'),
+                'event' => 'Visitor Overstay',
+                'staff_no' => $alert['staff_no'],
+                'full_name' => $visitorData['fullName'] ?? 'N/A',
+                'ic_no' => $visitorData['icNo'] ?? 'N/A',
+                'company_name' => $visitorData['companyName'] ?? 'N/A',
+                'contact_no' => $visitorData['contactNo'] ?? 'N/A',
+                'person_visited' => $visitorData['personVisited'] ?? 'N/A',
+                'reason' => 'Overstay: ' . $overstayHours . 'h ' . $remainingMinutes . 'm',
+                'location' => $alert['location_name'] ?? 'N/A',
+                'check_in_time' => Carbon::parse($alert['created_at'])->format('h:i A'),
+                'expected_end_time' => $dateOfVisitTo->format('d M Y h:i A'),
+                'overstay_duration' => $overstayHours . ' hours ' . $remainingMinutes . ' minutes'
+            ];
+            
+            if (count($details) >= 15) {
+                break;
+            }
+        }
+        
+        if (empty($details)) {
+            $details = [
                 [
-                    'time' => 'Error',
-                    'event' => 'Failed to load data',
+                    'time' => 'N/A',
+                    'event' => 'No overstay visitors found',
                     'staff_no' => 'N/A',
                     'full_name' => 'N/A',
                     'ic_no' => 'N/A',
@@ -529,9 +573,30 @@ class SecurityAlertController extends Controller
                     'reason' => 'N/A',
                     'location' => 'N/A'
                 ]
-            ]);
+            ];
         }
+        
+        return response()->json($details);
+        
+    } catch (\Exception $e) {
+        Log::error('Error in getOverstayVisitorsDetails: ' . $e->getMessage());
+        
+        return response()->json([
+            [
+                'time' => 'Error',
+                'event' => 'Failed to load data',
+                'staff_no' => 'N/A',
+                'full_name' => 'N/A',
+                'ic_no' => 'N/A',
+                'company_name' => 'N/A',
+                'contact_no' => 'N/A',
+                'person_visited' => 'N/A',
+                'reason' => 'N/A',
+                'location' => 'N/A'
+            ]
+        ]);
     }
+}
 
 }
 
