@@ -30,7 +30,7 @@ class SocketServerService
 
         echo "✅ RD008 Socket Server listening on 0.0.0.0:$port\n";
 
-        //   $this->runTestFlow('lK98+suwMhrtbbebbrU85Q==:cp2WJfAUpfR9q6qA:wm/S7Q==:6YcYBuylypwFanhDe9rxig==', '008825038133');
+        // $this->runTestFlow('lK98+suwMhrtbbebbrU85Q==:cp2WJfAUpfR9q6qA:wm/S7Q==:6YcYBuylypwFanhDe9rxig==', '008825038133');
 
         while (true) {
             $read = [$this->server];
@@ -199,6 +199,32 @@ private function handleOpenDoorRequest($sock, $data, $ip)
     $visitorTypeId = $visitorData['visitorTypeId'] ?? null;
     
     echo "[" . date('H:i:s') . "] 👤 IC No (Database mein store hoga): $icNo, Staff No from Java: $staffNoFromJava, Visitor Type ID: $visitorTypeId\n";
+
+
+    if ($locationName === 'Turnstile' && $isType === 'check_out') {
+        echo "[" . date('H:i:s') . "] 🔄 TURNSTILE Check-out detected - Extracting vendorPassId\n";
+        
+        // ✅ Extract vendorPassId from visitorData (jo aapne API response mein dekha hai)
+        $vendorPassId = $visitorData['vendorPassId'] ?? null;
+        
+        if ($vendorPassId) {
+            echo "[" . date('H:i:s') . "] 🆔 VendorPassId from visitorData: $vendorPassId\n";
+                        
+            Log::info('java api call honae sae pehly');
+            // ✅ Return card API call karo
+            $apiResult = $this->callReturnVendorPassCardApi($vendorPassId);
+            
+            if ($apiResult) {
+                echo "[" . date('H:i:s') . "] ✅ Card return API successful\n";
+                
+            } else {
+                echo "[" . date('H:i:s') . "] ⚠️ Card return API failed (but access will still be granted)\n";
+            }
+        } else {
+            echo "[" . date('H:i:s') . "] ⚠️ vendorPassId not found in visitorData\n";
+            echo "[" . date('H:i:s') . "] 📋 VisitorData Keys: " . implode(', ', array_keys($visitorData)) . "\n";
+        }
+    }
 
     // ✅ STEP: Pehle date variables ko extract karo
     $dateOfVisitFrom = $visitorData['dateOfVisitFrom'] ?? null;
@@ -583,6 +609,40 @@ private function handleOpenDoorRequest($sock, $data, $ip)
     ]);
 }
 
+private function callReturnVendorPassCardApi($vendorPassId)
+{
+    try {
+        $javaBaseUrl = env('JAVA_BACKEND_URL', 'http://127.0.0.1:8080');
+                
+        echo "[" . date('H:i:s') . "] 🔄 Calling return vendor pass card API for vendorPassId: $vendorPassId\n";
+        
+        $response = Http::withHeaders([
+            'Accept' => 'application/json',
+            'Content-Type' => 'application/json',
+        ])->timeout(10)->post(
+            $javaBaseUrl . '/api/vendorpass/returnVVendorPassCard',
+            ['id' => $vendorPassId]
+        );
+        
+        echo "[" . date('H:i:s') . "] 📡 Return Card API Status: " . $response->status() . "\n";
+        
+        if ($response->successful()) {
+            $result = $response->json();
+            Log::info('result',['result' => $result]);
+            echo "[" . date('H:i:s') . "] ✅ Return Card API Response: " . json_encode($result) . "\n";
+            return $result;
+        } else {
+            echo "[" . date('H:i:s') . "] ❌ Return Card API failed: " . $response->body() . "\n";
+            return false;
+        }
+        
+    } catch (\Exception $e) {
+        echo "[" . date('H:i:s') . "] ❌ Return Card API Exception: " . $e->getMessage() . "\n";
+        return false;
+    }
+}
+
+
 private function getIsTypeFromDeviceAssignment($deviceId)
 {
     $deviceConnection = DB::table('device_connections')
@@ -654,7 +714,7 @@ private function callJavaVendorApi($cardId)
 {
     try {
         $javaBaseUrl = env('JAVA_BACKEND_URL', 'http://127.0.0.1:8080');
-        $token = env('JAVA_API_TOKEN', '');
+        $token = session()->get('java_backend_token') ?? session()->get('java_auth_token'); 
 
         echo "[" . date('H:i:s') . "] 🔹 STEP 1: Getting vendor by Card ID: $cardId\n";
 
@@ -662,6 +722,7 @@ private function callJavaVendorApi($cardId)
         $vendorResponse = Http::withHeaders([
             'Accept' => 'application/json',
             'Content-Type' => 'application/json',
+            'x-auth-token' => $token,
         ])->timeout(10)->post(
             $javaBaseUrl . '/api/vendorpass/getVendorByCardId',
             ['cardId' => $cardId]
@@ -717,6 +778,7 @@ private function callJavaVendorApi($cardId)
 
         $visitorResponse = Http::withHeaders([
             'Accept' => 'application/json',
+            'x-auth-token' => $token,
         ])->timeout(10)->get(
             $javaBaseUrl . '/api/vendorpass/get-visitor-details-by-icno-or-staffno',
             [
