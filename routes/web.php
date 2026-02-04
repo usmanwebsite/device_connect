@@ -108,6 +108,9 @@ Route::get('/clear-session', function() {
         Route::get('/access-logs', [ReportController::class, 'accessLogs'])->name('reports.access-logs');
         Route::post('/access-logs/data', [ReportController::class, 'getAccessLogsData'])->name('reports.access-logs.data');
         Route::get('/staff-movement/{staffNo}', [ReportController::class, 'getStaffMovement'])->name('reports.staff-movement');
+
+        Route::get('/visitor-details', [ReportController::class, 'getVisitorDetails'])
+     ->name('visitor.details');
     });
 
     Route::get('/vms/paths', [PathController::class, 'index'])->name('paths.index');

@@ -189,9 +189,9 @@
 @endsection
 
 @section('scripts')
-<script>
+{{-- <script>
     const API_BASE = window.location.protocol + '//' + window.location.hostname + ':8080';
-</script>
+</script> --}}
 <script>
 let dataTable = null;
 let allStaffData = [];
@@ -560,61 +560,73 @@ async function updateVisitorDetailsForCurrentPage() {
 
 async function fetchVisitorDetailsBatch(staffNos, rowStaffMap) {
     try {
-        // Create a batch request URL
-        const batchUrl = `${API_BASE}/api/vendorpass/get-visitor-details?icNo=${staffNo}`;
+        const fetchPromises = staffNos.map(async (staffNo) => {
+            try {
+                const response = await fetch(
+                    `/vms/reports/visitor-details?icNo=${encodeURIComponent(staffNo)}`,
+                    { headers: { 'Accept': 'application/json' } }
+                );
 
-        const response = await fetch(batchUrl, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ staffNos: staffNos })
-        });
-        
-        if (response.ok) {
-            const data = await response.json();            
-            if (data.status === 'success' && data.data) {
-                // Process batch response
-                data.data.forEach(visitorData => {
-                    if (visitorData && visitorData.icNo) {
-                        visitorDetailsCache[visitorData.icNo] = visitorData;
-                    }
-                });
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                const data = await response.json();
+
+                if ((data.status === 'OK' || data.status === 'success') && data.data) {
+                    visitorDetailsCache[staffNo] = data.data;
+                } else {
+                    visitorDetailsCache[staffNo] = {
+                        fullName: 'N/A',
+                        personVisited: 'N/A',
+                        contactNo: 'N/A',
+                        icNo: staffNo
+                    };
+                }
+            } catch (err) {
+                console.error(`Batch fetch failed for ${staffNo}`, err);
+                visitorDetailsCache[staffNo] = {
+                    fullName: 'N/A',
+                    personVisited: 'N/A',
+                    contactNo: 'N/A',
+                    icNo: staffNo
+                };
+            } finally {
+                pendingRequests.delete(staffNo);
             }
-        } else {
-            await fetchVisitorDetailsIndividually(staffNos);
-        }
-        
+        });
+
+        await Promise.all(fetchPromises);
+
         rowStaffMap.forEach((staffNo, row) => {
             if (visitorDetailsCache[staffNo]) {
                 updateRowDetails(row, visitorDetailsCache[staffNo]);
             }
         });
-        
+
     } catch (error) {
         console.error('Error in fetchVisitorDetailsBatch:', error);
-        await fetchVisitorDetailsIndividually(staffNos, rowStaffMap);
-    } finally {
-        staffNos.forEach(staffNo => {
-            pendingRequests.delete(staffNo);
-        });
     }
 }
+
+
 async function fetchVisitorDetailsIndividually(staffNos, rowStaffMap) {
     const fetchPromises = staffNos.map(async (staffNo) => {
         try {
-            const response = await fetch(`${API_BASE}/api/vendorpass/get-visitor-details?icNo=${staffNo}`);
-            
+            const response = await fetch(
+                `/vms/reports/visitor-details?icNo=${encodeURIComponent(staffNo)}`,
+                { headers: { 'Accept': 'application/json' } }
+            );
+
             if (!response.ok) {
                 throw new Error(`HTTP error! status: ${response.status}`);
             }
-            
+
             const data = await response.json();
-            
-            if (data.status === 'success' && data.data) {
+
+            if ((data.status === 'OK' || data.status === 'success') && data.data) {
                 visitorDetailsCache[staffNo] = data.data;
             } else {
-                // Cache a default object
                 visitorDetailsCache[staffNo] = {
                     fullName: 'N/A',
                     personVisited: 'N/A',
@@ -624,7 +636,6 @@ async function fetchVisitorDetailsIndividually(staffNos, rowStaffMap) {
             }
         } catch (error) {
             console.error(`Error fetching details for ${staffNo}:`, error);
-            // Cache a default object to prevent repeated failed requests
             visitorDetailsCache[staffNo] = {
                 fullName: 'N/A',
                 personVisited: 'N/A',
@@ -635,10 +646,9 @@ async function fetchVisitorDetailsIndividually(staffNos, rowStaffMap) {
             pendingRequests.delete(staffNo);
         }
     });
-    
+
     await Promise.all(fetchPromises);
-    
-    // Update rows with fetched data
+
     if (rowStaffMap) {
         rowStaffMap.forEach((staffNo, row) => {
             if (visitorDetailsCache[staffNo]) {
@@ -647,6 +657,7 @@ async function fetchVisitorDetailsIndividually(staffNos, rowStaffMap) {
         });
     }
 }
+
 
 function updateRowDetails(row, visitorDetails) {
     try {
@@ -831,7 +842,7 @@ function displayVisitorInfoInModal(visitorDetails) {
 function fetchVisitorDetailsForModal(staffNo) {
     if (!staffNo) return;
     
-    fetch(`${API_BASE}/api/vendorpass/get-visitor-details?icNo=${staffNo}`)
+    fetch(`/vms/reports/visitor-details?icNo=${staffNo}`)
         .then(response => {
             if (!response.ok) {
                 throw new Error(`HTTP error! status: ${response.status}`);
@@ -839,10 +850,10 @@ function fetchVisitorDetailsForModal(staffNo) {
             return response.json();
         })
         .then(data => {
-            if (data.status === 'success') {
+            if ((data.status === 'OK' || data.status === 'success') && data.data) {
                 const visitorDetails = data.data;
-                displayVisitorInfoInModal(visitorDetails);
                 visitorDetailsCache[staffNo] = visitorDetails;
+                displayVisitorInfoInModal(visitorDetails);
             }
         })
         .catch(error => {

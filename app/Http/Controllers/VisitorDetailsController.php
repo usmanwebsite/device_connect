@@ -163,7 +163,7 @@ class VisitorDetailsController extends Controller
 //     }
 // }
 
-private function callJavaApi($searchTerm, $searchType, $cardStatus = false)
+private function callJavaApi($searchTerm, $searchType)
 {
     try {
         // ✅ Yeh wala javaBaseUrl use karein
@@ -174,7 +174,6 @@ private function callJavaApi($searchTerm, $searchType, $cardStatus = false)
         Log::info('Java Base URL being used: ' . $javaBaseUrl);
         Log::info('Search Term: ' . $searchTerm);
         Log::info('Search Type: ' . $searchType);
-        Log::info('Card Status: ' . ($cardStatus ? 'true' : 'false'));
         
         $params = [];
         if ($searchType === 'staffNo') {
@@ -186,8 +185,6 @@ private function callJavaApi($searchTerm, $searchType, $cardStatus = false)
             $params['icNo'] = $searchTerm;
         }
         
-        // ✅ Card status parameter
-        $params['cardStatus'] = $cardStatus;
         
         $fullUrl = $javaBaseUrl . '/api/vendorpass/get-visitor-details';
         Log::info('Full Java API URL: ' . $fullUrl);

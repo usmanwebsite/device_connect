@@ -475,10 +475,18 @@ class VisitorInfoByDoorController extends Controller
         $javaBaseUrl = env('JAVA_BACKEND_URL', 'http://localhost:8080');
         $url = $javaBaseUrl . '/api/vendorpass/get-visitor-details?icNo=' . urlencode($staffNo);
         
-        Log::info('🌐 Calling Java API (without token):', ['url' => $url]);
+        $token = session()->get('java_backend_token') ?? session()->get('java_auth_token');
+
+        $headers = ['Accept' => 'application/json'];
+        if ($token) {
+            $headers['x-auth-token'] = $token;
+        }
         
+        Log::info('🌐 Calling Java API (without token):', ['url' => $url]);
         // Option 1: Try without token
-        $response = Http::timeout(10)->get($url);
+        $response = Http::withHeaders($headers)
+                        ->timeout(10)
+                        ->get($url);
         
         // Option 2: If fails, try with token
         if (!$response->successful()) {

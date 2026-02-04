@@ -449,14 +449,22 @@ class VisitorReportController extends Controller
     {
         try {
             $javaBaseUrl = env('JAVA_BACKEND_URL', 'http://127.0.0.1:8080');
-            
+            $token = session()->get('java_backend_token')
+               ?? session()->get('java_auth_token');
             Log::info('Calling Java Vendor API for staff_no: ' . $staffNo);
+
+            $headers = [
+                'x-auth-token' => $token,
+                'Accept'       => 'application/json',
+            ];
             
-            $response = Http::timeout(15)
-                ->retry(2, 100)
-                ->get($javaBaseUrl . '/api/vendorpass/get-visitor-details', [
-                    'icNo' => $staffNo
-                ]);
+        $response = Http::withHeaders($headers)
+            ->timeout(15)
+            ->retry(2, 100)
+            ->get($javaBaseUrl . '/api/vendorpass/get-visitor-details', [
+                'icNo' => $staffNo
+            ]);
+
             
             Log::info('Java Vendor API Response Status: ' . $response->status());
             

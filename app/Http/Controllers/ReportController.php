@@ -10,6 +10,7 @@ use App\Models\DeviceLocationAssign;
 use Illuminate\Support\Facades\Log;
 use Carbon\Carbon;
 use App\Services\MenuService;
+use Illuminate\Support\Facades\Http;
 
 class ReportController extends Controller
 {
@@ -27,6 +28,40 @@ class ReportController extends Controller
             
         return view('reports.main_report', compact('locations', 'angularMenu'));
     }
+
+
+    public function getVisitorDetails(Request $request)
+    {
+    // dd('hello');
+    $javaBaseUrl = env('JAVA_BACKEND_URL', 'http://127.0.0.1:8080');
+    $icNo = $request->query('icNo');
+
+    if (!$icNo) {
+        return response()->json(['status' => 'error', 'message' => 'IC No required'], 400);
+    }
+
+    $token = session()->get('java_backend_token')
+           ?? session()->get('java_auth_token');
+
+    if (!$token) {
+        return response()->json(['status' => 'error', 'message' => 'Authentication expired'], 401);
+    }
+
+    $response = Http::withHeaders([
+            'x-auth-token' => $token,
+            'Accept'       => 'application/json',
+        ])
+        ->timeout(15)
+        ->get(
+            $javaBaseUrl  . '/api/vendorpass/get-visitor-details',
+            ['icNo' => $icNo]
+        );
+
+        // dd($response->json());
+
+    return response()->json($response->json(), $response->status());
+}
+
 
 public function getAccessLogsData(Request $request)
 {
