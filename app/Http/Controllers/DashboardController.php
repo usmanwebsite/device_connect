@@ -459,6 +459,163 @@ public function getSecurityAlertsData(Request $request)
 }
 
 
+public function getAccessDeniedIncidentsAjax(Request $request)
+{
+    try {
+        $perPage = 10;
+        $page = $request->get('page', 1);
+        
+        Log::info('=== Access Denied Incidents AJAX Request START ===', [
+            'page' => $page,
+            'url' => $request->fullUrl()
+        ]);
+        
+        // Get denied access logs for last 24 hours
+        $deniedAccessLogs24h = DeviceAccessLog::where('access_granted', 0)
+            ->where('acknowledge', 0)
+            ->whereRaw('created_at >= CURDATE()')
+            ->orderBy('created_at', 'desc')
+            ->paginate($perPage, ['*'], 'page', $page);
+        
+        // Enrich the logs with visitor details
+        $enrichedLogs = $this->getEnrichedDeniedAccessLogs($deniedAccessLogs24h);
+        
+        // Generate HTML for table rows
+        $html = '';
+        $startNumber = ($page - 1) * $perPage + 1;
+        
+        foreach ($enrichedLogs as $index => $enrichedLog) {
+            $html .= '
+            <tr>
+                <td>' . ($startNumber + $index) . '</td>
+                <td>' . ($enrichedLog['visitor_details']['fullName'] ?? 'N/A') . '</td>
+                <td>' . ($enrichedLog['visitor_details']['contactNo'] ?? 'N/A') . '</td>
+                <td>' . ($enrichedLog['visitor_details']['icNo'] ?? 'N/A') . '</td>
+                <td>' . ($enrichedLog['visitor_details']['personVisited'] ?? 'N/A') . '</td>
+                <td>' . ($enrichedLog['log']->location_name ?? 'Unknown Location') . '</td>
+                <td>' . ($enrichedLog['log']->reason ?: 'Other Reason') . '</td>
+                <td>' . Carbon::parse($enrichedLog['log']->created_at)->format('d M Y h:i A') . '</td>
+            </tr>';
+        }
+        
+        if (empty($html)) {
+            $html = '<tr><td colspan="8" class="text-center">No access denied incidents found for last 24 hours.</td></tr>';
+        }
+        
+        // ✅ SMART PAGINATION GENERATE KAREIN
+        $pagination = $this->generateSmartPagination(
+            $deniedAccessLogs24h->currentPage(),
+            $deniedAccessLogs24h->lastPage()
+        );
+        
+        $responseData = [
+            'success' => true,
+            'html' => $html,
+            'pagination' => $pagination,
+            'total' => $deniedAccessLogs24h->total(),
+            'current_page' => $deniedAccessLogs24h->currentPage(),
+            'per_page' => $perPage,
+            'last_page' => $deniedAccessLogs24h->lastPage()
+        ];
+        
+        Log::info('=== Access Denied Incidents AJAX Request END ===');
+        
+        return response()->json($responseData);
+        
+    } catch (\Exception $e) {
+        Log::error('Error in getAccessDeniedIncidentsAjax: ' . $e->getMessage());
+        
+        return response()->json([
+            'success' => false,
+            'message' => 'Server Error: ' . $e->getMessage(),
+            'html' => '',
+            'pagination' => ''
+        ], 500);
+    }
+}
+
+// ✅ NEW: Smart Pagination Generation Method
+private function generateSmartPagination($currentPage, $totalPages, $maxVisible = 7)
+{
+    if ($totalPages <= 1) {
+        return '';
+    }
+    
+    $html = '<nav aria-label="Page navigation"><ul class="pagination justify-content-center mb-0">';
+    
+    // Previous button
+    if ($currentPage > 1) {
+        $html .= '<li class="page-item">';
+        $html .= '<a class="page-link access-denied-pagination-link" href="#" data-page="' . ($currentPage - 1) . '" aria-label="Previous">';
+        $html .= '<span aria-hidden="true">&laquo;</span>';
+        $html .= '</a>';
+        $html .= '</li>';
+    } else {
+        $html .= '<li class="page-item disabled">';
+        $html .= '<span class="page-link" aria-label="Previous"><span aria-hidden="true">&laquo;</span></span>';
+        $html .= '</li>';
+    }
+    
+    // Always show first page
+    if ($currentPage == 1) {
+        $html .= '<li class="page-item active"><span class="page-link">1</span></li>';
+    } else {
+        $html .= '<li class="page-item"><a class="page-link access-denied-pagination-link" href="#" data-page="1">1</a></li>';
+    }
+    
+    // Calculate start and end for middle pages
+    $start = max(2, $currentPage - 2);
+    $end = min($totalPages - 1, $currentPage + 2);
+    
+    // Show ellipsis after first page if needed
+    if ($start > 2) {
+        $html .= '<li class="page-item disabled"><span class="page-link">...</span></li>';
+    }
+    
+    // Show middle pages
+    for ($i = $start; $i <= $end; $i++) {
+        if ($i > 1 && $i < $totalPages) {
+            if ($i == $currentPage) {
+                $html .= '<li class="page-item active"><span class="page-link">' . $i . '</span></li>';
+            } else {
+                $html .= '<li class="page-item"><a class="page-link access-denied-pagination-link" href="#" data-page="' . $i . '">' . $i . '</a></li>';
+            }
+        }
+    }
+    
+    // Show ellipsis before last page if needed
+    if ($end < $totalPages - 1) {
+        $html .= '<li class="page-item disabled"><span class="page-link">...</span></li>';
+    }
+    
+    // Show last page if totalPages > 1
+    if ($totalPages > 1) {
+        if ($currentPage == $totalPages) {
+            $html .= '<li class="page-item active"><span class="page-link">' . $totalPages . '</span></li>';
+        } else {
+            $html .= '<li class="page-item"><a class="page-link access-denied-pagination-link" href="#" data-page="' . $totalPages . '">' . $totalPages . '</a></li>';
+        }
+    }
+    
+    // Next button
+    if ($currentPage < $totalPages) {
+        $html .= '<li class="page-item">';
+        $html .= '<a class="page-link access-denied-pagination-link" href="#" data-page="' . ($currentPage + 1) . '" aria-label="Next">';
+        $html .= '<span aria-hidden="true">&raquo;</span>';
+        $html .= '</a>';
+        $html .= '</li>';
+    } else {
+        $html .= '<li class="page-item disabled">';
+        $html .= '<span class="page-link" aria-label="Next"><span aria-hidden="true">&raquo;</span></span>';
+        $html .= '</li>';
+    }
+    
+    $html .= '</ul></nav>';
+    
+    return $html;
+}
+
+
 // ✅ NEW: Process Turnstile location for Access Denied alerts
 private function processTurnstileLocationForAlert($alert)
 {
@@ -2046,11 +2203,6 @@ public function getUpcomingAppointmentsAjax(Request $request)
         $offset = ($page - 1) * $perPage;
         $paginatedData = array_slice($upcomingAppointments, $offset, $perPage);
         
-        Log::info('Paginated data:', [
-            'count' => count($paginatedData),
-            'data' => $paginatedData
-        ]);
-        
         $html = '';
         if (!empty($paginatedData)) {
             foreach ($paginatedData as $index => $appointment) {
@@ -2073,8 +2225,8 @@ public function getUpcomingAppointmentsAjax(Request $request)
             </tr>';
         }
         
-        // ✅ CUSTOM PAGINATION GENERATE KAREIN
-        $totalPages = ceil(count($upcomingAppointments) / $perPage);
+        // Generate pagination
+        $totalPages = max(1, ceil(count($upcomingAppointments) / $perPage));
         $paginationHtml = $this->generateCustomPaginationHtml($page, $totalPages);
         
         return response()->json([
@@ -2088,11 +2240,10 @@ public function getUpcomingAppointmentsAjax(Request $request)
         
     } catch (\Exception $e) {
         Log::error('Error in getUpcomingAppointmentsAjax: ' . $e->getMessage());
-        Log::error('Stack trace: ' . $e->getTraceAsString());
         
         return response()->json([
             'success' => false,
-            'message' => 'Error loading data: ' . $e->getMessage(),
+            'message' => 'Error loading data',
             'html' => '<tr><td colspan="8" class="text-center text-danger">Error loading data. Please try again.</td></tr>',
             'pagination' => ''
         ], 500);

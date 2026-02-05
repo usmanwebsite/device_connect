@@ -434,37 +434,16 @@
     <div class="modal-dialog modal-xl">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title">Access Denied Incidents ({{ $deniedAccessCount ?? 0 }})</h5>
+                <h5 class="modal-title">Access Denied Incidents</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
-            <div class="modal-body">
-                <div class="table-responsive">
-                    <table class="table table-hover" id="accessDeniedTable">
-                        <thead>
-                            <tr>
-                                <th>Visitor Name</th>
-                                <th>Contact No</th>
-                                <th>IC No</th>
-                                <th>Host</th>
-                                <th>Location</th>
-                                <th>Reason</th>
-                                <th>Date & Time</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @foreach($enrichedDeniedAccessLogs as $enrichedLog)
-                            <tr>
-                                <td>{{ $enrichedLog['visitor_details']['fullName'] }}</td>
-                                <td>{{ $enrichedLog['visitor_details']['contactNo'] }}</td>
-                                <td>{{ $enrichedLog['visitor_details']['icNo'] }}</td>
-                                <td>{{ $enrichedLog['visitor_details']['personVisited'] }}</td>
-                                <td>{{ $enrichedLog['log']->location_name ?? 'Unknown Location' }}</td>
-                                <td>{{ $enrichedLog['log']->reason ? $enrichedLog['log']->reason : 'Other Reason' }}</td>
-                                <td>{{ \Carbon\Carbon::parse($enrichedLog['log']->created_at)->format('d M Y h:i A') }}</td>
-                            </tr>
-                            @endforeach
-                        </tbody>
-                    </table>
+            <div class="modal-body" id="accessDeniedModalBody">
+                {{-- Content will be loaded via AJAX --}}
+                <div class="text-center py-4">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <p class="mt-2">Loading access denied incidents...</p>
                 </div>
             </div>
             <div class="modal-footer">
@@ -580,11 +559,184 @@
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
 <script>
 let trafficChart = null;
-// NEW: Modal Show Functions for Alert Cards
 function showAccessDeniedModal() {
+    console.log('showAccessDeniedModal called');
     const modal = new bootstrap.Modal(document.getElementById('accessDeniedModal'));
+    
+    // Event listener for modal shown
+    $('#accessDeniedModal').on('shown.bs.modal', function() {
+        console.log('Access Denied modal shown');
+        loadAccessDeniedIncidents(1);
+    });
+    
+    // Clean up on modal hide
+    $('#accessDeniedModal').on('hidden.bs.modal', function() {
+        console.log('Access Denied modal hidden');
+        if ($.fn.DataTable.isDataTable('#accessDeniedDataTable')) {
+            $('#accessDeniedDataTable').DataTable().destroy();
+        }
+        $(document).off('click', '.access-denied-pagination-link');
+    });
+    
     modal.show();
 }
+
+function loadAccessDeniedIncidents(page = 1) {
+    console.log('loadAccessDeniedIncidents called, page:', page);
+    
+    const modalBody = $('#accessDeniedModalBody');
+    const url = `/vms/dashboard/access-denied-ajax?page=${page}`;
+    
+    console.log('Fetching URL:', url);
+    
+    modalBody.html(`
+        <div class="text-center py-4">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+            <p class="mt-2">Loading access denied incidents...</p>
+        </div>
+    `);
+    
+    // Get CSRF token
+    const csrfToken = $('meta[name="csrf-token"]').attr('content') || '';
+    
+    // Make AJAX request
+    $.ajax({
+        url: url,
+        type: 'GET',
+        dataType: 'json',
+        headers: {
+            'X-CSRF-TOKEN': csrfToken,
+            'X-Requested-With': 'XMLHttpRequest'
+        },
+        success: function(response) {
+            console.log('AJAX Success:', response);
+            
+            if (response.success) {
+                // Build HTML
+                let html = `
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h6 class="mb-0">Total: ${response.total} incidents</h6>
+                        <span class="badge bg-danger">Last 24 Hours</span>
+                    </div>
+                    
+                    <div class="table-responsive">
+                        <table class="table table-hover" id="accessDeniedDataTable">
+                            <thead>
+                                <tr>
+                                    <th>#</th>
+                                    <th>Visitor Name</th>
+                                    <th>Contact No</th>
+                                    <th>IC No</th>
+                                    <th>Host</th>
+                                    <th>Location</th>
+                                    <th>Reason</th>
+                                    <th>Date & Time</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${response.html || ''}
+                            </tbody>
+                        </table>
+                    </div>`;
+                
+                // Add pagination if exists
+                if (response.pagination) {
+                    html += `
+                    <div class="d-flex justify-content-center mt-3">
+                        ${response.pagination}
+                    </div>
+                    <div class="text-center text-muted mt-2">
+                        Showing ${((response.current_page - 1) * response.per_page) + 1} 
+                        to ${Math.min(response.current_page * response.per_page, response.total)} 
+                        of ${response.total} entries
+                    </div>`;
+                }
+                
+                modalBody.html(html);
+                
+                // Initialize DataTable
+                if ($.fn.DataTable.isDataTable('#accessDeniedDataTable')) {
+                    $('#accessDeniedDataTable').DataTable().destroy();
+                }
+                
+                $('#accessDeniedDataTable').DataTable({
+                    pageLength: 10,
+                    lengthMenu: [[5, 10, 25, 50, -1], [5, 10, 25, 50, "All"]],
+                    responsive: true,
+                    order: [[7, 'desc']],
+                    searching: true,
+                    paging: false,
+                    info: false,
+                    language: {
+                        search: "_INPUT_",
+                        searchPlaceholder: "Search incidents..."
+                    }
+                });
+                
+                // Attach pagination events
+                attachAccessDeniedPaginationEvents();
+                
+            } else {
+                // Show server error
+                modalBody.html(`
+                    <div class="alert alert-danger">
+                        <h6>Server Error</h6>
+                        <p class="mb-0">${response.message || 'Unknown error occurred'}</p>
+                        <button class="btn btn-sm btn-primary mt-2" onclick="loadAccessDeniedIncidents(${page})">
+                            <i class="fas fa-redo"></i> Retry
+                        </button>
+                    </div>
+                `);
+            }
+        },
+        error: function(xhr, status, error) {
+            console.error('AJAX Error:', {
+                status: xhr.status,
+                statusText: xhr.statusText,
+                responseText: xhr.responseText,
+                error: error
+            });
+            
+            let errorMsg = 'Network error occurred';
+            if (xhr.status === 404) {
+                errorMsg = 'Endpoint not found. Please check the URL.';
+            } else if (xhr.status === 500) {
+                errorMsg = 'Server error. Please try again later.';
+            } else if (xhr.status === 419) {
+                errorMsg = 'Session expired. Please refresh the page.';
+            }
+            
+            modalBody.html(`
+                <div class="alert alert-danger">
+                    <h6>${errorMsg}</h6>
+                    <p class="mb-0">Status: ${xhr.status} - ${xhr.statusText}</p>
+                    <button class="btn btn-sm btn-primary mt-2" onclick="loadAccessDeniedIncidents(${page})">
+                        <i class="fas fa-redo"></i> Retry
+                    </button>
+                </div>
+            `);
+        }
+    });
+}
+
+function attachAccessDeniedPaginationEvents() {
+    $(document).off('click', '.access-denied-pagination-link').on('click', '.access-denied-pagination-link', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        
+        const page = $(this).data('page');
+        console.log('Pagination clicked, page:', page);
+        
+        if (page) {
+            loadAccessDeniedIncidents(page);
+        }
+        
+        return false;
+    });
+}
+
 function showVisitorOverstayModal() {
     const modal = new bootstrap.Modal(document.getElementById('visitorOverstayModal'));
     modal.show();

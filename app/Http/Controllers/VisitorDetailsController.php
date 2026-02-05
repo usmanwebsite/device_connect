@@ -48,51 +48,130 @@ class VisitorDetailsController extends Controller
     /**
      * Search visitor by staffNo or icNo using new Java API
      */
-    public function search(Request $request)
-    {
-        // dd($request->all());
-        $request->validate([
-            'search_term' => 'required|string|min:1',
-            'search_type' => 'required|string|in:auto,staffNo,icNo'
+
+public function search(Request $request)
+{
+    $request->validate([
+        'search_term' => 'required|string|min:1',
+    ]);
+
+    $searchTerm = $request->input('search_term');
+    $searchType = $request->input('search_type');
+
+    try {
+        $response = $this->callJavaApi($searchTerm, $searchType);
+        
+        // Debug logging
+        Log::info('Java API Response in Controller:', $response ?? []);
+
+        // Check if response has data
+        if ($response && isset($response['data']) && !empty($response['data'])) {
+            $data = $response['data'] ?? [];
+
+            // Convert single object to array if needed
+            if (!is_array($data) || isset($data['staffNo'])) {
+                $data = [$data];
+            }
+
+            return response()->json([
+                'status' => 'OK',
+                'message' => 'Visitor details retrieved successfully',
+                'data' => $data
+            ]);
+        }
+
+        // If no data found, return error
+        return response()->json([
+            'status' => 'error',
+            'message' => $response['message'] ?? 'Visitor not found',
+            'data' => null
+        ], 404);
+
+    } catch (\Exception $e) {
+        Log::error('Error in visitor search: ' . $e->getMessage());
+
+        return response()->json([
+            'status' => 'error',
+            'message' => 'Error fetching visitor details: ' . $e->getMessage(),
+            'data' => null
+        ], 500);
+    }
+}
+
+private function callJavaApi($searchTerm, $searchType)
+{
+    try {
+        $javaBaseUrl = env('JAVA_BACKEND_URL', 'http://127.0.0.1:8080');
+        
+        // Get token from session
+        $token = session()->get('java_backend_token')
+               ?? session()->get('java_auth_token');
+        
+        if (!$token) {
+            Log::error('No authentication token found in session');
+            return [
+                'status' => 'error',
+                'message' => 'Authentication token not found. Please login again.',
+                'data' => null
+            ];
+        }
+        
+        // Build URL based on search type
+        if ($searchType === 'icNo') {
+            $url = $javaBaseUrl . "/api/vendorpass/get-visitor-details?icNo=" . urlencode($searchTerm);
+        } else {
+            $url = $javaBaseUrl . "/api/vendorpass/get-visitor-details?staffNo=" . urlencode($searchTerm);
+        }
+
+        Log::info('Calling Java API:', [
+            'url' => $url,
+            'searchTerm' => $searchTerm,
+            'searchType' => $searchType
         ]);
 
-        $searchTerm = $request->input('search_term');
-        $searchType = $request->input('search_type');
+        // Make API call with authentication token
+        $response = Http::withHeaders([
+            'x-auth-token' => $token,
+            'Accept' => 'application/json',
+        ])->timeout(30)->get($url);
         
-        try {
-            // Call Java API based on search type
-            $response = $this->callJavaApi($searchTerm, $searchType);
+        Log::info('Java API Response Status:', ['status' => $response->status()]);
+        
+        if ($response->successful()) {
+            $data = $response->json();
             
-            if ($response && isset($response['status']) && $response['status'] === 'success') {
-                $data = $response['data'] ?? [];
-                
-                // Check if data is single object or array
-                if (!is_array($data) || isset($data['staffNo'])) {
-                    // Single object - convert to array
-                    $data = [$data];
-                }
-                
-                return response()->json([
-                    'success' => true,
-                    'message' => $response['message'] ?? 'Visitor details retrieved successfully',
-                    'data' => $data
-                ]);
-            }
-            
-            return response()->json([
-                'success' => false,
-                'message' => $response['message'] ?? 'Visitor not found with the provided search term'
-            ], 404);
-            
-        } catch (\Exception $e) {
-            Log::error('Error in visitor search: ' . $e->getMessage());
-            
-            return response()->json([
-                'success' => false,
-                'message' => 'Error fetching visitor details: ' . $e->getMessage()
-            ], 500);
+            Log::info('Java API Response Data:', [
+                'status' => $data['status'] ?? 'not_set',
+                'message' => $data['message'] ?? 'not_set',
+                'has_data' => isset($data['data']),
+                'data_count' => is_array($data['data'] ?? null) ? count($data['data']) : 'N/A'
+            ]);
+
+            return $data;
         }
+
+        Log::error('Java API Error:', [
+            'status' => $response->status(),
+            'body' => $response->body()
+        ]);
+
+        return [
+            'status' => 'error',
+            'message' => 'API request failed with status: ' . $response->status(),
+            'data' => null
+        ];
+
+    } catch (\Exception $e) {
+        Log::error('Java API Call Exception: ' . $e->getMessage());
+        
+        return [
+            'status' => 'error',
+            'message' => 'Error connecting to Java API: ' . $e->getMessage(),
+            'data' => null
+        ];
     }
+}
+
 
 /**
  * Call Java API based on search type
@@ -162,72 +241,6 @@ class VisitorDetailsController extends Controller
 //         return null;
 //     }
 // }
-
-private function callJavaApi($searchTerm, $searchType)
-{
-    try {
-        // ✅ Yeh wala javaBaseUrl use karein
-        $javaBaseUrl = $this->javaBaseUrl;
-        
-        // ✅ Debug log add karein
-        Log::info('=== VisitorDetailsController - Java API Call ===');
-        Log::info('Java Base URL being used: ' . $javaBaseUrl);
-        Log::info('Search Term: ' . $searchTerm);
-        Log::info('Search Type: ' . $searchType);
-        
-        $params = [];
-        if ($searchType === 'staffNo') {
-            $params['staffNo'] = $searchTerm;
-        } elseif ($searchType === 'icNo') {
-            $params['icNo'] = $searchTerm;
-        } else {
-            $params['staffNo'] = $searchTerm;
-            $params['icNo'] = $searchTerm;
-        }
-        
-        
-        $fullUrl = $javaBaseUrl . '/api/vendorpass/get-visitor-details';
-        Log::info('Full Java API URL: ' . $fullUrl);
-        Log::info('With params: ', $params);
-        
-        // ✅ Session se token lein agar available ho
-        $token = session()->get('java_backend_token') ?? session()->get('java_auth_token');
-        
-        $headers = [
-            'Accept' => 'application/json',
-            'Content-Type' => 'application/json'
-        ];
-        
-        if ($token) {
-            $headers['x-auth-token'] = $token;
-            Log::info('Token added to headers');
-        }
-        
-        Log::info('Making Java API call...');
-        
-        $response = Http::withHeaders($headers)
-            ->timeout(30)
-            ->retry(2, 100)
-            ->get($fullUrl, $params);
-        
-        Log::info('Java API Response Status: ' . $response->status());
-        Log::info('Java API Response Body: ' . $response->body());
-        
-        if ($response->successful()) {
-            $data = $response->json();
-            Log::info('Java API Success: Data received');
-            return $data;
-        }
-        
-        Log::error('Java API Error: ' . $response->body());
-        return null;
-        
-    } catch (\Exception $e) {
-        Log::error('Java API Exception: ' . $e->getMessage());
-        Log::error('Stack trace: ' . $e->getTraceAsString());
-        return null;
-    }
-}
 
 private function isTurnstileCheckIn($locationName, $logTime, $staffNo)
 {

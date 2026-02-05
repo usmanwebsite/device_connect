@@ -847,54 +847,59 @@ $(document).ready(function() {
 function searchVisitor() {
     const searchTerm = $('#searchInput').val().trim();
     const searchType = $('#searchType').val();
-    
+
     if (!searchTerm) {
         showError('Please enter a search term');
         return;
     }
-    
-    currentSearchTerm = searchTerm;
-    currentSearchType = searchType;
-    
+
     showLoading();
     hideAllSections();
-    
-    console.log('Searching for:', searchTerm, 'Type:', searchType);
-    
-    let url = `${JAVA_BACKEND_URL}/api/vendorpass/get-visitor-details?icNo=${searchTerm}`;
-        
-    if (searchType === 'staffNo') {
-        url = `${JAVA_BACKEND_URL}/api/vendorpass/get-visitor-details?staffNo=${searchTerm}`;
-    }
-    
-    console.log('Direct API URL:', url);
-    
-    // Direct fetch to Java API
-    fetch(url)
-        .then(response => response.json())
-        .then(data => {
-            console.log('Direct API Response:', data);
+
+    $.ajax({
+        url: '{{ route("visitor-details.search") }}',
+        method: 'POST',
+        data: {
+            search_term: searchTerm,
+            search_type: searchType,
+            _token: '{{ csrf_token() }}'
+        },
+        success: function(response) {
             hideLoading();
-            
-            if (data && data.status === 'success') {
-                currentData = data.data;
-                displayVisitorData(data.data);
-                showSuccess('Visitor details found successfully');
+
+            console.log('API Response:', response); // Debug logging
+
+            // Check if we have data regardless of status
+            if (response && response.data && (Array.isArray(response.data) || Object.keys(response.data).length > 0)) {
+                currentData = response.data;
+                displayVisitorData(response.data);
+                showSuccess(response.message || 'Visitor details found successfully');
                 $('#exportBtn').show();
             } else {
-                showError(data.message || 'Visitor not found');
+                showError(response.message || 'Visitor not found');
                 showNoDataSection();
                 $('#exportBtn').hide();
             }
-        })
-        .catch(error => {
-            console.error('Direct API Error:', error);
+        },
+        error: function(xhr) {
             hideLoading();
-            showError('Error connecting to API');
+            console.error('AJAX Error:', xhr.responseText);
+            
+            let errorMessage = 'Error connecting to API';
+            try {
+                const response = JSON.parse(xhr.responseText);
+                errorMessage = response.message || errorMessage;
+            } catch (e) {
+                // If response is not JSON
+            }
+            
+            showError(errorMessage);
             showNoDataSection();
             $('#exportBtn').hide();
-        });
-}
+        }
+    });
+}   
+
     
 function displayVisitorData(data) {
     console.log('========== DISPLAY VISITOR DATA START ==========');

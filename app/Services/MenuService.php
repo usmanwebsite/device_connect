@@ -1373,7 +1373,7 @@ public function getFilteredAngularMenu()
 
             [
                 'id' => 7.0,
-                'label' => "VISITOR REPORT",
+                'label' => "REPORT",
                 'icon' => "bx-cog",
                 'isAuth' => 'mVRP',
                 'subItems' => [

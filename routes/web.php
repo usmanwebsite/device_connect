@@ -84,6 +84,7 @@ Route::get('/dashboard/security-alerts-datatable', [DashboardController::class, 
 
 Route::get('/dashboard/upcoming-appointments-ajax', [DashboardController::class, 'getUpcomingAppointmentsAjax'])->name('dashboard.upcoming.ajax');
 Route::get('/dashboard/active-security-alerts-ajax', [DashboardController::class, 'getActiveSecurityAlertsAjax'])->name('dashboard.active.security.alerts.ajax');
+Route::get('/dashboard/access-denied-ajax', [DashboardController::class, 'getAccessDeniedIncidentsAjax']);
 
 // Route::get('/redirect-to-angular', [AngularRedirectController::class, 'redirect'])->name('angular.redirect');
 

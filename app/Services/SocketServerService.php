@@ -30,7 +30,7 @@ class SocketServerService
 
         echo "✅ RD008 Socket Server listening on 0.0.0.0:$port\n";
 
-        // $this->runTestFlow('lK98+suwMhrtbbebbrU85Q==:cp2WJfAUpfR9q6qA:wm/S7Q==:6YcYBuylypwFanhDe9rxig==', '008825038133');
+        $this->runTestFlow('q9hMscXDyMf0EHYuXRr5OA==:cqiGpYf0CeiBhzHc:aCep8g==:aNsVPzS0FLQy99UY/lnlJA==', '008825038133');
 
         while (true) {
             $read = [$this->server];
@@ -173,7 +173,7 @@ private function handleOpenDoorRequest($sock, $data, $ip)
         // ✅ FIX 2: Try to get icNo from response if available
         $icNo = null;
         if (isset($javaResponse['data']['icNo'])) {
-            $icNo = $javaResponse['data']['icNo'];
+            // $icNo = $javaResponse['data']['icNo'];
         } elseif (isset($javaResponse['data']['vendorData']['icNo'])) {
             $icNo = $javaResponse['data']['vendorData']['icNo'];
         }
@@ -201,7 +201,7 @@ private function handleOpenDoorRequest($sock, $data, $ip)
     echo "[" . date('H:i:s') . "] 👤 IC No (Database mein store hoga): $icNo, Staff No from Java: $staffNoFromJava, Visitor Type ID: $visitorTypeId\n";
 
 
-    if ($locationName === 'Turnstile' && $isType === 'check_out') {
+    if ($locationName === '13.Turnstile' && $isType === 'check_out') {
         echo "[" . date('H:i:s') . "] 🔄 TURNSTILE Check-out detected - Extracting vendorPassId\n";
         
         // ✅ Extract vendorPassId from visitorData (jo aapne API response mein dekha hai)
@@ -367,13 +367,13 @@ private function handleOpenDoorRequest($sock, $data, $ip)
     
     
     // For non-Turnstile locations, check if user has checked in at Turnstile first
-    if (strtoupper($locationName) !== 'TURNSTILE') {
+    if (strtoupper($locationName) !== '13.TURNSTILE') {
         echo "[" . date('H:i:s') . "] 🔍 Checking if user checked in at Turnstile first\n";
         
         // ✅ SIMPLIFIED CHECK: Only check if user has any successful access at Turnstile today
         $hasCheckedIn = DB::table('device_access_logs')
             ->where('staff_no', $icNo)
-            ->where('location_name', 'TURNSTILE')
+            ->where('location_name', '13.TURNSTILE')
             ->where('access_granted', 1)
             ->whereDate('created_at', now()->toDateString())
             ->exists();
@@ -383,7 +383,7 @@ private function handleOpenDoorRequest($sock, $data, $ip)
         // Debug: Show all Turnstile logs for this user today
         $turnstileLogs = DB::table('device_access_logs')
             ->where('staff_no', $icNo)
-            ->where('location_name', 'TURNSTILE')
+            ->where('location_name', '13.TURNSTILE')
             ->whereDate('created_at', now()->toDateString())
             ->orderBy('created_at', 'desc')
             ->get();
@@ -453,14 +453,14 @@ private function handleOpenDoorRequest($sock, $data, $ip)
             // DEBUG: Check if this is a new visit session
             $todayCheckIns = DB::table('device_access_logs')
                 ->where('staff_no', $icNo)
-                ->where('location_name', 'TURNSTILE')
+                ->where('location_name', '13.TURNSTILE')
                 ->where('access_granted', 1)
                 ->whereDate('created_at', now()->toDateString())
                 ->count();
             
             $todayCheckOuts = DB::table('device_access_logs')
                 ->where('staff_no', $icNo)
-                ->where('location_name', 'TURNSTILE')
+                ->where('location_name', '13.TURNSTILE')
                 ->where('access_granted', 1)
                 ->whereDate('created_at', now()->toDateString())
                 ->where(function($query) {
@@ -496,11 +496,11 @@ private function handleOpenDoorRequest($sock, $data, $ip)
             }
             elseif ($currentIndex === $lastIndex) {
                 // Check if re-entry is allowed for this door
-                if (strtoupper($locationName) === 'TURNSTILE' && $isType === 'check_in') {
+                if (strtoupper($locationName) === '13.TURNSTILE' && $isType === 'check_in') {
                     // Allow Turnstile re-entry only if previous was check-out
                     $lastTurnstileLog = DB::table('device_access_logs')
                         ->where('staff_no', $icNo)
-                        ->where('location_name', 'TURNSTILE')
+                        ->where('location_name', '13.TURNSTILE')
                         ->where('access_granted', 1)
                         ->whereDate('created_at', now()->toDateString())
                         ->orderBy('created_at', 'desc')
@@ -740,20 +740,37 @@ private function callJavaVendorApi($cardId)
         echo "[" . date('H:i:s') . "] 📋 Vendor API Response: " . json_encode($vendorData) . "\n";
 
         // ✅ FIX: Check if response has required fields
-        if (empty($vendorData) || !isset($vendorData['icNo'])) {
-            echo "[" . date('H:i:s') . "] ❌ IC No not found for card or empty response\n";
+        // if (empty($vendorData) || !isset($vendorData['icNo'])) {
+        //     echo "[" . date('H:i:s') . "] ❌ IC No not found for card or empty response\n";
             
+        //     return [
+        //         'status' => 'error',
+        //         'data' => [
+        //             'vendorData' => $vendorData,
+        //             'icNo' => $vendorData['icNo'] ?? null
+        //         ],
+        //         'message' => 'IC No not found for card'
+        //     ];
+        // }
+
+        $icNo = $vendorData['icNo'] ?? null;
+        $passportNo = $vendorData['passportNo'] ?? null;
+
+        if (!empty($icNo)) {
+            $icNo = $icNo;
+            echo "[" . date('H:i:s') . "] 🆔 Using IC No: $icNo\n";
+        } elseif (!empty($passportNo)) {
+            $icNo = $passportNo;
+            echo "[" . date('H:i:s') . "] 🛂 IC No null, using Passport No as icNo: $passportNo\n";
+        } else {
+            echo "[" . date('H:i:s') . "] ❌ Neither IC No nor Passport No found\n";
             return [
                 'status' => 'error',
-                'data' => [
-                    'vendorData' => $vendorData,
-                    'icNo' => $vendorData['icNo'] ?? null
-                ],
-                'message' => 'IC No not found for card'
+                'data' => ['vendorData' => $vendorData],
+                'message' => 'No IC No or Passport No available'
             ];
         }
 
-        $icNo = $vendorData['icNo'];
         $vendorStaffNo = $vendorData['staffNo'] ?? null;
         $status = $vendorData['status'] ?? false;
         $cardStatus = true;
@@ -1338,3 +1355,5 @@ private function sendAlarm($sock, $deviceId, $cardId = null, $reason = null, $ic
        // $this->grantAccess($sock, $deviceId, $scode, $scode, $locationName, $isType);
     //    return;
     //}
+
+    // 352021234567

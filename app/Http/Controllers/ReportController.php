@@ -198,10 +198,10 @@ public function getAccessLogsData(Request $request)
             $formattedData[] = [
                 'DT_RowIndex' => $start + $index + 1,
                 'staff_no' => $staff->staff_no, 
-                'full_name' => 'Loading...', 
-                'contact_no' => 'Loading...',
+                'full_name' => 'N/A', 
+                'contact_no' => 'N/A',
                 'ic_no' => $staff->staff_no,
-                'person_visited' => 'Loading...', 
+                'person_visited' => 'N/A', 
                 'total_access' => $staff->total_access,
                 'first_access' => $staff->first_access_original ? Carbon::parse($staff->first_access_original)->format('d/m/Y H:i') : 'N/A',
                 'last_access' => $staff->last_access_original ? Carbon::parse($staff->last_access_original)->format('d/m/Y H:i') : 'N/A',

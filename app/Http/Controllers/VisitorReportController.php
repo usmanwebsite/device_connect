@@ -43,242 +43,176 @@ class VisitorReportController extends Controller
         return back()->with('success', 'Export completed successfully');
     }
 
-    private function getVisitorsFromDeviceLogs()
-    {
-        try {
-            $deviceLogs = DeviceAccessLog::where('access_granted', 1)
-                ->orderBy('created_at', 'desc')
-                ->get();
+private function getVisitorsFromDeviceLogs()
+{
+    try {
+        $deviceLogs = DeviceAccessLog::where('access_granted', 1)
+            ->orderBy('created_at', 'desc')
+            ->get();
 
-            $groupedLogs = $deviceLogs->groupBy('staff_no');
+        $groupedLogs = $deviceLogs->groupBy('staff_no');
 
-            $visitors = [];
-            $serialNo = 1;
+        $visitors = [];
+        $serialNo = 1;
 
-            foreach ($groupedLogs as $staffNo => $logs) {
-                try {
-                    $javaApiResponse = $this->callJavaVendorApi($staffNo);
-                    $visitorData = $javaApiResponse['data'] ?? null;
+        foreach ($groupedLogs as $staffNo => $logs) {
+            try {
+                $javaApiResponse = $this->callJavaVendorApi($staffNo);
+                $visitorData = $javaApiResponse['data'] ?? null;
 
-                    // Latest log
-                    $latestLog = $logs->first();
-                    $earliestLog = $logs->last();
+                $latestLog = $logs->first();  // Sabse recent scan
+                $earliestLog = $logs->last(); // Sabse pehla scan
 
-                    // ✅ Time In Logic
-                    $timeIn = null;
-                    foreach ($logs as $log) {
-                        $logLocationName = $log->location_name;
-
-                        if (!$logLocationName) continue;
-
-                        $vendorLocation = VendorLocation::where('name', $logLocationName)->first();
-                        if (!$vendorLocation) continue;
-
-                        $deviceAssign = DeviceLocationAssign::where('location_id', $vendorLocation->id)
-                            ->where('is_type', 'check_in')
-                            ->first();
-
-                        if (!$deviceAssign) continue;
-
+                // ✅ Time In - Pehla check_in scan dhoondo
+                $timeIn = null;
+                foreach ($logs->reverse() as $log) { // Pehle scan se shuru karo
+                    if (!$log->location_name) continue;
+                    
+                    $vendorLocation = VendorLocation::where('name', $log->location_name)->first();
+                    if (!$vendorLocation) continue;
+                    
+                    $deviceAssign = DeviceLocationAssign::where('location_id', $vendorLocation->id)
+                        ->where('is_type', 'check_in')
+                        ->first();
+                    
+                    if ($deviceAssign) {
                         $timeIn = $log->created_at->format('H:i:s');
                         break;
                     }
+                }
 
-                    $dateOfVisit = $earliestLog ? $earliestLog->created_at->format('Y-m-d') : 'N/A';
+                $dateOfVisit = $earliestLog ? $earliestLog->created_at->format('Y-m-d') : 'N/A';
 
-                    // ✅ Time Out Logic
-                    $timeOut = null;
-                    foreach ($logs as $log) {
-                        $logLocationName = $log->location_name;
-
-                        if (!$logLocationName) continue;
-
-                        $vendorLocation = VendorLocation::where('name', $logLocationName)->first();
-                        if (!$vendorLocation) continue;
-
-                        $deviceAssign = DeviceLocationAssign::where('location_id', $vendorLocation->id)
-                            ->where('is_type', 'check_out')
-                            ->first();
-
-                        if (!$deviceAssign) continue;
-
+                // ✅ Time Out - Kya visitor ne check_out kiya hai?
+                $timeOut = null;
+                foreach ($logs as $log) { // Recent scan se shuru karo
+                    if (!$log->location_name) continue;
+                    
+                    $vendorLocation = VendorLocation::where('name', $log->location_name)->first();
+                    if (!$vendorLocation) continue;
+                    
+                    $deviceAssign = DeviceLocationAssign::where('location_id', $vendorLocation->id)
+                        ->where('is_type', 'check_out')
+                        ->first();
+                    
+                    if ($deviceAssign) {
                         $timeOut = $log->created_at->format('H:i:s');
                         break;
                     }
-
-                    // ✅ ✅✅ NEW LOGIC: Current Location with Turnstile Check
-                    $currentLocation = $latestLog->location_name ?? 'N/A';
-                    
-                    if ($latestLog && $latestLog->location_name && $latestLog->device_id) {
-                        // Step 1: Check if location_name contains "Turnstile" or similar
-                        $locationName = $latestLog->location_name;
-                        $isTurnstile = stripos($locationName, 'Turnstile') !== false || 
-                                       stripos($locationName, 'Main Gate') !== false ||
-                                       stripos($locationName, 'Entrance') !== false;
-                        
-                        if ($isTurnstile) {
-                            // Step 2: Get VendorLocation ID by name
-                            $vendorLocation = VendorLocation::where('name', 'like', '%' . $locationName . '%')->first();
-                            
-                            if ($vendorLocation) {
-                                $locationId = $vendorLocation->id;
-                                
-                                // Step 3: Get DeviceConnection ID by device_id
-                                $deviceConnection = DeviceConnection::where('device_id', $latestLog->device_id)->first();
-                                
-                                if ($deviceConnection) {
-                                    $deviceId = $deviceConnection->id;
-                                    
-                                    // Step 4: Check in device_location_assigns
-                                    $deviceLocationAssign = DeviceLocationAssign::where('device_id', $deviceId)
-                                        ->where('location_id', $locationId)
-                                        ->first();
-                                    
-                                    if ($deviceLocationAssign) {
-                                        // Step 5: Check is_type
-                                        if ($deviceLocationAssign->is_type == 'check_in') {
-                                            $currentLocation = 'Turnstile';
-                                        } elseif ($deviceLocationAssign->is_type == 'check_out') {
-                                            $currentLocation = 'Out';
-                                        }
-                                    } else {
-                                        // Agar match na mile toh alternative check
-                                        Log::info("Device location assign not found for device_id: {$deviceId}, location_id: {$locationId}");
-                                        $currentLocation = 'Turnstile (Check Pending)';
-                                    }
-                                } else {
-                                    Log::info("Device connection not found for device_id: {$latestLog->device_id}");
-                                }
-                            } else {
-                                Log::info("Vendor location not found for name: {$locationName}");
-                            }
-                        }
-                    }
-
-                    // Accessed locations
-                    $accessedLocations = $logs->pluck('location_name')->unique()->filter()->implode(', ');
-
-                    $purpose = $this->extractPurposeFromApi($visitorData ?? []);
-
-                    $status = $this->determineVisitorStatus(
-                        $visitorData['dateOfVisitFrom'] ?? null,
-                        $visitorData['dateOfVisitTo'] ?? null,
-                        $logs
-                    );
-
-                    $visitors[] = [
-                        'no' => $serialNo++,
-                        'ic_passport' => $visitorData['icNo'] ?? 'N/A',
-                        'name' => $visitorData['fullName'] ?? 'N/A',
-                        'contact_no' => $visitorData['contactNo'] ?? 'N/A',
-                        'company_name' => $visitorData['companyName'] ?? 'N/A',
-                        'date_of_visit' => $dateOfVisit,
-                        'time_in' => $timeIn,
-                        'time_out' => $timeOut ?? 'N/A',
-                        'purpose' => $purpose,
-                        'host_name' => $visitorData['personVisited'] ?? 'N/A',
-                        'current_location' => $currentLocation, // ✅ Updated
-                        'location_accessed' => $accessedLocations ?: 'N/A',
-                        'duration' => $this->calculateDurationFromFirstEntry($logs),
-                        'status' => $status
-                    ];
-
-                } catch (\Exception $e) {
-                    Log::error('Error processing visitor ' . $staffNo . ': ' . $e->getMessage());
-                    continue;
                 }
+
+                //dd($logs);
+                // ✅ IMPORTANT: Current Location - SIRF last scan ke basis par
+                $currentLocation = $this->getCurrentLocationBasedOnLatestScan($logs);
+                
+                //dd($currentLocation);
+                // ✅ Agar koi check_out scan nahi hai, toh time_out "N/A" rahega
+                // Aur current location last scan ki location hogi
+
+                // Accessed locations
+                $accessedLocations = $logs->pluck('location_name')->unique()->filter()->implode(', ');
+
+                $purpose = $this->extractPurposeFromApi($visitorData ?? []);
+
+                $status = $this->determineVisitorStatus(
+                    $visitorData['dateOfVisitFrom'] ?? null,
+                    $visitorData['dateOfVisitTo'] ?? null,
+                    $logs
+                );
+
+                // Duration calculate karo
+                $duration = $this->calculateDuration($timeIn, $timeOut);
+
+                $visitors[] = [
+                    'no' => $serialNo++,
+                    'ic_passport' => $visitorData['icNo'] ?? 'N/A',
+                    'name' => $visitorData['fullName'] ?? 'N/A',
+                    'contact_no' => $visitorData['contactNo'] ?? 'N/A',
+                    'company_name' => $visitorData['companyName'] ?? 'N/A',
+                    'date_of_visit' => $dateOfVisit,
+                    'time_in' => $timeIn ?? 'N/A',
+                    'time_out' => $timeOut ?? 'N/A',
+                    'purpose' => $purpose,
+                    'host_name' => $visitorData['personVisited'] ?? 'N/A',
+                    'current_location' => $currentLocation, // ✅ Yeh ab sahi hoga
+                    'location_accessed' => $accessedLocations ?: 'N/A',
+                    'duration' => $duration,
+                    'status' => $status
+                ];
+
+            } catch (\Exception $e) {
+                Log::error('Error processing visitor ' . $staffNo . ': ' . $e->getMessage());
+                continue;
             }
-
-            return $visitors;
-
-        } catch (\Exception $e) {
-            Log::error('Error fetching visitors from device logs: ' . $e->getMessage());
-            return $this->getStaticVisitors();
         }
+
+        return $visitors;
+
+    } catch (\Exception $e) {
+        Log::error('Error fetching visitors from device logs: ' . $e->getMessage());
+        return $this->getStaticVisitors();
     }
+}
 
-    // ✅ Optimized function for current location check
-    private function getCurrentLocationWithTurnstileCheck($latestLog)
-    {
-        try {
-            if (!$latestLog || !$latestLog->location_name || !$latestLog->device_id) {
-                return $latestLog->location_name ?? 'N/A';
-            }
-
-            $locationName = $latestLog->location_name;
-            
-            // Step 1: Check if this is a Turnstile location
-            $isTurnstile = $this->isTurnstileLocation($locationName);
-            
-            if (!$isTurnstile) {
-                return $locationName;
-            }
-            
-            // Step 2: Get VendorLocation ID
-            $vendorLocation = VendorLocation::where('name', 'like', '%' . $locationName . '%')->first();
-            if (!$vendorLocation) {
-                Log::warning("VendorLocation not found for: {$locationName}");
-                return $locationName;
-            }
-            
-            // Step 3: Get DeviceConnection
-            $deviceConnection = DeviceConnection::where('device_id', $latestLog->device_id)->first();
-            if (!$deviceConnection) {
-                Log::warning("DeviceConnection not found for device_id: {$latestLog->device_id}");
-                return $locationName;
-            }
-            
-            // Step 4: Check DeviceLocationAssign
-            $deviceLocationAssign = DeviceLocationAssign::where('device_id', $deviceConnection->id)
-                ->where('location_id', $vendorLocation->id)
-                ->first();
-            
-            if (!$deviceLocationAssign) {
-                Log::warning("DeviceLocationAssign not found for device_id: {$deviceConnection->id}, location_id: {$vendorLocation->id}");
-                return $locationName;
-            }
-            
-            // Step 5: Return based on is_type
-            if ($deviceLocationAssign->is_type == 'check_in') {
-                return 'Turnstile';
-            } elseif ($deviceLocationAssign->is_type == 'check_out') {
-                return 'Out';
-            } else {
-                return $locationName;
-            }
-            
-        } catch (\Exception $e) {
-            Log::error('Error in getCurrentLocationWithTurnstileCheck: ' . $e->getMessage());
-            return $latestLog->location_name ?? 'N/A';
-        }
+private function getCurrentLocationBasedOnLatestScan($logs)
+{
+    if ($logs->isEmpty()) {
+        return 'N/A';
     }
     
-    // ✅ Helper function to check if location is Turnstile
-    private function isTurnstileLocation($locationName)
-    {
-        if (!$locationName) {
-            return false;
-        }
-        
-        $turnstileKeywords = [
-            'turnstile',
-            'main gate', 
-            'entrance',
-            'exit',
-            'gate',
-            'access control'
-        ];
-        
-        $locationLower = strtolower($locationName);
-        
-        foreach ($turnstileKeywords as $keyword) {
-            if (stripos($locationLower, $keyword) !== false) {
-                return true;
-            }
-        }
-        
-        return false;
+    // SIRF last (most recent) scan dekho
+    $latestLog = $logs->first();
+    $locationName = $latestLog->location_name ?? '';
+    
+    if (!$locationName) {
+        return 'N/A';
     }
+    
+    // Step 1: Check kya yeh Turnstile/Gate hai? 13.TURNSTILE'
+    $isGate =strtoupper($locationName) === "Turnstile";
+    
+    // Step 2: Agar Turnstile/Gate NAHI hai, toh wahi location return karo
+    if (!$isGate) {
+        return $locationName;
+    }
+    
+    // Step 3: Agar Turnstile/Gate HAI, toh check karo check_in hai ya check_out
+    try {
+        // VendorLocation find karo
+        $vendorLocation = VendorLocation::where('name', 'like', '%' . $locationName . '%')->first();
+        if (!$vendorLocation) {
+            return $locationName; // VendorLocation nahi mila, toh location name hi return karo
+        }
+        
+        // DeviceConnection find karo
+        $deviceConnection = DeviceConnection::where('device_id', $latestLog->device_id)->first();
+        if (!$deviceConnection) {
+            return $locationName;
+        }
+        
+        // DeviceLocationAssign find karo
+        $deviceLocationAssign = DeviceLocationAssign::where('device_id', $deviceConnection->id)
+            ->where('location_id', $vendorLocation->id)
+            ->first();
+        
+        if (!$deviceLocationAssign) {
+            return $locationName;
+        }
+        
+        // is_type ke hisaab se return karo
+        if ($deviceLocationAssign->is_type == 'check_in') {
+            return 'Turnstile (Entry)'; // Gate se andar aaya hai
+        } elseif ($deviceLocationAssign->is_type == 'check_out') {
+            return 'Out'; // Gate se bahar gaya hai
+        } else {
+            return $locationName;
+        }
+        
+    } catch (\Exception $e) {
+        Log::error('Error in getCurrentLocationBasedOnLatestScan: ' . $e->getMessage());
+        return $locationName;
+    }
+}
 
     // ✅ UPDATED: Main function with optimized current location logic
     private function getVisitorsFromDeviceLogsOptimized()
@@ -376,27 +310,37 @@ class VisitorReportController extends Controller
     }
 
     // Rest of the methods remain the same...
-    private function calculateDurationFromFirstEntry($logs)
-    {
-        try {
-            if ($logs->isEmpty()) {
-                return 'N/A';
-            }
-
-            $firstLog = $logs->last();
-            $from = Carbon::parse($firstLog->created_at);
-            $to = now();
-
-            $diffInMinutes = $to->diffInMinutes($from);
-            $hours = floor($diffInMinutes / 60);
-            $minutes = $diffInMinutes % 60;
-
-            return $hours . ' hours ' . $minutes . ' minutes';
-        } catch (\Exception $e) {
+private function calculateDuration($timeIn, $timeOut)
+{
+    try {
+        if (!$timeIn || $timeIn == 'N/A') {
             return 'N/A';
         }
+        
+        if ($timeOut && $timeOut != 'N/A') {
+            // Agar time_out hai, toh time_in se time_out tak ka duration
+            $start = Carbon::parse($timeIn);
+            $end = Carbon::parse($timeOut);
+            $diffInMinutes = $end->diffInMinutes($start);
+        } else {
+            // Agar time_out nahi hai, toh time_in se abhi tak ka duration
+            $start = Carbon::parse($timeIn);
+            $diffInMinutes = now()->diffInMinutes($start);
+        }
+        
+        $hours = floor($diffInMinutes / 60);
+        $minutes = $diffInMinutes % 60;
+        
+        if ($hours > 0) {
+            return $hours . ' hours ' . $minutes . ' minutes';
+        } else {
+            return $minutes . ' minutes';
+        }
+        
+    } catch (\Exception $e) {
+        return 'N/A';
     }
-
+}
     private function determineVisitorStatus($dateFrom, $dateTo, $logs)
     {
         if ($dateFrom && $dateTo) {
