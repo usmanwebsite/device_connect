@@ -140,6 +140,8 @@ Route::get('/clear-session', function() {
         Route::get('/', [VisitorDetailsController::class, 'index'])->name('visitor-details.index');
         Route::post('/search', [VisitorDetailsController::class, 'search'])->name('visitor-details.search');
         Route::post('/chronology', [VisitorDetailsController::class, 'getVisitorChronology'])->name('visitor-details.chronology');
+        Route::post('/download-chronology-pdf', [VisitorDetailsController::class, 'downloadChronologyPdf'])
+        ->name('visitor-details.download-chronology-pdf');
     });
 
     Route::prefix('/vms/visitor-info-door')->name('visitor-info-door.')->group(function () {

@@ -7,6 +7,7 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\DB;
 use App\Services\MenuService;
+use Barryvdh\DomPDF\Facade\Pdf;
 use App\Models\DeviceConnection;
 use App\Models\DeviceLocationAssign;
 use App\Models\VendorLocation;
@@ -62,21 +63,71 @@ public function search(Request $request)
         $response = $this->callJavaApi($searchTerm, $searchType);
         
         // Debug logging
-        Log::info('Java API Response in Controller:', $response ?? []);
+        Log::info('Java API Response in Controller:', ['response' => $response]);
 
-        // Check if response has data
-        if ($response && isset($response['data']) && !empty($response['data'])) {
-            $data = $response['data'] ?? [];
-
+        // Check if response has data - مختلف scenarios کو handle کریں
+        $data = [];
+        
+        if ($response && isset($response['status']) && $response['status'] === 'OK') {
+            // Case 1: Response میں data key موجود ہے
+            if (isset($response['data'])) {
+                $data = $response['data'];
+                
+                // Check if data is string, convert to array
+                if (is_string($data)) {
+                    Log::warning('Data is string, attempting to decode');
+                    $decodedData = json_decode($data, true);
+                    if ($decodedData !== null) {
+                        $data = $decodedData;
+                    } else {
+                        // If it's a simple string, wrap it in array
+                        $data = [['info' => $data]];
+                    }
+                }
+            } 
+            // Case 2: Response ہی data ہے
+            else {
+                $data = $response;
+            }
+        } 
+        // Case 3: Response میں data array کی صورت میں براہ راست موجود ہے
+        elseif (is_array($response) && !isset($response['status'])) {
+            $data = $response;
+        }
+        
+        Log::info('Processed data for display:', ['data' => $data, 'count' => count($data)]);
+        
+        // اگر ڈیٹا مل گیا ہے
+        if (!empty($data)) {
             // Convert single object to array if needed
-            if (!is_array($data) || isset($data['staffNo'])) {
+            if (!is_array($data) || isset($data['staffNo']) || isset($data['icNo'])) {
                 $data = [$data];
+            }
+            
+            // ہر وزیٹر کے لیے VisitFrom اور VisitTo ڈیٹا fetch کریں
+            foreach ($data as &$visitor) {
+                $identifier = $visitor['icNo'] ?? $visitor['staffNo'] ?? 
+                              ($visitor['ic_no'] ?? $visitor['staff_no'] ?? '');
+                
+                if ($identifier) {
+                    $visitData = $this->getVisitTimings($identifier);
+                    $visitor['visitFrom'] = $visitData['visitFrom'];
+                    $visitor['visitTo'] = $visitData['visitTo'];
+                    $visitor['visitDuration'] = $visitData['duration'];
+                    $visitor['isCurrentlyInBuilding'] = $visitData['isCurrentlyInBuilding'];
+                } else {
+                    $visitor['visitFrom'] = null;
+                    $visitor['visitTo'] = null;
+                    $visitor['visitDuration'] = 'No access logs found';
+                    $visitor['isCurrentlyInBuilding'] = false;
+                }
             }
 
             return response()->json([
                 'status' => 'OK',
                 'message' => 'Visitor details retrieved successfully',
-                'data' => $data
+                'data' => $data,
+                'count' => count($data)
             ]);
         }
 
@@ -89,6 +140,7 @@ public function search(Request $request)
 
     } catch (\Exception $e) {
         Log::error('Error in visitor search: ' . $e->getMessage());
+        Log::error('Stack trace: ' . $e->getTraceAsString());
 
         return response()->json([
             'status' => 'error',
@@ -97,6 +149,7 @@ public function search(Request $request)
         ], 500);
     }
 }
+
 
 private function callJavaApi($searchTerm, $searchType)
 {
@@ -136,18 +189,32 @@ private function callJavaApi($searchTerm, $searchType)
         ])->timeout(30)->get($url);
         
         Log::info('Java API Response Status:', ['status' => $response->status()]);
+        Log::info('Java API Response Headers:', $response->headers());
         
         if ($response->successful()) {
-            $data = $response->json();
+            $content = $response->body();
+            Log::info('Java API Raw Response:', ['body' => $content]);
             
-            Log::info('Java API Response Data:', [
-                'status' => $data['status'] ?? 'not_set',
-                'message' => $data['message'] ?? 'not_set',
-                'has_data' => isset($data['data']),
-                'data_count' => is_array($data['data'] ?? null) ? count($data['data']) : 'N/A'
-            ]);
-
-            return $data;
+            // Try to decode JSON
+            $data = json_decode($content, true);
+            
+            if (json_last_error() === JSON_ERROR_NONE) {
+                Log::info('Java API JSON decoded successfully');
+                Log::info('Decoded data type:', ['type' => gettype($data)]);
+                Log::info('Decoded data structure:', $data);
+                
+                return $data;
+            } else {
+                Log::error('JSON decode error: ' . json_last_error_msg());
+                Log::error('Raw content: ' . substr($content, 0, 500));
+                
+                // If it's not JSON, return as is
+                return [
+                    'status' => 'success',
+                    'data' => $content,
+                    'message' => 'Response received (non-JSON)'
+                ];
+            }
         }
 
         Log::error('Java API Error:', [
@@ -163,6 +230,7 @@ private function callJavaApi($searchTerm, $searchType)
 
     } catch (\Exception $e) {
         Log::error('Java API Call Exception: ' . $e->getMessage());
+        Log::error('Stack trace: ' . $e->getTraceAsString());
         
         return [
             'status' => 'error',
@@ -171,6 +239,81 @@ private function callJavaApi($searchTerm, $searchType)
         ];
     }
 }
+
+
+// private function callJavaApi($searchTerm, $searchType)
+// {
+//     try {
+//         $javaBaseUrl = env('JAVA_BACKEND_URL', 'http://127.0.0.1:8080');
+        
+//         // Get token from session
+//         $token = session()->get('java_backend_token')
+//                ?? session()->get('java_auth_token');
+        
+//         if (!$token) {
+//             Log::error('No authentication token found in session');
+//             return [
+//                 'status' => 'error',
+//                 'message' => 'Authentication token not found. Please login again.',
+//                 'data' => null
+//             ];
+//         }
+        
+//         // Build URL based on search type
+//         if ($searchType === 'icNo') {
+//             $url = $javaBaseUrl . "/api/vendorpass/get-visitor-details?icNo=" . urlencode($searchTerm);
+//         } else {
+//             $url = $javaBaseUrl . "/api/vendorpass/get-visitor-details?staffNo=" . urlencode($searchTerm);
+//         }
+
+//         Log::info('Calling Java API:', [
+//             'url' => $url,
+//             'searchTerm' => $searchTerm,
+//             'searchType' => $searchType
+//         ]);
+
+//         // Make API call with authentication token
+//         $response = Http::withHeaders([
+//             'x-auth-token' => $token,
+//             'Accept' => 'application/json',
+//         ])->timeout(30)->get($url);
+        
+//         Log::info('Java API Response Status:', ['status' => $response->status()]);
+        
+//         if ($response->successful()) {
+//             $data = $response->json();
+            
+//             Log::info('Java API Response Data:', [
+//                 'status' => $data['status'] ?? 'not_set',
+//                 'message' => $data['message'] ?? 'not_set',
+//                 'has_data' => isset($data['data']),
+//                 'data_count' => is_array($data['data'] ?? null) ? count($data['data']) : 'N/A'
+//             ]);
+
+//             return $data;
+//         }
+
+//         Log::error('Java API Error:', [
+//             'status' => $response->status(),
+//             'body' => $response->body()
+//         ]);
+
+//         return [
+//             'status' => 'error',
+//             'message' => 'API request failed with status: ' . $response->status(),
+//             'data' => null
+//         ];
+
+//     } catch (\Exception $e) {
+//         Log::error('Java API Call Exception: ' . $e->getMessage());
+        
+//         return [
+//             'status' => 'error',
+//             'message' => 'Error connecting to Java API: ' . $e->getMessage(),
+//             'data' => null
+//         ];
+//     }
+// }
 
 
 /**
@@ -716,9 +859,9 @@ public function getVisitorChronology(Request $request)
                 'dates' => $visitDates,
                 'logs_by_date' => $logsByDate,
                 'timeline_by_date' => $timelineByDate,
-                'current_status' => $currentStatus,  // ✅ ADDED
-                'total_time_spent' => $totalTimeSpent, // ✅ ADDED
-                'summary' => $summary, // ✅ ADDED
+                'current_status' => $currentStatus,  
+                'total_time_spent' => $totalTimeSpent, 
+                'summary' => $summary, 
                 'all_access_logs' => $accessLogs,
                 'all_location_timeline' => $locationTimeline
             ]
@@ -731,75 +874,6 @@ public function getVisitorChronology(Request $request)
         ]);
     }
 }
-/**
- * Get all access logs for visitor (ordered by latest first)
- */
-private function getAccessLogs($icNo)
-{
-    // StaffNo ki jagah IC No se search karein
-    $logs = DB::table('device_access_logs as dal')
-        ->where('dal.staff_no', $icNo) // Yahan IC No use ho raha hai
-        ->orderBy('dal.created_at', 'desc')
-        ->select(
-            'dal.id',
-            'dal.staff_no',
-            'dal.access_granted',
-            'dal.location_name',
-            'dal.device_id',
-            'dal.acknowledge',
-            'dal.created_at',
-            DB::raw('(SELECT location_name FROM device_access_logs WHERE staff_no = dal.staff_no AND created_at > dal.created_at ORDER BY created_at ASC LIMIT 1) as next_location'),
-            DB::raw('(SELECT created_at FROM device_access_logs WHERE staff_no = dal.staff_no AND created_at > dal.created_at ORDER BY created_at ASC LIMIT 1) as next_time'),
-            DB::raw('(SELECT location_name FROM device_access_logs WHERE staff_no = dal.staff_no AND created_at < dal.created_at ORDER BY created_at DESC LIMIT 1) as previous_location'),
-            DB::raw('(SELECT created_at FROM device_access_logs WHERE staff_no = dal.staff_no AND created_at < dal.created_at ORDER BY created_at DESC LIMIT 1) as previous_time')
-        )
-        ->get();
-    
-    Log::info("getAccessLogs: Found " . $logs->count() . " logs for IC Number: $icNo");
-    
-    // Debug ke liye logs print karein
-    foreach ($logs as $log) {
-        Log::info("Log ID: {$log->id}, Date: " . date('d-M-Y', strtotime($log->created_at)) . 
-                 ", Location: {$log->location_name}, Staff/IC No: {$log->staff_no}");
-    }
-    
-    return $logs;
-}
-
-/**
- * Get location timeline with durations (adjusted for descending order)
- */
-
-private function getLocationTimeline($accessLogs)
-{
-    $timeline = [];
-    
-    for ($i = 1; $i < $accessLogs->count(); $i++) {
-        $currentLog = $accessLogs[$i];
-        $previousLog = $accessLogs[$i - 1];
-        
-        $timeSpent = strtotime($currentLog->created_at) 
-                   - strtotime($previousLog->created_at);
-        
-        
-        $timeline[] = [
-            'from_location' => $previousLog->location_name ?? 'Unknown',
-            'to_location' => $currentLog->location_name ?? 'Unknown',
-            'entry_time' => $previousLog->created_at,
-            'exit_time' => $currentLog->created_at,
-            'time_spent' => [
-                'hours' => floor($timeSpent / 3600),
-                'minutes' => floor(($timeSpent % 3600) / 60),
-                'seconds' => $timeSpent % 60,
-                'total_seconds' => $timeSpent
-            ],
-            'access_granted' => $currentLog->access_granted ?? 1
-        ];
-    }
-    
-    return $timeline;
-}
-
 
 private function formatTime($seconds)
 {
@@ -815,108 +889,6 @@ private function formatTime($seconds)
         'formatted' => sprintf('%02d:%02d:%02d', $hours, $minutes, $seconds)
     ];
 }
-
-
-    // private function getCurrentStatus($staffNo)
-    // {
-    //     // Get the last access log
-    //     $lastLog = DB::table('device_access_logs')
-    //         ->where('staff_no', $staffNo)
-    //         ->orderBy('created_at', 'desc')
-    //         ->first();
-            
-    //     if (!$lastLog) {
-    //         return [
-    //             'status' => 'unknown',
-    //             'message' => 'No access logs found'
-    //         ];
-    //     }
-        
-    //     // First, try to get device type from vendor_locations based on location name
-    //     $locationType = $this->getLocationTypeFromName($lastLog->location_name);
-        
-    //     if ($locationType === 'check_in') {
-    //         return [
-    //             'status' => 'in_building',
-    //             'last_location' => $lastLog->location_name,
-    //             'last_access_time' => $lastLog->created_at,
-    //             'message' => 'Visitor is currently in the building'
-    //         ];
-    //     } elseif ($locationType === 'check_out') {
-    //         return [
-    //             'status' => 'out_of_building',
-    //             'last_location' => $lastLog->location_name,
-    //             'last_access_time' => $lastLog->created_at,
-    //             'message' => 'Visitor has exited the building'
-    //         ];
-    //     }
-        
-    //     // If location type not found in database, try to determine from location name
-    //     $locationName = strtolower($lastLog->location_name);
-        
-    //     if (strpos($locationName, 'entry') !== false || 
-    //         strpos($locationName, 'enter') !== false || 
-    //         strpos($locationName, 'in') !== false ||
-    //         strpos($locationName, 'checkin') !== false) {
-            
-    //         return [
-    //             'status' => 'in_building',
-    //             'last_location' => $lastLog->location_name,
-    //             'last_access_time' => $lastLog->created_at,
-    //             'message' => 'Visitor is currently in the building (based on location name)'
-    //         ];
-    //     } elseif (strpos($locationName, 'exit') !== false || 
-    //               strpos($locationName, 'out') !== false ||
-    //               strpos($locationName, 'checkout') !== false) {
-            
-    //         return [
-    //             'status' => 'out_of_building',
-    //             'last_location' => $lastLog->location_name,
-    //             'last_access_time' => $lastLog->created_at,
-    //             'message' => 'Visitor has exited the building (based on location name)'
-    //         ];
-    //     }
-        
-    //     // Default: if last access was granted, assume in building
-    //     if ($lastLog->access_granted == 1) {
-    //         return [
-    //             'status' => 'in_building',
-    //             'last_location' => $lastLog->location_name,
-    //             'last_access_time' => $lastLog->created_at,
-    //             'message' => 'Visitor is in the building (last access granted)'
-    //         ];
-    //     }
-        
-    //     return [
-    //         'status' => 'unknown',
-    //         'last_location' => $lastLog->location_name,
-    //         'last_access_time' => $lastLog->created_at,
-    //         'message' => 'Could not determine current status'
-    //     ];
-    // }
-    
-    /**
-     * Helper method to get location type from vendor_locations
-     */
-    private function getLocationTypeFromName($locationName)
-    {
-        // Try to find the location in vendor_locations table
-        $location = VendorLocation::where('name', 'like', '%' . $locationName . '%')
-            ->orWhere('name', $locationName)
-            ->first();
-        
-        if ($location) {
-            // Check if there's a device_location_assign for this location
-            $deviceAssign = DeviceLocationAssign::where('location_id', $location->id)
-                ->first();
-                
-            if ($deviceAssign) {
-                return $deviceAssign->is_type;
-            }
-        }
-        
-        return null;
-    }
 
 
 private function formatSeconds($seconds)
@@ -1121,20 +1093,12 @@ private function generateSummary($icNo, $accessLogs)
         ))
     ];
 }
-    /**
-     * Get chronology from Java API (if available)
-     */
-    // public function getChronology(Request $request)
-    // {
-    //     return $this->getVisitorChronology($request);
-    // }
 
     public function getChronology(Request $request)
     {
         $staffNo = $request->input('staff_no');
         $icNo = $request->input('ic_no');
         
-        // ✅ IMPORTANT: IC No ko staff_no se match karna hai
         $searchTerm = $icNo ?: $staffNo;
         
         if (!$searchTerm) {
@@ -1145,14 +1109,12 @@ private function generateSummary($icNo, $accessLogs)
         }
         
         try {
-            // ✅ Step 1: Database se logs fetch karein - IC No ke according
             $accessLogs = DB::table('device_access_logs')
-                ->where('staff_no', $searchTerm) // staff_no column mein IC No hai
-                ->where('access_granted', 1) // Sirf successful accesses
+                ->where('staff_no', $searchTerm) 
+                ->where('access_granted', 1) 
                 ->orderBy('created_at', 'asc')
                 ->get();
-            
-            // ✅ Step 2: Unique dates extract karein
+
             $dates = [];
             $logsByDate = [];
             $timelineByDate = [];
@@ -1168,23 +1130,19 @@ private function generateSummary($icNo, $accessLogs)
                 $logsByDate[$date][] = $log;
             }
             
-            // ✅ Step 3: Timeline generate karein har date ke liye
             foreach ($dates as $date) {
                 $dateLogs = $logsByDate[$date] ?? [];
                 $timelineByDate[$date] = $this->generateTimelineForDate($dateLogs);
             }
             
-            // ✅ Step 4: Summary calculate karein
             $summary = [
                 'total_visits' => $accessLogs->count(),
                 'successful_accesses' => $accessLogs->where('access_granted', 1)->count(),
                 'unique_dates' => count($dates)
             ];
             
-            // ✅ Step 5: Current status determine karein
             $currentStatus = $this->getCurrentStatus($searchTerm);
             
-            // ✅ Step 6: Total time spent calculate karein
             $totalTimeSpent = $this->calculateTotalTimeSpent($accessLogs);
             
             return response()->json([
@@ -1213,7 +1171,6 @@ private function generateSummary($icNo, $accessLogs)
     {
         $timeline = [];
         
-        // Sort logs by time
         $sortedLogs = collect($logs)->sortBy('created_at');
         
         for ($i = 1; $i < $sortedLogs->count(); $i++) {
@@ -1225,11 +1182,9 @@ private function generateSummary($icNo, $accessLogs)
                 continue;
             }
             
-            // Calculate time difference
             $timeSpent = \Carbon\Carbon::parse($currentLog->created_at)
                 ->diff(\Carbon\Carbon::parse($previousLog->created_at));
             
-            // Always create timeline item regardless of time gap
             $timeline[] = [
                 'from_location' => $previousLog->location_name,
                 'to_location' => $currentLog->location_name,
@@ -1340,12 +1295,10 @@ private function calculateTotalTimeSpent($logs)
         $current = $sortedLogs->get($i);
         $previous = $sortedLogs->get($i - 1);
         
-        // Calculate time difference between consecutive logs
         $timeDiff = \Carbon\Carbon::parse($current->created_at)
             ->diffInSeconds(\Carbon\Carbon::parse($previous->created_at));
         
-        // Only add if reasonable time gap (less than 4 hours)
-        if ($timeDiff < 14400) { // 4 hours
+        if ($timeDiff < 14400) { 
             $totalSeconds += $timeDiff;
         }
     }
@@ -1359,6 +1312,171 @@ private function calculateTotalTimeSpent($logs)
         'formatted' => "{$hours}h {$minutes}m {$seconds}s"
     ];
 }
+
+
+private function getVisitTimings($identifier)
+{
+    try {
+        Log::info("Fetching visit timings for identifier: $identifier");
+        
+        // ✅ CHANGE 1: Get ALL access logs for first/last access
+        $allAccessLogs = DB::table('device_access_logs')
+            ->where('staff_no', $identifier)
+            ->where('access_granted', 1)
+            ->orderBy('created_at', 'asc')
+            ->get(['id', 'created_at', 'location_name', 'device_id']);
+        
+        Log::info("Total access logs found: " . $allAccessLogs->count());
+        
+        if ($allAccessLogs->isEmpty()) {
+            return [
+                'visitFrom' => null,
+                'visitTo' => null,
+                'duration' => 'No visits found',
+                'isCurrentlyInBuilding' => false,
+                'visitSessions' => []
+            ];
+        }
+        
+        // ✅ Get FIRST and LAST access from ALL logs
+        $firstLog = $allAccessLogs->first();
+        $lastLog = $allAccessLogs->last();
+        
+        $visitFrom = $firstLog->created_at;
+        $visitTo = $lastLog->created_at;
+        
+        // Calculate duration
+        $durationSeconds = strtotime($visitTo) - strtotime($visitFrom);
+        $durationFormatted = $this->formatDuration($durationSeconds);
+        
+        // ✅ CHANGE 2: Check turnstile status for "currently in building"
+        // Get turnstile logs separately
+        $turnstileLogs = DB::table('device_access_logs')
+            ->where('staff_no', $identifier)
+            ->where('location_name', 'like', '%13.TURNSTILE%')
+            ->where('access_granted', 1)
+            ->orderBy('created_at', 'desc')
+            ->get(['id', 'created_at', 'location_name', 'device_id']);
+        
+        $isCurrentlyInBuilding = false;
+        
+        if ($turnstileLogs->isNotEmpty()) {
+            $lastTurnstileLog = $turnstileLogs->first();
+            $isCheckIn = $this->isTurnstileCheckIn(
+                $lastTurnstileLog->location_name, 
+                $lastTurnstileLog->created_at, 
+                $identifier
+            );
+            
+            // If last turnstile was check-in, visitor is still in building
+            $isCurrentlyInBuilding = $isCheckIn;
+            
+            Log::info("Last turnstile log: " . $lastTurnstileLog->created_at . 
+                     ", isCheckIn: " . ($isCheckIn ? 'YES' : 'NO') . 
+                     ", Currently in building: " . ($isCurrentlyInBuilding ? 'YES' : 'NO'));
+        } else {
+            // No turnstile logs found
+            Log::info("No turnstile logs found for $identifier");
+        }
+        
+        $result = [
+            'visitFrom' => $visitFrom,
+            'visitTo' => $visitTo,
+            'duration' => $durationFormatted,
+            'isCurrentlyInBuilding' => $isCurrentlyInBuilding,
+            'firstLocation' => $firstLog->location_name,
+            'lastLocation' => $lastLog->location_name,
+            'totalLogs' => $allAccessLogs->count(),
+            'firstLogTime' => $visitFrom,
+            'lastLogTime' => $visitTo
+        ];
+        
+        Log::info("Visit timings result: ", $result);
+        return $result;
+        
+    } catch (\Exception $e) {
+        Log::error('Error in getVisitTimings: ' . $e->getMessage());
+        return [
+            'visitFrom' => null,
+            'visitTo' => null,
+            'duration' => 'Error fetching data',
+            'isCurrentlyInBuilding' => false,
+            'visitSessions' => []
+        ];
+    }
+}
+
+private function formatDuration($seconds)
+{
+    if ($seconds <= 0) return '0 seconds';
+    
+    $hours = floor($seconds / 3600);
+    $minutes = floor(($seconds % 3600) / 60);
+    $seconds = $seconds % 60;
+    
+    $parts = [];
+    if ($hours > 0) $parts[] = $hours . ' hour' . ($hours > 1 ? 's' : '');
+    if ($minutes > 0) $parts[] = $minutes . ' minute' . ($minutes > 1 ? 's' : '');
+    if ($seconds > 0) $parts[] = $seconds . ' second' . ($seconds > 1 ? 's' : '');
+    
+    return implode(' ', $parts);
+}
+
+
+    public function downloadChronologyPdf(Request $request)
+    {
+        try {
+            $pdfData = json_decode($request->input('pdf_data'), true);
+            
+            if (!$pdfData) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Invalid PDF data'
+                ], 400);
+            }
+            
+            $visitorInfo = $pdfData['visitor'] ?? [];
+            $chronologyData = $pdfData['chronology'] ?? [];
+            $downloadType = $pdfData['downloadType'] ?? 'full';
+            $selectedDate = $pdfData['selectedDate'] ?? null;
+            
+            $filename = 'chronology_' . ($visitorInfo['icNo'] ?? 'unknown') . '_' . date('Ymd_His') . '.pdf';
+
+            // Group full timeline date-wise
+            if (isset($chronologyData['all_location_timeline'])) {
+                $grouped = collect($chronologyData['all_location_timeline'])
+                    ->sortBy('entry_time')
+                    ->groupBy(function ($item) {
+                        return \Carbon\Carbon::parse($item['entry_time'])->format('d-M-Y');
+                    })
+                    ->toArray();
+
+                $chronologyData['grouped_timeline'] = $grouped;
+            }
+
+            $data = [
+                'visitor' => $visitorInfo,
+                'chronology' => $chronologyData,
+                'downloadType' => $downloadType,
+                'selectedDate' => $selectedDate,
+                'generatedAt' => $pdfData['generatedAt'] ?? now()->toDateTimeString()
+            ];
+            
+            $pdf = Pdf::loadView('pdf.visitor_chronology', $data);
+            
+            $pdf->setPaper('A4', 'landscape');
+            
+            return $pdf->download($filename);
+            
+        } catch (\Exception $e) {
+            Log::error('PDF generation error: ' . $e->getMessage());
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'Error generating PDF: ' . $e->getMessage()
+            ], 500);
+        }
+    }
 
 }
 

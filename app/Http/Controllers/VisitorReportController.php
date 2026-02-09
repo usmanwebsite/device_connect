@@ -26,6 +26,7 @@ class VisitorReportController extends Controller
     public function index()
     {
         $angularMenu = $this->menuService->getFilteredAngularMenu();
+        
         $visitors = $this->getVisitorsFromDeviceLogs();
         
         return view('reports.visitor_report', compact('visitors', 'angularMenu'));
@@ -60,12 +61,11 @@ private function getVisitorsFromDeviceLogs()
                 $javaApiResponse = $this->callJavaVendorApi($staffNo);
                 $visitorData = $javaApiResponse['data'] ?? null;
 
-                $latestLog = $logs->first();  // Sabse recent scan
-                $earliestLog = $logs->last(); // Sabse pehla scan
+                $latestLog = $logs->first();  
+                $earliestLog = $logs->last(); 
 
-                // ✅ Time In - Pehla check_in scan dhoondo
                 $timeIn = null;
-                foreach ($logs->reverse() as $log) { // Pehle scan se shuru karo
+                foreach ($logs->reverse() as $log) { 
                     if (!$log->location_name) continue;
                     
                     $vendorLocation = VendorLocation::where('name', $log->location_name)->first();
@@ -83,7 +83,6 @@ private function getVisitorsFromDeviceLogs()
 
                 $dateOfVisit = $earliestLog ? $earliestLog->created_at->format('Y-m-d') : 'N/A';
 
-                // ✅ Time Out - Kya visitor ne check_out kiya hai?
                 $timeOut = null;
                 foreach ($logs as $log) { // Recent scan se shuru karo
                     if (!$log->location_name) continue;
@@ -101,14 +100,8 @@ private function getVisitorsFromDeviceLogs()
                     }
                 }
 
-                //dd($logs);
-                // ✅ IMPORTANT: Current Location - SIRF last scan ke basis par
                 $currentLocation = $this->getCurrentLocationBasedOnLatestScan($logs);
                 
-                //dd($currentLocation);
-                // ✅ Agar koi check_out scan nahi hai, toh time_out "N/A" rahega
-                // Aur current location last scan ki location hogi
-
                 // Accessed locations
                 $accessedLocations = $logs->pluck('location_name')->unique()->filter()->implode(', ');
 
@@ -168,23 +161,18 @@ private function getCurrentLocationBasedOnLatestScan($logs)
         return 'N/A';
     }
     
-    // Step 1: Check kya yeh Turnstile/Gate hai? 13.TURNSTILE'
     $isGate =strtoupper($locationName) === "Turnstile";
     
-    // Step 2: Agar Turnstile/Gate NAHI hai, toh wahi location return karo
     if (!$isGate) {
         return $locationName;
     }
     
-    // Step 3: Agar Turnstile/Gate HAI, toh check karo check_in hai ya check_out
     try {
-        // VendorLocation find karo
         $vendorLocation = VendorLocation::where('name', 'like', '%' . $locationName . '%')->first();
         if (!$vendorLocation) {
-            return $locationName; // VendorLocation nahi mila, toh location name hi return karo
+            return $locationName; 
         }
         
-        // DeviceConnection find karo
         $deviceConnection = DeviceConnection::where('device_id', $latestLog->device_id)->first();
         if (!$deviceConnection) {
             return $locationName;

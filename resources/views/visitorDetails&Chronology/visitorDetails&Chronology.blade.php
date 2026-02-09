@@ -289,7 +289,6 @@
 </div>
 
 <!-- Chronology Modal -->
-
 <div class="modal fade" id="chronologyModal" tabindex="-1" role="dialog" aria-labelledby="chronologyModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-xl" role="document">
         <div class="modal-content">
@@ -333,42 +332,7 @@
                     
                     <!-- Summary Cards -->
                     <div class="row mb-4">
-                        <div class="col-md-3">
-                            <div class="card bg-primary text-white">
-                                <div class="card-body">
-                                    <h6 class="card-title">Current Status</h6>
-                                    <h4 id="currentStatus" class="mb-0">-</h4>
-                                    <small id="currentStatusMsg"></small>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="col-md-3">
-                            <div class="card bg-success text-white">
-                                <div class="card-body">
-                                    <h6 class="card-title">Total Time Spent</h6>
-                                    <h4 id="totalTimeSpent" class="mb-0">-</h4>
-                                    <small>in building</small>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="col-md-3">
-                            <div class="card bg-warning text-white">
-                                <div class="card-body">
-                                    <h6 class="card-title">Total Visits</h6>
-                                    <h4 id="totalVisits" class="mb-0">-</h4>
-                                    <small>days visited</small>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="col-md-3">
-                            <div class="card bg-info text-white">
-                                <div class="card-body">
-                                    <h6 class="card-title">Total Scans</h6>
-                                    <h4 id="totalAccesses" class="mb-0">-</h4>
-                                    <small id="accessSuccessRate"></small>
-                                </div>
-                            </div>
-                        </div>
+                        <!-- ... existing summary cards ... -->
                     </div>
                     
                     <!-- Date Selection Section -->
@@ -390,47 +354,17 @@
                         </div>
                     </div>
                     
-                    <!-- Selected Date Info -->
+                    <!-- ✅ Updated: Showing data for section with Download Button on right side -->
                     <div class="row mb-3" id="selectedDateInfo" style="display: none;">
                         <div class="col-md-12">
-                            <div class="alert alert-info">
-                                <i class="fas fa-calendar-day mr-1"></i>
-                                Showing data for: <strong id="selectedDateText"></strong>
+                            <div class="alert alert-info d-flex justify-content-between align-items-center">
+                                <div>
+                                    <i class="fas fa-calendar-day mr-1"></i>
+                                    Showing data for: <strong id="selectedDateText"></strong>
+                                </div>
                             </div>
                         </div>
                     </div>
-                    
-                    {{-- 
-                    <!-- Access Logs for Selected Date - COMMENTED OUT FOR CLIENT REVIEW -->
-                    <div class="card mb-4" id="accessLogsSection">
-                        <div class="card-header">
-                            <h6 class="card-title mb-0">
-                                <i class="fas fa-list-alt mr-1"></i> 
-                                Complete Access Logs Timeline
-                                <span id="logsDateIndicator" class="badge badge-light ml-2"></span>
-                            </h6>
-                        </div>
-                        <div class="card-body">
-                            <div class="table-responsive">
-                                <table class="table table-sm table-bordered">
-                                    <thead>
-                                        <tr>
-                                            <th>#</th>
-                                            <th>Time</th>
-                                            <th>Location</th>
-                                            <th>Access Status</th>
-                                            <th>Next Location</th>
-                                            <th>Time to Next Location</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody id="accessLogsTable">
-                                        <!-- Access logs will be loaded here -->
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-                    </div>
-                    --}}
                     
                     <!-- Location Timeline for Selected Date -->
                     <div class="card" id="locationTimelineSection">
@@ -456,6 +390,10 @@
                 </div>
             </div>
             <div class="modal-footer">
+                <!-- ✅ نیا Download Button in footer -->
+                <button type="button" class="btn btn-success" id="downloadFullChronologyPdf">
+                    <i class="fas fa-download mr-1"></i> Download Full Report
+                </button>
                 <button type="button" class="btn btn-secondary" id="closeChronologyModalBtn">
                     <i class="fas fa-times mr-1"></i> Close
                 </button>
@@ -464,169 +402,6 @@
     </div>
 </div>
 
-{{-- <div class="modal fade" id="chronologyModal" tabindex="-1" role="dialog" aria-labelledby="chronologyModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-xl" role="document">
-        <div class="modal-content">
-            <div class="modal-header bg-info">
-                <h5 class="modal-title" id="chronologyModalLabel">
-                    <i class="fas fa-history mr-1"></i> 
-                    Visitor Chronology & Access Logs
-                </h5>
-                <button type="button" class="close" id="closeChronologyModal" aria-label="Close">
-                    <span aria-hidden="true">&times;</span>
-                </button>
-            </div>
-            <div class="modal-body">
-                <div id="chronologyLoading" class="text-center py-5">
-                    <div class="spinner-border text-info" role="status">
-                        <span class="sr-only">Loading...</span>
-                    </div>
-                    <p class="mt-2">Loading visitor chronology...</p>
-                </div>
-
-                <div id="chronologyContent" style="display: none;">
-                    <div class="row mb-3">
-                        <div class="col-md-12">
-                            <div class="card">
-                                <div class="card-body">
-                                    <div class="row">
-                                        <div class="col-md-4">
-                                            <strong>Staff No:</strong> <span id="chronoStaffNo">-</span>
-                                        </div>
-                                        <div class="col-md-4">
-                                            <strong>Full Name:</strong> <span id="chronoFullName">-</span>
-                                        </div>
-                                        <div class="col-md-4">
-                                            <strong>IC No:</strong> <span id="chronoIcNo">-</span>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="row mb-4">
-                        <div class="col-md-3">
-                            <div class="card bg-primary text-white">
-                                <div class="card-body">
-                                    <h6 class="card-title">Current Status</h6>
-                                    <h4 id="currentStatus" class="mb-0">-</h4>
-                                    <small id="currentStatusMsg"></small>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="col-md-3">
-                            <div class="card bg-success text-white">
-                                <div class="card-body">
-                                    <h6 class="card-title">Total Time Spent</h6>
-                                    <h4 id="totalTimeSpent" class="mb-0">-</h4>
-                                    <small>in building</small>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="col-md-3">
-                            <div class="card bg-warning text-white">
-                                <div class="card-body">
-                                    <h6 class="card-title">Total Visits</h6>
-                                    <h4 id="totalVisits" class="mb-0">-</h4>
-                                    <small>days visited</small>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="col-md-3">
-                            <div class="card bg-info text-white">
-                                <div class="card-body">
-                                    <h6 class="card-title">Total Scans</h6>
-                                    <h4 id="totalAccesses" class="mb-0">-</h4>
-                                    <small id="accessSuccessRate"></small>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="card mb-4" id="dateSelectionSection">
-                        <div class="card-header">
-                            <h6 class="card-title mb-0">
-                                <i class="fas fa-calendar-alt mr-1"></i> 
-                                Select Date
-                            </h6>
-                        </div>
-                        <div class="card-body">
-                            <div class="row">
-                                <div class="col-md-12">
-                                    <div class="btn-group flex-wrap" role="group" id="dateButtons">
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="row mb-3" id="selectedDateInfo" style="display: none;">
-                        <div class="col-md-12">
-                            <div class="alert alert-info">
-                                <i class="fas fa-calendar-day mr-1"></i>
-                                Showing data for: <strong id="selectedDateText"></strong>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="card mb-4" id="accessLogsSection">
-                        <div class="card-header">
-                            <h6 class="card-title mb-0">
-                                <i class="fas fa-list-alt mr-1"></i> 
-                                Complete Access Logs Timeline
-                                <span id="logsDateIndicator" class="badge badge-light ml-2"></span>
-                            </h6>
-                        </div>
-                        <div class="card-body">
-                            <div class="table-responsive">
-                                <table class="table table-sm table-bordered">
-                                    <thead>
-                                        <tr>
-                                            <th>#</th>
-                                            <th>Time</th>
-                                            <th>Location</th>
-                                            <th>Access Status</th>
-
-                                            <th>Next Location</th>
-                                            <th>Time to Next Location</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody id="accessLogsTable">
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="card" id="locationTimelineSection">
-                        <div class="card-header">
-                            <h6 class="card-title mb-0">
-                                <i class="fas fa-route mr-1"></i> 
-                                Location Movement Timeline
-                                <span id="timelineDateIndicator" class="badge badge-light ml-2"></span>
-                            </h6>
-                        </div>
-                        <div class="card-body">
-                            <div class="timeline" id="locationTimeline">
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div id="chronologyError" class="alert alert-danger" style="display: none;">
-                    <i class="fas fa-exclamation-triangle"></i> 
-                    <span id="chronologyErrorMessage"></span>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" id="closeChronologyModalBtn">
-                    <i class="fas fa-times mr-1"></i> Close
-                </button>
-            </div>
-        </div>
-    </div>
-</div> --}}
 @endsection
 
 @section('scripts')
@@ -639,6 +414,9 @@
 <script>
         const JAVA_BACKEND_URL = '{{ $javaBackendUrl }}';
 $(document).ready(function() {
+
+    let currentChronologyData = null;
+    let currentVisitorInfo = null;
 
     const urlParams = new URLSearchParams(window.location.search);
     const autoSearch = urlParams.get('autoSearch');
@@ -659,13 +437,11 @@ $(document).ready(function() {
         // Hide all sections initially
         hideAllSections();
         
-        // forceIcNo پر مبنی انتخاب کریں
         if (forceIcNo === 'true' && icNo) {
             $('#searchType').val('icNo');
             $('#searchInput').val(icNo);
             console.log('Using IC Number (forced):', icNo);
         } 
-        // اگر searchBy پارامیٹر موجود ہے
         else if (searchBy === 'icNo' && icNo) {
             $('#searchType').val('icNo');
             $('#searchInput').val(icNo);
@@ -676,19 +452,16 @@ $(document).ready(function() {
             $('#searchInput').val(staffNo);
             console.log('Using Staff No:', staffNo);
         }
-        // Default: staffNo استعمال کریں
         else if (staffNo) {
             $('#searchType').val('staffNo');
             $('#searchInput').val(staffNo);
             console.log('Using Staff No (default):', staffNo);
         }
         
-        // Trigger search after a short delay
         setTimeout(() => {
             searchVisitor();
         }, 500);
     }
-
 
     let visitorDataTable = null;
     let currentSearchTerm = '';
@@ -730,10 +503,8 @@ $(document).ready(function() {
         });
     }
     
-    // Initialize empty DataTable
     initializeDataTable();
     
-    // Update search hint based on selected type
     $('#searchType').change(function() {
         updateSearchHint();
     });
@@ -761,38 +532,32 @@ $(document).ready(function() {
     // Initialize hint
     updateSearchHint();
     
-    // Search button click event
     $('#searchBtn').click(function() {
         searchVisitor();
     });
     
-    // Clear button click event
     $('#clearBtn').click(function() {
         clearSearch();
     });
     
-    // Try different search button
     $('#tryDifferentSearch').click(function() {
         $('#searchInput').val('');
         $('#searchInput').focus();
         hideAllSections();
     });
     
-    // Enter key event on search input
     $('#searchInput').keypress(function(e) {
         if (e.which === 13) {
             searchVisitor();
         }
     });
     
-    // Refresh table button
     $('#refreshTable').click(function() {
         if (currentSearchTerm) {
             searchVisitor();
         }
     });
     
-    // Export button
     $('#exportBtn').click(function() {
         exportToCSV();
     });
@@ -810,12 +575,10 @@ $(document).ready(function() {
         $('#chronologyModal').modal('hide');
     });
     
-    // Close Chronology Modal (Close button)
     $('#closeChronologyModalBtn').click(function() {
         $('#chronologyModal').modal('hide');
     });
     
-    // Close Chronology Modal (X button)
     $('#closeChronologyModal').click(function() {
         $('#chronologyModal').modal('hide');
     });
@@ -900,12 +663,29 @@ function searchVisitor() {
     });
 }   
 
-    
 function displayVisitorData(data) {
     console.log('========== DISPLAY VISITOR DATA START ==========');
     console.log('Raw data received:', data);
     
-    const visitors = Array.isArray(data) ? data : [data];
+    // Handle different data formats
+    let visitors = [];
+    
+    if (Array.isArray(data)) {
+        visitors = data;
+    } else if (data && typeof data === 'object') {
+        if (data.data && Array.isArray(data.data)) {
+            visitors = data.data;
+        } else if (data.data && typeof data.data === 'object') {
+            visitors = [data.data];
+        } else {
+            visitors = [data];
+        }
+    } else {
+        console.error('Invalid data format received');
+        showError('Invalid data format received from server');
+        showNoDataSection();
+        return;
+    }
     
     console.log('Number of visitors found:', visitors.length);
     
@@ -914,13 +694,13 @@ function displayVisitorData(data) {
         visitorDataTable.clear().draw();
     }
     
-    // Improved Date Formatting Function
-    const formatDate = (dateString) => {
+    const formatDateTime = (dateString) => {
         if (!dateString || 
             dateString === 'N/A' || 
             dateString === 'null' || 
             dateString === null || 
-            dateString === undefined) {
+            dateString === undefined ||
+            dateString === '') {
             return '-';
         }
         
@@ -946,82 +726,88 @@ function displayVisitorData(data) {
             return `${formattedDate} ${formattedTime}`;
             
         } catch (e) {
-            return '-';
+            return dateString || '-';
         }
     };
     
-    // Calculate status badge
-    const getStatusBadge = (visitTo) => {
-        if (!visitTo || visitTo === 'N/A') {
-            return '<span class="badge badge-secondary">Unknown</span>';
+    // ✅ Status badge بنائیں
+    const getStatusBadge = (visitFrom, visitTo, isCurrentlyInBuilding) => {
+        if (!visitFrom || visitFrom === '-' || visitFrom === 'N/A') {
+            return '<span class="badge badge-secondary">Never Visited</span>';
         }
         
-        try {
-            const now = new Date();
-            const visitEnd = new Date(visitTo);
-            
-            if (isNaN(visitEnd.getTime())) {
-                return '<span class="badge badge-secondary">Unknown</span>';
-            }
-            
-            if (visitEnd > now) {
-                return '<span class="badge badge-success">Active</span>';
-            } else {
-                return '<span class="badge badge-warning">Expired</span>';
-            }
-        } catch (e) {
-            return '<span class="badge badge-secondary">Error</span>';
+        if (isCurrentlyInBuilding) {
+            return '<span class="badge badge-success">Currently In Building</span>';
         }
+        
+        if (visitTo && visitTo !== '-' && visitTo !== 'N/A') {
+            try {
+                const checkOutTime = new Date(visitTo);
+                const now = new Date();
+                const hoursSinceCheckOut = (now - checkOutTime) / (1000 * 60 * 60);
+                
+                if (hoursSinceCheckOut < 24) {
+                    return '<span class="badge badge-info">Checked Out (Today)</span>';
+                } else {
+                    return '<span class="badge badge-warning">Checked Out</span>';
+                }
+            } catch (e) {
+                return '<span class="badge badge-warning">Checked Out</span>';
+            }
+        }
+        
+        return '<span class="badge badge-secondary">Status Unknown</span>';
     };
     
-    // Add each visitor to the table
     let validVisitorsCount = 0;
     
     visitors.forEach((visitor, index) => {
-        // Check if visitor has valid information
-        const hasValidData = visitor && 
-            ((visitor.fullName && visitor.fullName !== 'N/A') || 
-             (visitor.icNo && visitor.icNo !== 'N/A'));
+        // Check if visitor has valid data
+        const fullName = visitor.fullName || visitor.full_name || visitor.name || '';
+        const icNo = visitor.icNo || visitor.ic_no || visitor.icNumber || '';
+        
+        const hasValidData = fullName || icNo;
         
         if (!hasValidData) {
             console.log('Skipping invalid visitor data:', visitor);
             return;
         }
         
-        // Format dates for this visitor
-        const formattedFrom = formatDate(visitor.dateOfVisitFrom);
-        const formattedTo = formatDate(visitor.dateOfVisitTo);
+        // ✅ VisitFrom اور VisitTo ڈیٹا استعمال کریں
+        const formattedFrom = formatDateTime(visitor.visitFrom || visitor.dateOfVisitFrom || visitor.visit_from);
+        const formattedTo = formatDateTime(visitor.visitTo || visitor.dateOfVisitTo || visitor.visit_to);
+        const isCurrentlyInBuilding = visitor.isCurrentlyInBuilding || visitor.currently_in || false;
         
-        // Add data to table with both View and Chronology buttons
-        // NOTE: Staff No removed from rowData array
         const rowData = [
             index + 1, // Serial number
-            visitor.fullName || '-',
-            visitor.icNo || '-',
-            visitor.companyName || '-',
-            visitor.contactNo || '-',
+            fullName || '-',
+            icNo || '-',
+            visitor.companyName || visitor.company || visitor.company_name || '-',
+            visitor.contactNo || visitor.contact_no || visitor.phone || visitor.mobile || '-',
             formattedFrom,
             formattedTo,
-            getStatusBadge(visitor.dateOfVisitTo),
+            getStatusBadge(formattedFrom, formattedTo, isCurrentlyInBuilding),
             `<div class="btn-group" role="group">
                 <button class="btn btn-sm btn-info view-details" 
-                        data-staffno="${visitor.staffNo || ''}"
-                        data-fullname="${visitor.fullName || ''}"
-                        data-icno="${visitor.icNo || ''}"
-                        data-sex="${visitor.sex || ''}"
-                        data-contactno="${visitor.contactNo || ''}"
-                        data-company="${visitor.companyName || ''}"
-                        data-personvisited="${visitor.personVisited || ''}"
-                        data-visitfrom="${visitor.dateOfVisitFrom || ''}"
-                        data-visitto="${visitor.dateOfVisitTo || ''}"
-                        data-reason="${visitor.reason || ''}"
+                        data-staffno="${visitor.staffNo || visitor.staff_no || ''}"
+                        data-fullname="${fullName}"
+                        data-icno="${icNo}"
+                        data-sex="${visitor.sex || visitor.gender || ''}"
+                        data-contactno="${visitor.contactNo || visitor.contact_no || visitor.phone || ''}"
+                        data-company="${visitor.companyName || visitor.company || ''}"
+                        data-personvisited="${visitor.personVisited || visitor.person_visited || ''}"
+                        data-visitfrom="${visitor.visitFrom || visitor.dateOfVisitFrom || ''}"
+                        data-visitto="${visitor.visitTo || visitor.dateOfVisitTo || ''}"
+                        data-visitduration="${visitor.visitDuration || visitor.duration || ''}"
+                        data-currentlyin="${isCurrentlyInBuilding}"
+                        data-reason="${visitor.reason || visitor.reason_for_visit || ''}"
                         data-searchtype="${visitor.searchType || ''}">
                     <i class="fas fa-eye"></i> View
                 </button>
                 <button class="btn btn-sm btn-warning view-chronology" 
-                        data-staffno="${visitor.staffNo || ''}"
-                        data-fullname="${visitor.fullName || ''}"
-                        data-icno="${visitor.icNo || ''}">
+                        data-staffno="${visitor.staffNo || visitor.staff_no || ''}"
+                        data-fullname="${fullName}"
+                        data-icno="${icNo}">
                     <i class="fas fa-history"></i> Chronology
                 </button>
             </div>`
@@ -1034,21 +820,17 @@ function displayVisitorData(data) {
     });
     
     console.log('Valid visitors added to table:', validVisitorsCount);
-    console.log('DataTable row count:', visitorDataTable ? visitorDataTable.data().count() : 0);
-    console.log('========== DISPLAY VISITOR DATA END ==========');
     
     // If no valid data was added
-    if (visitors.length === 0 || (visitorDataTable && visitorDataTable.data().count() === 0)) {
-        showError('No visitor data found');
+    if (validVisitorsCount === 0) {
+        showError('No visitor data found or data format is incorrect');
         showNoDataSection();
         return;
     }
     
-    // Show table section
     $('#visitorTableSection').show();
     $('#noDataSection').hide();
     
-    // Update success message with count
     showSuccess(`Found ${validVisitorsCount} visitor(s) matching your search`);
     
     // Add click event to view buttons
@@ -1056,7 +838,6 @@ function displayVisitorData(data) {
         showVisitorDetailsModal($(this).data());
     });
     
-    // Add click event to chronology buttons
     $('#visitorTable').off('click', '.view-chronology').on('click', '.view-chronology', function() {
         const staffNo = $(this).data('staffno');
         const fullName = $(this).data('fullname');
@@ -1065,11 +846,17 @@ function displayVisitorData(data) {
     });
 }
     
-    // Chronology Modal Functions
     function showChronologyModal(staffNo, fullName, icNo) {
         // Set visitor info in modal
         $('#chronoFullName').text(fullName || '-');
         $('#chronoIcNo').text(icNo || '-');
+        
+        // Store visitor info globally
+        currentVisitorInfo = {
+            staffNo: staffNo || '',
+            fullName: fullName || '',
+            icNo: icNo || ''
+        };
         
         // Reset modal content
         $('#chronologyLoading').show();
@@ -1079,12 +866,15 @@ function displayVisitorData(data) {
         // Clear previous content
         $('#currentStatus').text('-');
         $('#totalTimeSpent').text('-');
-        $('#locationsVisited').text('-');
+        $('#totalVisits').text('-');
         $('#totalAccesses').text('-');
+        $('#accessSuccessRate').text('');
         $('#turnstileEntries').html('');
         $('#turnstileExits').html('');
         $('#accessLogsTable').html('');
         $('#locationTimeline').html('');
+        $('#dateButtons').html('');
+        $('#selectedDateInfo').hide();
         
         // Show modal
         $('#chronologyModal').modal('show');
@@ -1094,60 +884,61 @@ function displayVisitorData(data) {
     }
     
     // Function to load chronology data
-function loadVisitorChronology(staffNo, icNo) {
-    console.log("Loading chronology for IC No:", icNo);
-    
-    $.ajax({
-        url: '{{ route("visitor-details.chronology") }}',
-        type: 'POST',
-        data: {
-            _token: '{{ csrf_token() }}',
-            staff_no: staffNo || '',
-            ic_no: icNo
-        },
-        success: function(response) {
-            $('#chronologyLoading').hide();
-            
-            console.log("Chronology API Response:", response);
-            
-            if (response.success) {
-                const data = response.data;
+    function loadVisitorChronology(staffNo, icNo) {
+        console.log("Loading chronology for IC No:", icNo);
+        
+        $.ajax({
+            url: '{{ route("visitor-details.chronology") }}',
+            type: 'POST',
+            data: {
+                _token: '{{ csrf_token() }}',
+                staff_no: staffNo || '',
+                ic_no: icNo
+            },
+            success: function(response) {
+                $('#chronologyLoading').hide();
                 
-                // Debug logging
-                console.log("Dates available:", data.dates);
-                console.log("Logs by date keys:", Object.keys(data.logs_by_date));
-                console.log("Timeline by date keys:", Object.keys(data.timeline_by_date));
+                console.log("Chronology API Response:", response);
                 
-                // Check if we have data
-                if (!data.dates || data.dates.length === 0) {
-                    console.warn("No dates found in response");
-                    $('#chronologyErrorMessage').text('No chronology data available for this visitor');
+                if (response.success) {
+                    const data = response.data;
+                    
+                    // Store data globally
+                    currentChronologyData = data;
+                    
+                    // Debug logging
+                    console.log("Dates available:", data.dates);
+                    
+                    // Check if we have data
+                    if (!data.dates || data.dates.length === 0) {
+                        console.warn("No dates found in response");
+                        $('#chronologyErrorMessage').text('No chronology data available for this visitor');
+                        $('#chronologyError').show();
+                        return;
+                    }
+                    
+                    displayChronologyData(data);
+                    $('#chronologyContent').show();
+                } else {
+                    console.error("API error:", response.message);
+                    $('#chronologyErrorMessage').text(response.message || 'Error loading chronology');
                     $('#chronologyError').show();
-                    return;
+                }
+            },
+            error: function(xhr, status, error) {
+                $('#chronologyLoading').hide();
+                console.error("AJAX Error:", error, xhr.responseText);
+                
+                let errorMessage = 'An error occurred while loading chronology';
+                if (xhr.responseJSON && xhr.responseJSON.message) {
+                    errorMessage = xhr.responseJSON.message;
                 }
                 
-                displayChronologyData(data);
-                $('#chronologyContent').show();
-            } else {
-                console.error("API error:", response.message);
-                $('#chronologyErrorMessage').text(response.message || 'Error loading chronology');
+                $('#chronologyErrorMessage').text(errorMessage);
                 $('#chronologyError').show();
             }
-        },
-        error: function(xhr, status, error) {
-            $('#chronologyLoading').hide();
-            console.error("AJAX Error:", error, xhr.responseText);
-            
-            let errorMessage = 'An error occurred while loading chronology';
-            if (xhr.responseJSON && xhr.responseJSON.message) {
-                errorMessage = xhr.responseJSON.message;
-            }
-            
-            $('#chronologyErrorMessage').text(errorMessage);
-            $('#chronologyError').show();
-        }
-    });
-}
+        });
+    }
     
 function displayChronologyData(data) {
     console.log("Displaying chronology data:", data);
@@ -1259,7 +1050,6 @@ function displayDateButtons(dates, logsByDate, timelineByDate) {
         displayDataForDate(firstDate, logsByDate, timelineByDate);
     }
     
-    // Add click event to date buttons
     $('.date-btn').click(function() {
         // Remove active class from all buttons
         $('.date-btn').removeClass('active');
@@ -1271,7 +1061,6 @@ function displayDateButtons(dates, logsByDate, timelineByDate) {
     });
 }
 
-// Helper function to format date for key matching
 function formatDateForKey(dateString) {
     try {
         // Try to parse the date and format it
@@ -1281,7 +1070,6 @@ function formatDateForKey(dateString) {
             const month = parts[1];
             const year = parts[2];
             
-            // Create a standard date format
             const date = new Date(`${month} ${day}, ${year}`);
             if (!isNaN(date.getTime())) {
                 return date.toLocaleDateString('en-US', {
@@ -1295,7 +1083,6 @@ function formatDateForKey(dateString) {
         console.error("Error formatting date:", e);
     }
     
-    // Return original if parsing fails
     return dateString;
 }
 
@@ -1308,14 +1095,12 @@ function displayDataForDate(date, logsByDate, timelineByDate) {
     $('#selectedDateText').text(date);
     $('#selectedDateInfo').show();
     
-    // Get logs and timeline for this date
     const accessLogs = logsByDate[date] || [];
     const timeline = timelineByDate[date] || [];
     
     console.log(`Access logs for ${date}:`, accessLogs.length);
     console.log(`Timeline for ${date}:`, timeline.length);
-    
-    // Update indicators
+
     $('#logsDateIndicator').text(date);
     $('#timelineDateIndicator').text(date);
     
@@ -1323,7 +1108,6 @@ function displayDataForDate(date, logsByDate, timelineByDate) {
     displayAccessLogsForDate(accessLogs);
     displayTimelineForDate(timeline);
     
-    // If no data, show message
     if (accessLogs.length === 0) {
         console.warn("No access logs found for date:", date);
     }
@@ -1485,11 +1269,7 @@ function displayTimelineForDate(timeline) {
             const accessBadge = log.access_granted == 1 
                 ? '<span class="badge badge-success">GRANTED</span>' 
                 : '<span class="badge badge-danger">DENIED</span>';
-            
-            // const ackBadge = log.acknowledge == 1 
-            //     ? '<span class="badge badge-info">YES</span>' 
-            //     : '<span class="badge badge-warning">NO</span>';
-            
+                        
             let timeToNext = '-';
             if (log.next_time && log.created_at) {
                 const timeDiff = Math.abs(new Date(log.next_time) - new Date(log.created_at));
@@ -1705,11 +1485,7 @@ function getDateKeyFromFormatted(formattedDate) {
                 const accessBadge = log.access_granted == 1 
                     ? '<span class="badge badge-success">GRANTED</span>' 
                     : '<span class="badge badge-danger">DENIED</span>';
-                
-                // const ackBadge = log.acknowledge == 1 
-                //     ? '<span class="badge badge-info">YES</span>' 
-                //     : '<span class="badge badge-warning">NO</span>';
-                
+                                
                 let timeAtPrev = '-';
                 if (log.previous_time && log.created_at) {
                     const timeDiff = Math.abs(new Date(log.created_at) - new Date(log.previous_time));
@@ -1860,7 +1636,6 @@ function filterDataByLocation(location) {
 function generateLocationSpecificTimeline(logs) {
     let timeline = [];
     
-    // Sort logs by time
     const sortedLogs = logs.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
     
     for (let i = 1; i < sortedLogs.length; i++) {
@@ -1919,14 +1694,12 @@ function formatDateTime(dateString) {
         return dateString;
     }
 }
-// View Details Modal Functions
 function showVisitorDetailsModal(data) {
-    // Format dates for modal
-    const formatModalDate = (dateString) => {
-        if (!dateString || dateString === 'N/A') return '-';
+    const formatModalDateTime = (dateString) => {
+        if (!dateString || dateString === 'N/A') return 'Not Available';
         try {
             const date = new Date(dateString);
-            return date.toLocaleDateString('en-US', {
+            return date.toLocaleString('en-US', {
                 weekday: 'long',
                 year: 'numeric',
                 month: 'long',
@@ -1940,56 +1713,39 @@ function showVisitorDetailsModal(data) {
         }
     };
     
-    // Calculate visit duration
-    const calculateDuration = (from, to) => {
-        if (!from || !to || from === 'N/A' || to === 'N/A') return '-';
-        try {
-            const fromDate = new Date(from);
-            const toDate = new Date(to);
-            const diffMs = toDate - fromDate;
-            const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-            const diffHours = Math.floor((diffMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-            const diffMinutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
-            
-            if (diffDays > 0) {
-                return `${diffDays} day(s) ${diffHours} hour(s) ${diffMinutes} minute(s)`;
-            } else if (diffHours > 0) {
-                return `${diffHours} hour(s) ${diffMinutes} minute(s)`;
-            } else {
-                return `${diffMinutes} minute(s)`;
-            }
-        } catch (e) {
-            return '-';
-        }
-    };
+    // Status indicator based on current in/out status
+    const statusIndicator = data.currentlyin ? 
+        '<span class="badge badge-success">Currently IN Building</span>' : 
+        '<span class="badge badge-warning">Currently OUT of Building</span>';
     
-    // Get search type display text
-    const getSearchTypeText = (type) => {
-        switch(type) {
-            case 'STAFFNO': return 'Staff Number';
-            case 'ICNO': return 'IC Number';
-            default: return type || 'Auto Detect';
-        }
-    };
-    
-    // Set modal values with new layout
     $('#modalFullName').text(data.fullname || '-');
     $('#modalReason').text(data.reason || '-');
     $('#modalIcNo').text(data.icno || '-');
     $('#modalPersonVisited').text(data.personvisited || '-');
     $('#modalContactNo').text(data.contactno || '-');
-    $('#modalDateOfVisitFrom').text(formatModalDate(data.visitfrom) || '-');
-    $('#modalDateOfVisitTo').text(formatModalDate(data.visitto) || '-');
-    $('#modalSearchType').text(getSearchTypeText(data.searchtype));
+    
+    // ✅ اب یہ ڈیٹا device_access_logs سے آئے گا
+    $('#modalDateOfVisitFrom').html(formatModalDateTime(data.visitfrom) + 
+        (data.visitfrom ? '<br><small class="text-muted">(From device_access_logs)</small>' : ''));
+    
+    $('#modalDateOfVisitTo').html(formatModalDateTime(data.visitto) + 
+        (data.visitto ? '<br><small class="text-muted">(From device_access_logs)</small>' : ''));
+    
+    $('#modalSearchType').text(data.searchtype || 'Auto Detect');
     $('#modalLastUpdated').text(new Date().toLocaleString());
-    $('#modalVisitDuration').text(calculateDuration(data.visitfrom, data.visitto));
+    
+    // ✅ Visit duration دکھائیں
+    $('#modalVisitDuration').html(`
+        ${data.visitduration || 'N/A'}
+        ${statusIndicator}
+    `);
+    
     $('#modalCompanyName').text(data.company || '-');
     
     // Show modal
     $('#viewDetailsModal').modal('show');
 }
     
-// Print details button
 $('#printDetailsBtn').click(function() {
     const printContent = `
         <html>
@@ -2088,7 +1844,6 @@ $('#printDetailsBtn').click(function() {
     printWindow.print();
 });
     
-    // Export to CSV function
     function exportToCSV() {
         if (!currentData) {
             showError('No data to export');
@@ -2097,7 +1852,6 @@ $('#printDetailsBtn').click(function() {
         
         const visitors = Array.isArray(currentData) ? currentData : [currentData];        
         
-        // Create CSV content
         let csvContent = "data:text/csv;charset=utf-8,";
         csvContent += "Visitor Details Export\n";
         csvContent += `Search Term: ${currentSearchTerm}\n`;
@@ -2121,8 +1875,7 @@ $('#printDetailsBtn').click(function() {
                 `"${visitor.reason || ''}"`
             ];
             csvContent += row.join(',') + '\n';
-        });
-        
+        });    
         // Download CSV
         const encodedUri = encodeURI(csvContent);
         const link = document.createElement("a");
@@ -2180,6 +1933,98 @@ $('#printDetailsBtn').click(function() {
     
     // Auto-focus on search input
     $('#searchInput').focus();
+
+    $('#downloadChronologyPdf').click(function() {
+        downloadChronologyPDF('full');
+    });
+    
+    $('#downloadFullChronologyPdf').click(function() {
+        downloadChronologyPDF('full');
+    });
+    
+    $('#downloadDatePdf').click(function() {
+        const selectedDate = $('#selectedDateText').text();
+        if (selectedDate && selectedDate !== '') {
+            downloadChronologyPDF('date', selectedDate);
+        } else {
+            alert('Please select a date first');
+        }
+    });
+
+        function downloadChronologyPDF(type = 'full', selectedDate = null) {
+        if (!currentChronologyData || !currentVisitorInfo) {
+            alert('No chronology data available to download');
+            return;
+        }
+        
+        console.log('Downloading PDF:', { type, selectedDate, data: currentChronologyData });
+        
+        // Prepare data for PDF generation
+        const pdfData = {
+            visitor: currentVisitorInfo,
+            chronology: currentChronologyData,
+            downloadType: type,
+            selectedDate: selectedDate,
+            generatedAt: new Date().toLocaleString()
+        };
+        
+        // Show loading
+        const originalBtnText = type === 'date' ? $('#downloadDatePdf').html() : $('#downloadFullChronologyPdf').html();
+        const loadingBtn = type === 'date' ? $('#downloadDatePdf') : $('#downloadFullChronologyPdf');
+        
+        loadingBtn.html('<i class="fas fa-spinner fa-spin mr-1"></i> Generating PDF...');
+        loadingBtn.prop('disabled', true);
+        
+        // Send request to generate PDF
+        $.ajax({
+            url: '{{ route("visitor-details.download-chronology-pdf") }}',
+            type: 'POST',
+            data: {
+                _token: '{{ csrf_token() }}',
+                pdf_data: JSON.stringify(pdfData)
+            },
+            xhrFields: {
+                responseType: 'blob' // Important for file download
+            },
+            success: function(response, status, xhr) {
+                // Reset button
+                loadingBtn.html(originalBtnText);
+                loadingBtn.prop('disabled', false);
+                
+                // Get filename from headers or create one
+                let filename = 'chronology_report.pdf';
+                const disposition = xhr.getResponseHeader('Content-Disposition');
+                if (disposition && disposition.indexOf('attachment') !== -1) {
+                    const filenameRegex = /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/;
+                    const matches = filenameRegex.exec(disposition);
+                    if (matches != null && matches[1]) {
+                        filename = matches[1].replace(/['"]/g, '');
+                    }
+                }
+                
+                // Create download link
+                const url = window.URL.createObjectURL(response);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = filename;
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+                document.body.removeChild(a);
+                
+                showSuccess('PDF downloaded successfully!');
+            },
+            error: function(xhr) {
+                // Reset button
+                loadingBtn.html(originalBtnText);
+                loadingBtn.prop('disabled', false);
+                
+                console.error('PDF generation error:', xhr.responseText);
+                showError('Error generating PDF: ' + xhr.responseText);
+            }
+        });
+    }
+
 });
 </script>
 @endsection
