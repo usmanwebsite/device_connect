@@ -36,8 +36,8 @@
 
             <div class="row mt-3">
                 <div class="col-md-4 col-12 mb-3">
-                    <p class="label mb-1">Incident Type</p>
-                    <p class="value mb-0">
+                    <p class="label mb-2" id="adjust-size-2">Incident Type</p>
+                    <p class="value mb-0" id="adjust-size-2">
                         @if($criticalAlert['alert_type'] == 'access_denied')
                             Unauthorized Access Attempt
                         @else
@@ -47,13 +47,13 @@
                 </div>
 
                 <div class="col-md-4 col-12 mb-3">
-                    <p class="label mb-1">Location</p>
-                    <p class="value mb-0">{{ $criticalAlert['location'] }}</p>
+                    <p class="label mb-2" id="adjust-size-2">Location</p>
+                    <p class="value mb-0" id="adjust-size-2">{{ $criticalAlert['location'] }}</p>
                 </div>
 
                 <div class="col-md-4 col-12 mb-3">
-                    <p class="label mb-1">Time</p>
-                    <p class="value mb-0">
+                    <p class="label mb-2" id="adjust-size-2">Time</p>
+                    <p class="value mb-0" id="adjust-size-2">
                         @if($criticalAlert['alert_type'] == 'access_denied')
                             {{ $criticalAlert['created_at'] ?? '' }} 
                             {{-- ({{ $criticalAlert['time_ago'] ?? '' }}) --}}
@@ -64,7 +64,7 @@
                 </div>
             </div>
 
-            <p class="description mt-2 mb-3">
+            <p class="description mt-2 mb-3" id="adjust-size-2">
                 @if($criticalAlert['alert_type'] == 'access_denied')
                     {{ $criticalAlert['visitor_name'] }} on the restricted watchlist attempted to gain entry.
                 @else
@@ -98,11 +98,11 @@
 
 {{-- Recent Alerts Section - Fixed Width --}}
 <div class="row mb-4">
-    <div class="col-12 px-0"> {{-- ✅ px-0 add karein --}}
+    <div class="col-12 px-0"> 
         <div class="content-card" style="background-color: #F8f9fa; padding: 1.5rem;">
-            <h5 class="mb-3"><i class="fas fa-bell me-2"></i>Recent Alerts</h5>
+            <h5 class="mb-3" id="adjust-size"><i class="fas fa-bell me-2"></i>Recent Alerts</h5>
             
-            <div class="row g-3 mx-0"> {{-- ✅ mx-0 add karein --}}
+            <div class="row g-3 mx-0"> 
                 <div class="col-12 col-md-6 px-2">
                     <div class="stat-card clickable-card alert-card" onclick="showAccessDeniedModal()">
                         <div class="d-flex justify-content-between align-items-center mb-2">
@@ -115,7 +115,7 @@
                 </div>
 
                 {{-- Visitor Overstay Card --}}
-                <div class="col-12 col-md-6 px-2"> {{-- ✅ px-2 for proper spacing --}}
+                <div class="col-12 col-md-6 px-2"> 
                     <div class="stat-card clickable-card alert-card" onclick="showVisitorOverstayModal()">
                         <div class="d-flex justify-content-between align-items-center mb-2">
                             <h2 class="text-warning">{{ $visitorOverstayCount ?? 0 }}</h2>
@@ -125,6 +125,7 @@
                         <small class="text-muted">Active alerts</small>
                     </div>
                 </div>
+
             </div>
         </div>
     </div>

@@ -545,7 +545,13 @@ table.dataTable td {
     margin-bottom: 0 !important;
 }
 
+#adjust-size {
+    font-size: 22px !important;
+}
 
+#adjust-size-2{
+    font-size: 16px !important;
+}
 
 .dashboard-wrapper {
     padding: 20px;
@@ -734,20 +740,20 @@ table.dataTable td {
 }
 
 .table tbody td {
-    color: #495057 !important; /* Table body text color */
+    color: #495057 !important;
 }
 
 .table tbody tr:nth-child(even) {
-    background: #f8f9fa !important; /* Alternate row background */
+    background: #f8f9fa !important; 
 }
 
 /* ✅ CONTENT CARD HEADINGS */
 .content-card h5 {
-    color: #495057 !important; /* Card headings color */
+    color: #495057 !important; 
     font-weight: 600;
+    font-size: 22px !important;
 }
 
-/* ✅ BUTTON STYLING */
 .btn-primary {
     background: #556ee6;
     border: none;
@@ -763,7 +769,6 @@ table.dataTable td {
     box-shadow: 0 4px 8px rgba(85, 110, 230, 0.3);
 }
 
-/* Clickable Cards Styling */
 .clickable-card {
     cursor: pointer;
     transition: all 0.3s ease;
@@ -774,7 +779,6 @@ table.dataTable td {
     box-shadow: 0 8px 15px rgba(0, 0, 0, 0.2);
 }
 
-/* Modal Styling */
 .modal-xl {
     max-width: 1200px;
 }
@@ -812,15 +816,15 @@ table.dataTable td {
 
 /* Specific colors for each alert type */
 .alert-card:nth-child(1) {
-    border-left-color: #dc3545; /* Red for Access Denied */
+    border-left-color: #dc3545; 
 }
 
 .alert-card:nth-child(2) {
-    border-left-color: #ffc107; /* Yellow for Overstay */
+    border-left-color: #ffc107; 
 }
 
 .alert-card:nth-child(3) {
-    border-left-color: #0dcaf0; /* Blue for Emergency */
+    border-left-color: #0dcaf0; 
 }
 
 
@@ -848,6 +852,10 @@ table.dataTable td {
 
 .modal-xl {
     max-width: 1050px;
+}
+
+.mb-1{
+    font-size: 22px !important;
 }
 
 /* Table cell wrapping */
@@ -1754,6 +1762,9 @@ table.dataTable thead .sorting_desc_disabled {
 .sortable-list {
     min-height: 100px;
 }
+.mb-0{
+   font-size: 22px !important; 
+}
 .draggable-door {
     cursor: move;
     transition: all 0.2s;
@@ -1775,7 +1786,6 @@ table.dataTable thead .sorting_desc_disabled {
 
 /* critical section */
 
-/* Add to your existing CSS */
 .critical-alert-box {
     transition: all 0.3s ease;
 }
@@ -1805,7 +1815,10 @@ table.dataTable thead .sorting_desc_disabled {
     vertical-align: middle;
 }
 
-/* Custom modal z-index fix */
+.card-title{
+    font-size: 18px !important;
+}
+
 .custom-modal {
     z-index: 99999 !important;
     position: fixed !important;

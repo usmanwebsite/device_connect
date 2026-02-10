@@ -12,7 +12,7 @@
     <div class="container-fluid">
         <div class="row mb-2">
             <div class="col-sm-6">
-                <h1 class="m-0" style="font-weight: 600; font-size: 1.8rem; margin-left: 20px !important">Visitor Details</h1>
+                <h1 class="m-0" style="font-weight: 600; font-size: 22px; margin-left: 20px !important">Visitor Details</h1>
             </div>
         </div>
     </div>
@@ -24,7 +24,7 @@
             <div class="col-md-12">
                 <div class="card card-primary">
                     <div class="card-header">
-                        <h3 class="card-title" style="font-size: 1.5rem;">
+                        <h3 class="card-title" style="font-size: 22px;">
                             <i class="fas fa-search mr-1"></i> 
                             Search Visitor
                         </h3>
@@ -34,7 +34,7 @@
                             <div class="col-md-3">
                                 <div class="form-group">
                                     <label for="searchType">Search By</label>
-                                    <select id="searchType" class="form-control form-control-lg">
+                                    <select id="searchType" class="form-control form-control-lg" style="height: 55px !important">
                                         <option value="">SELECT TYPE</option>
                                         <option value="staffNo">Staff Number</option>
                                         <option value="icNo">IC Number</option>

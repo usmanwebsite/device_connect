@@ -5,8 +5,8 @@
     <div class="container-fluid">
         <div class="row align-items-center">
             <div class="col-md-12">
-                <h1 class="display-5 fw-bold text-dark">Visitor Report</h1>
-                <p class="lead mb-0 text-muted">Comprehensive visitor management and tracking system</p>
+                <h1 class="display-5 fw-bold text-dark" style="font-size: 22px !important">Visitor Report</h1>
+                <p class="lead mb-0 text-muted" style="font-size: 16px !important">Comprehensive visitor management and tracking system</p>
             </div>
         </div>
     </div>
@@ -65,7 +65,7 @@
             <div class="table-header-buttons">
                 <div class="row align-items-center">
                     <div class="col-md-6">
-                        <h5 class="mb-0 text-dark">Visitor Records</h5>
+                        <h5 class="mb-0 text-dark" style="font-weight: 700">Visitor Records</h5>
                     </div>
                     <div class="col-md-6 text-end">
                         <button type="button" class="btn btn-show-hide me-2" id="columnToggleBtn">
