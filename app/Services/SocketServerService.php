@@ -793,6 +793,8 @@ private function callJavaVendorApi($cardId)
         // 🔹 STEP 2: Get visitor details by IC No
         echo "[" . date('H:i:s') . "] 🔹 STEP 2: Getting visitor details by IC No: $icNo with cardStatus: " . ($cardStatus ? 'true' : 'false') . "\n";
 
+        echo "[" . date('H:i:s') . "] 🆔 IC No Found: $icNo, Card No from vendor: $cardId\n";
+
         $visitorResponse = Http::withHeaders([
             'Accept' => 'application/json',
             'x-auth-token' => $token,
@@ -824,6 +826,7 @@ private function callJavaVendorApi($cardId)
         }
 
         $visitorJson = $visitorResponse->json();
+        Log::info('api response',['visitorJson' => $visitorJson]);
         echo "[" . date('H:i:s') . "] 📋 Visitor API Response: " . json_encode($visitorJson) . "\n";
 
         if (empty($visitorJson['status']) || $visitorJson['status'] !== 'success') {

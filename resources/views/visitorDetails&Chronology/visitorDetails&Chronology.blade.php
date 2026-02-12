@@ -331,9 +331,50 @@
                     </div>
                     
                     <!-- Summary Cards -->
-                    <div class="row mb-4">
+                    {{-- <div class="row mb-4">
                         <!-- ... existing summary cards ... -->
+                    </div> --}}
+
+
+                    <div class="row mb-4">
+                        <div class="col-md-3">
+                            <div class="card bg-primary text-white">
+                                <div class="card-body">
+                                    <h6 class="card-title">Current Status</h6>
+                                    <h4 id="currentStatus" class="mb-0">-</h4>
+                                    <small id="currentStatusMsg"></small>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card bg-success text-white">
+                                <div class="card-body">
+                                    <h6 class="card-title">Total Time Spent</h6>
+                                    <h4 id="totalTimeSpent" class="mb-0">-</h4>
+                                    <small>in building</small>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card bg-warning text-white">
+                                <div class="card-body">
+                                    <h6 class="card-title">Total Visits</h6>
+                                    <h4 id="totalVisits" class="mb-0">-</h4>
+                                    <small>days visited</small>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card bg-info text-white">
+                                <div class="card-body">
+                                    <h6 class="card-title">Total Scans</h6>
+                                    <h4 id="totalAccesses" class="mb-0">-</h4>
+                                    <small id="accessSuccessRate"></small>
+                                </div>
+                            </div>
+                        </div>
                     </div>
+
                     
                     <!-- Date Selection Section -->
                     <div class="card mb-4" id="dateSelectionSection">
