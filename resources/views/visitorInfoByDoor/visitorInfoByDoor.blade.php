@@ -8,7 +8,7 @@
         <div class="col-md-12">
             <div class="card">
                 <div class="card-header">
-                    <h5 class="card-title mb-0">
+                    <h5 class="card-title mb-0" style="font-size: 22px !important">
                         <i class="fas fa-door-open me-2"></i>Visitor Information By Door/Location
                     </h5>
                 </div>

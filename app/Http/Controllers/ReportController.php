@@ -108,6 +108,7 @@ public function getAccessLogsData(Request $request)
 
         // Step 1: First get total UNIQUE visitors count
         $uniqueVisitorsQuery = DeviceAccessLog::whereBetween('created_at', [$fromDateTime, $toDateTime])
+            ->whereNotNull('staff_no')
             ->where(function($query) use ($locations) {
                 foreach ($locations as $location) {
                     $query->orWhere('location_name', 'like', '%' . $location . '%');
@@ -126,6 +127,7 @@ public function getAccessLogsData(Request $request)
 
         // Step 2: Main query for paginated data
         $query = DeviceAccessLog::whereBetween('created_at', [$fromDateTime, $toDateTime])
+            ->whereNotNull('staff_no')
             ->where(function($query) use ($locations) {
                 foreach ($locations as $location) {
                     $query->orWhere('location_name', 'like', '%' . $location . '%');

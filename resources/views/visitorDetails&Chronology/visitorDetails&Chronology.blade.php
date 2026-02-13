@@ -330,12 +330,6 @@
                         </div>
                     </div>
                     
-                    <!-- Summary Cards -->
-                    {{-- <div class="row mb-4">
-                        <!-- ... existing summary cards ... -->
-                    </div> --}}
-
-
                     <div class="row mb-4">
                         <div class="col-md-3">
                             <div class="card bg-primary text-white">
@@ -1208,7 +1202,7 @@ function displayTimelineForDate(timeline) {
     let timelineHtml = '';
     
     if (timeline && timeline.length > 0) {
-        timeline.forEach((item, index) => {
+        timelineHtml = timeline.map((item, index) => {
             // Calculate time spent
             let timeSpentText = '-';
             if (item.time_spent) {
@@ -1229,7 +1223,32 @@ function displayTimelineForDate(timeline) {
                 ? '<span class="badge badge-success">GRANTED</span>' 
                 : '<span class="badge badge-danger">DENIED</span>';
             
-            timelineHtml += `
+            // ✅ TURNSTILE TYPE DETECTION
+            // From location ke liye check
+            let fromDisplay = item.from_location || 'Unknown';
+            if (fromDisplay.toLowerCase().includes('turnstile')) {
+                if (item.from_is_check_in === true) {
+                    fromDisplay = '<span class="text-success"><i class="fas fa-sign-in-alt mr-1"></i>Turnstile (IN)</span>';
+                } else if (item.from_is_check_in === false) {
+                    fromDisplay = '<span class="text-danger"><i class="fas fa-sign-out-alt mr-1"></i>Turnstile (OUT)</span>';
+                } else {
+                    fromDisplay = '<span><i class="fas fa-rotate-left mr-1"></i>Turnstile</span>';
+                }
+            }
+            
+            // To location ke liye check
+            let toDisplay = item.to_location || 'Unknown';
+            if (toDisplay.toLowerCase().includes('turnstile')) {
+                if (item.to_is_check_in === true) {
+                    toDisplay = '<span class="text-success"><i class="fas fa-sign-in-alt mr-1"></i>Turnstile (IN)</span>';
+                } else if (item.to_is_check_in === false) {
+                    toDisplay = '<span class="text-danger"><i class="fas fa-sign-out-alt mr-1"></i>Turnstile (OUT)</span>';
+                } else {
+                    toDisplay = '<span><i class="fas fa-rotate-left mr-1"></i>Turnstile</span>';
+                }
+            }
+            
+            return `
                 <div class="timeline-item mb-3">
                     <div class="timeline-header d-flex justify-content-between align-items-center">
                         <span class="font-weight-bold">
@@ -1243,13 +1262,13 @@ function displayTimelineForDate(timeline) {
                             <div class="col-md-3 mb-2">
                                 <strong>From:</strong><br>
                                 <div class="mt-1 p-2 bg-white rounded border">
-                                    ${item.from_location || 'Unknown'}
+                                    ${fromDisplay}
                                 </div>
                             </div>
                             <div class="col-md-3 mb-2">
                                 <strong>To:</strong><br>
                                 <div class="mt-1 p-2 bg-white rounded border">
-                                    ${item.to_location || 'Unknown'}
+                                    ${toDisplay}
                                 </div>
                             </div>
                             <div class="col-md-3 mb-2">
@@ -1282,14 +1301,14 @@ function displayTimelineForDate(timeline) {
                     </div>
                 </div>
             `;
-        });
+        }).join('');
     } else {
         timelineHtml = `
             <div class="alert alert-info">
                 <i class="fas fa-info-circle mr-1"></i>
                 No movement data available for the selected date.
                 <br><small class="text-muted">This could be because:</small>
-                <ul class="mb-0">
+                <ul class="mb-0 mt-2">
                     <li><small>Visitor only scanned at one location</small></li>
                     <li><small>Time gaps between scans are too large</small></li>
                     <li><small>No consecutive movements recorded</small></li>
@@ -1336,55 +1355,6 @@ function displayTimelineForDate(timeline) {
     $('#accessLogsTable').html(logsHtml);
 }
 
-function displayTimelineForDate(timeline) {
-    let timelineHtml = '<div class="text-muted">No movement data available for this date</div>';
-    
-    if (timeline && timeline.length > 0) {
-        timelineHtml = timeline.map((item, index) => {
-            const timeSpent = item.time_spent ? 
-                `${item.time_spent.hours || 0}h ${item.time_spent.minutes || 0}m ${item.time_spent.seconds || 0}s` : '-';
-            
-            return `
-                <div class="timeline-item mb-3">
-                    <div class="timeline-header d-flex justify-content-between">
-                        <span class="font-weight-bold">Movement ${index + 1}</span>
-                        <small class="text-muted">${formatDateTime(item.entry_time)}</small>
-                    </div>
-                    <div class="timeline-body p-2 border rounded bg-light">
-                        <div class="row">
-                            <div class="col-md-3">
-                                <strong>From:</strong><br>
-                                ${item.from_location || 'Unknown'}
-                            </div>
-                            <div class="col-md-3">
-                                <strong>To:</strong><br>
-                                ${item.to_location || 'Unknown'}
-                            </div>
-                            <div class="col-md-3">
-                                <strong>Time Spent:</strong><br>
-                                ${timeSpent}
-                            </div>
-                            <div class="col-md-3">
-                                <strong>Status:</strong><br>
-                                ${item.access_granted == 1 ? '<span class="badge badge-success">GRANTED</span>' : '<span class="badge badge-danger">DENIED</span>'}
-                            </div>
-                        </div>
-                        <div class="row mt-2">
-                            <div class="col-md-6">
-                                <small><strong>Entry:</strong> ${formatDateTime(item.entry_time)}</small>
-                            </div>
-                            <div class="col-md-6">
-                                <small><strong>Exit:</strong> ${formatDateTime(item.exit_time)}</small>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            `;
-        }).join('');
-    }
-    
-    $('#locationTimeline').html(timelineHtml);
-}
 function displayAllAccessLogs(accessLogs) {
     let logsHtml = '<tr><td colspan="7" class="text-center">No access logs found</td></tr>';
     
