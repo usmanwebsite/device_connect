@@ -1199,6 +1199,15 @@ function displayAccessLogsForDate(accessLogs) {
 function displayTimelineForDate(timeline) {
     console.log("Displaying timeline with", timeline.length, "items");
     
+    // 🔍 DEBUGGING: Pehle timeline data ko console mein print karo
+    if (timeline && timeline.length > 0) {
+        console.log("First timeline item:", timeline[0]);
+        console.log("All from_location values:", timeline.map(item => item.from_location));
+        console.log("All to_location values:", timeline.map(item => item.to_location));
+        console.log("from_is_check_in values:", timeline.map(item => item.from_is_check_in));
+        console.log("to_is_check_in values:", timeline.map(item => item.to_is_check_in));
+    }
+    
     let timelineHtml = '';
     
     if (timeline && timeline.length > 0) {
@@ -1223,28 +1232,34 @@ function displayTimelineForDate(timeline) {
                 ? '<span class="badge badge-success">GRANTED</span>' 
                 : '<span class="badge badge-danger">DENIED</span>';
             
-            // ✅ TURNSTILE TYPE DETECTION
-            // From location ke liye check
-            let fromDisplay = item.from_location || 'Unknown';
-            if (fromDisplay.toLowerCase().includes('turnstile')) {
+            // ✅ DEBUG: Check karo ke location mein "TURNSTILE" hai ya nahi
+            let fromLocationRaw = item.from_location || 'Unknown';
+            let toLocationRaw = item.to_location || 'Unknown';
+            
+            console.log(`Item ${index}: from_location = "${fromLocationRaw}", includes turnstile?`, 
+                        fromLocationRaw.toLowerCase().includes('turnstile'));
+            console.log(`Item ${index}: from_is_check_in =`, item.from_is_check_in);
+            
+            // ✅ FIXED: Sirf "turnstile" check karo, "13.TURNSTILE" nahi
+            let fromDisplay = fromLocationRaw;
+            if (fromDisplay && fromDisplay.toLowerCase().includes('turnstile')) {
                 if (item.from_is_check_in === true) {
-                    fromDisplay = '<span class="text-success"><i class="fas fa-sign-in-alt mr-1"></i>Turnstile (IN)</span>';
+                    fromDisplay = 'TURNSTILE (IN)';
                 } else if (item.from_is_check_in === false) {
-                    fromDisplay = '<span class="text-danger"><i class="fas fa-sign-out-alt mr-1"></i>Turnstile (OUT)</span>';
+                    fromDisplay = 'TURNSTILE (OUT)';
                 } else {
-                    fromDisplay = '<span><i class="fas fa-rotate-left mr-1"></i>Turnstile</span>';
+                    fromDisplay = 'TURNSTILE';
                 }
             }
             
-            // To location ke liye check
-            let toDisplay = item.to_location || 'Unknown';
-            if (toDisplay.toLowerCase().includes('turnstile')) {
+            let toDisplay = toLocationRaw;
+            if (toDisplay && toDisplay.toLowerCase().includes('turnstile')) {
                 if (item.to_is_check_in === true) {
-                    toDisplay = '<span class="text-success"><i class="fas fa-sign-in-alt mr-1"></i>Turnstile (IN)</span>';
+                    toDisplay = 'TURNSTILE (IN)';
                 } else if (item.to_is_check_in === false) {
-                    toDisplay = '<span class="text-danger"><i class="fas fa-sign-out-alt mr-1"></i>Turnstile (OUT)</span>';
+                    toDisplay = 'TURNSTILE (OUT)';
                 } else {
-                    toDisplay = '<span><i class="fas fa-rotate-left mr-1"></i>Turnstile</span>';
+                    toDisplay = 'TURNSTILE';
                 }
             }
             
@@ -1400,6 +1415,29 @@ function displayAllLocationTimeline(timeline) {
             const timeSpent = item.time_spent ? 
                 `${item.time_spent.hours || 0}h ${item.time_spent.minutes || 0}m ${item.time_spent.seconds || 0}s` : '-';
             
+            // ✅ FIXED: Sirf "turnstile" check karo
+            let fromDisplay = item.from_location || 'Unknown';
+            if (fromDisplay && fromDisplay.toLowerCase().includes('turnstile')) {
+                if (item.from_is_check_in === true) {
+                    fromDisplay = 'TURNSTILE (IN)';
+                } else if (item.from_is_check_in === false) {
+                    fromDisplay = 'TURNSTILE (OUT)';
+                } else {
+                    fromDisplay = 'TURNSTILE';
+                }
+            }
+            
+            let toDisplay = item.to_location || 'Unknown';
+            if (toDisplay && toDisplay.toLowerCase().includes('turnstile')) {
+                if (item.to_is_check_in === true) {
+                    toDisplay = 'TURNSTILE (IN)';
+                } else if (item.to_is_check_in === false) {
+                    toDisplay = 'TURNSTILE (OUT)';
+                } else {
+                    toDisplay = 'TURNSTILE';
+                }
+            }
+            
             return `
                 <div class="timeline-item mb-3">
                     <div class="timeline-header d-flex justify-content-between">
@@ -1410,11 +1448,11 @@ function displayAllLocationTimeline(timeline) {
                         <div class="row">
                             <div class="col-md-3">
                                 <strong>From:</strong><br>
-                                ${item.from_location || 'Unknown'}
+                                ${fromDisplay}
                             </div>
                             <div class="col-md-3">
                                 <strong>To:</strong><br>
-                                ${item.to_location || 'Unknown'}
+                                ${toDisplay}
                             </div>
                             <div class="col-md-3">
                                 <strong>Time Spent:</strong><br>
@@ -1441,7 +1479,6 @@ function displayAllLocationTimeline(timeline) {
     
     $('#locationTimeline').html(timelineHtml);
 }
-
 
 function getDateKeyFromFormatted(formattedDate) {
     // Convert dd-MMM-yyyy to yyyy-mm-dd
