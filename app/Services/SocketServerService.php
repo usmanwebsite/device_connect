@@ -255,9 +255,13 @@ private function handleOpenDoorRequest($sock, $data, $ip)
 
     // ✅ Ab try-catch block mein parse karo
     try {
-        $fromDate = \Carbon\Carbon::parse($dateOfVisitFrom);
-        $toDate   = \Carbon\Carbon::parse($dateOfVisitTo);
-        $now      = now();
+    $fromDate = \Carbon\Carbon::parse($dateOfVisitFrom)->subHours(8);
+    $toDate = \Carbon\Carbon::parse($dateOfVisitTo)->subHours(8);
+    $now = now(); // Malaysian time
+    
+    // Convert to Malaysian timezone for display (optional)
+    $fromDate = $fromDate->setTimezone('Asia/Kuala_Lumpur');
+    $toDate = $toDate->setTimezone('Asia/Kuala_Lumpur');
 
         echo "[" . date('H:i:s') . "] 📅 Visit Window: {$fromDate} → {$toDate}\n";
         echo "[" . date('H:i:s') . "] 🕒 Current Time: {$now}\n";

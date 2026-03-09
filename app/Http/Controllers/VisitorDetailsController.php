@@ -273,7 +273,7 @@ private function isTurnstileCheckIn($locationName, $logTime, $staffNo)
             
             // TRY: Sirf 'TURNSTILE' search karo
             $location = DB::table('vendor_locations')
-                ->where('name', 'like', '%TURNSTILE%')
+                ->where('name', 'like', '%13.TURNSTILE%')
                 ->first();
                 
             if (!$location) {
@@ -536,7 +536,7 @@ public function getVisitorChronology(Request $request)
         // ✅ TURNSTILE TYPE DETECTION
         $turnstileTypes = [];
         foreach ($accessLogs as $log) {
-            if (strpos(strtolower($log->location_name ?? ''), 'turnstile') !== false) {
+            if (strpos(strtolower($log->location_name ?? ''), '13.TURNSTILE') !== false) {
                 $result = $this->isTurnstileCheckIn(
                     $log->location_name, 
                     $log->created_at, 
@@ -562,13 +562,13 @@ public function getVisitorChronology(Request $request)
             
             // FROM location check
             $fromIsCheckIn = null;
-            if (strpos(strtolower($previousLog->location_name ?? ''), 'turnstile') !== false) {
+            if (strpos(strtolower($previousLog->location_name ?? ''), '13.TURNSTILE') !== false) {
                 $fromIsCheckIn = $turnstileTypes[$previousLog->id] ?? null;
             }
             
             // TO location check
             $toIsCheckIn = null;
-            if (strpos(strtolower($currentLog->location_name ?? ''), 'turnstile') !== false) {
+            if (strpos(strtolower($currentLog->location_name ?? ''), '13.TURNSTILE') !== false) {
                 $toIsCheckIn = $turnstileTypes[$currentLog->id] ?? null;
             }
             
