@@ -1,6 +1,7 @@
 @extends('layout.main_layout')
 
 @section('content')
+
 <style>
     .filter-card {
         background: white;
@@ -141,6 +142,63 @@
     .datetime-icon {
         font-size: 24px;
         margin-right: 10px;
+    }
+
+        /* Flatpickr customization */
+    .flatpickr-calendar {
+        border-radius: 12px;
+        box-shadow: 0 10px 40px rgba(0,0,0,0.15);
+        font-family: inherit;
+    }
+    
+    .flatpickr-day.selected {
+        background: #4A90E2;
+        border-color: #4A90E2;
+    }
+    
+    .flatpickr-day.today {
+        border-color: #4A90E2;
+    }
+    
+    .flatpickr-time input:hover,
+    .flatpickr-time input:focus {
+        background: #f0f0f0;
+    }
+    
+    .datetime-input-wrapper {
+        position: relative;
+    }
+    
+    .datetime-input-wrapper .flatpickr-input {
+        width: 100%;
+        padding: 8px 12px;
+        border: 1px solid #ddd;
+        border-radius: 6px;
+        font-size: 14px;
+        transition: all 0.3s;
+        background-color: white;
+    }
+    
+    .datetime-input-wrapper .flatpickr-input:focus {
+        border-color: #4A90E2;
+        outline: none;
+        box-shadow: 0 0 0 2px rgba(74,144,226,0.1);
+    }
+    
+    .datetime-clear-btn {
+        position: absolute;
+        right: 10px;
+        top: 50%;
+        transform: translateY(-50%);
+        background: none;
+        border: none;
+        cursor: pointer;
+        color: #999;
+        font-size: 14px;
+    }
+    
+    .datetime-clear-btn:hover {
+        color: #333;
     }
 </style>
 
@@ -283,23 +341,29 @@
             </div>
             
             
-            <div class="col-md-3">
-                <div class="filter-group">
-                    <label>Date & Time From</label>
-                    <input type="datetime-local" name="datetime_from" class="form-control" 
-                           value="{{ request('datetime_from') }}">
-                    <small class="text-muted">Format: YYYY-MM-DD HH:MM</small>
+                <div class="col-md-3">
+                    <div class="filter-group">
+                        <label>Date & Time From</label>
+                        <div class="datetime-input-wrapper">
+                            <input type="text" name="datetime_from" id="datetime_from" class="flatpickr-input" 
+                                placeholder="Select date & time"
+                                value="{{ request('datetime_from') ? \Carbon\Carbon::parse(request('datetime_from'))->format('Y-m-d H:i:s') : '' }}">
+                        </div>
+                        <small class="text-muted">Format: YYYY-MM-DD HH:MM:SS</small>
+                    </div>
                 </div>
-            </div>
-            
-            <div class="col-md-3">
-                <div class="filter-group">
-                    <label>Date & Time To</label>
-                    <input type="datetime-local" name="datetime_to" class="form-control" 
-                           value="{{ request('datetime_to') }}">
-                    <small class="text-muted">Format: YYYY-MM-DD HH:MM</small>
+
+                <div class="col-md-3">
+                    <div class="filter-group">
+                        <label>Date & Time To</label>
+                        <div class="datetime-input-wrapper">
+                            <input type="text" name="datetime_to" id="datetime_to" class="flatpickr-input" 
+                                placeholder="Select date & time"
+                                value="{{ request('datetime_to') ? \Carbon\Carbon::parse(request('datetime_to'))->format('Y-m-d H:i:s') : '' }}">
+                        </div>
+                        <small class="text-muted">Format: YYYY-MM-DD HH:MM:SS</small>
+                    </div>
                 </div>
-            </div>
         </div>
         
         <div class="filter-actions">
@@ -462,10 +526,118 @@
 <script src="https://cdn.datatables.net/buttons/2.2.2/js/buttons.bootstrap5.min.js"></script>
 <script src="https://cdn.datatables.net/buttons/2.2.2/js/buttons.html5.min.js"></script>
 <script src="https://kit.fontawesome.com/a076d05399.js"></script>
-
+<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
 <script>
     // Pass visitor data to JavaScript
     const visitorsData = @json($visitors);
+
+
+        const datetimeFromPicker = flatpickr("#datetime_from", {
+        enableTime: true,
+        dateFormat: "Y-m-d H:i:S",
+        time_24hr: true,
+        allowInput: true,
+        minuteIncrement: 1,
+        placeholder: "Select date & time",
+        onChange: function(selectedDates, dateStr, instance) {
+            // Optional: Set min date for datetime_to
+            if (datetimeToPicker) {
+                datetimeToPicker.set('minDate', selectedDates[0]);
+            }
+        }
+    });
+    
+    // Initialize Flatpickr for datetime_to
+    const datetimeToPicker = flatpickr("#datetime_to", {
+        enableTime: true,
+        dateFormat: "Y-m-d H:i:S",
+        time_24hr: true,
+        allowInput: true,
+        minuteIncrement: 1,
+        placeholder: "Select date & time",
+        onChange: function(selectedDates, dateStr, instance) {
+            // Optional: Set max date for datetime_from
+            if (datetimeFromPicker) {
+                datetimeFromPicker.set('maxDate', selectedDates[0]);
+            }
+        }
+    });
+
+       function setQuickDate(range) {
+        let from = new Date();
+        let to = new Date();
+        let fromStr = '', toStr = '';
+        
+        switch(range) {
+            case 'today':
+                from.setHours(0, 0, 0);
+                to.setHours(23, 59, 59);
+                fromStr = formatDateTimeForFlatpickr(from);
+                toStr = formatDateTimeForFlatpickr(to);
+                break;
+            case 'yesterday':
+                from.setDate(from.getDate() - 1);
+                to.setDate(to.getDate() - 1);
+                from.setHours(0, 0, 0);
+                to.setHours(23, 59, 59);
+                fromStr = formatDateTimeForFlatpickr(from);
+                toStr = formatDateTimeForFlatpickr(to);
+                break;
+            case 'this_week':
+                const startOfWeek = new Date(from);
+                startOfWeek.setDate(from.getDate() - from.getDay());
+                startOfWeek.setHours(0, 0, 0);
+                fromStr = formatDateTimeForFlatpickr(startOfWeek);
+                to.setHours(23, 59, 59);
+                toStr = formatDateTimeForFlatpickr(to);
+                break;
+            case 'this_month':
+                const startOfMonth = new Date(from.getFullYear(), from.getMonth(), 1);
+                startOfMonth.setHours(0, 0, 0);
+                fromStr = formatDateTimeForFlatpickr(startOfMonth);
+                to.setHours(23, 59, 59);
+                toStr = formatDateTimeForFlatpickr(to);
+                break;
+        }
+        
+        if (fromStr) {
+            datetimeFromPicker.setDate(fromStr);
+            document.querySelector('input[name="datetime_from"]').value = fromStr;
+        }
+        if (toStr) {
+            datetimeToPicker.setDate(toStr);
+            document.querySelector('input[name="datetime_to"]').value = toStr;
+        }
+        
+        // Auto submit form after a short delay
+        setTimeout(() => {
+            document.getElementById('filterForm').submit();
+        }, 100);
+    }
+
+
+        function formatDateTimeForFlatpickr(date) {
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        const hours = String(date.getHours()).padStart(2, '0');
+        const minutes = String(date.getMinutes()).padStart(2, '0');
+        const seconds = String(date.getSeconds()).padStart(2, '0');
+        return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+    }
+    
+    function clearDateTimes() {
+        datetimeFromPicker.clear();
+        datetimeToPicker.clear();
+        document.querySelector('input[name="datetime_from"]').value = '';
+        document.querySelector('input[name="datetime_to"]').value = '';
+        
+        // Auto submit form after a short delay
+        setTimeout(() => {
+            document.getElementById('filterForm').submit();
+        }, 100);
+    }
+
     
     function showDateTimeModal(index) {
         const visitor = visitorsData[index];

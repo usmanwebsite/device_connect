@@ -85,21 +85,29 @@ class VisitorReportController extends Controller
         
         // DateTime From filter - Compare with both date and time
         if ($request->filled('datetime_from')) {
-            $datetimeFrom = Carbon::parse($request->datetime_from);
-            $allVisitors = array_filter($allVisitors, function($visitor) use ($datetimeFrom) {
-                // Combine date_of_visit and time_in to create full datetime
-                $visitDateTime = Carbon::parse($visitor['date_of_visit'] . ' ' . ($visitor['time_in'] ?? '00:00:00'));
-                return $visitDateTime >= $datetimeFrom;
-            });
+            try {
+                $datetimeFrom = Carbon::parse($request->datetime_from);
+                $allVisitors = array_filter($allVisitors, function($visitor) use ($datetimeFrom) {
+                    // Combine date_of_visit and time_in to create full datetime
+                    $visitDateTime = Carbon::parse($visitor['date_of_visit'] . ' ' . ($visitor['time_in'] ?? '00:00:00'));
+                    return $visitDateTime >= $datetimeFrom;
+                });
+            } catch (\Exception $e) {
+                Log::error('Error parsing datetime_from: ' . $e->getMessage());
+            }
         }
-        
+
         // DateTime To filter
         if ($request->filled('datetime_to')) {
-            $datetimeTo = Carbon::parse($request->datetime_to);
-            $allVisitors = array_filter($allVisitors, function($visitor) use ($datetimeTo) {
-                $visitDateTime = Carbon::parse($visitor['date_of_visit'] . ' ' . ($visitor['time_in'] ?? '00:00:00'));
-                return $visitDateTime <= $datetimeTo;
-            });
+            try {
+                $datetimeTo = Carbon::parse($request->datetime_to);
+                $allVisitors = array_filter($allVisitors, function($visitor) use ($datetimeTo) {
+                    $visitDateTime = Carbon::parse($visitor['date_of_visit'] . ' ' . ($visitor['time_in'] ?? '00:00:00'));
+                    return $visitDateTime <= $datetimeTo;
+                });
+            } catch (\Exception $e) {
+                Log::error('Error parsing datetime_to: ' . $e->getMessage());
+            }
         }
         
         return array_values($allVisitors);
