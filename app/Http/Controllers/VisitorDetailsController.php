@@ -229,14 +229,15 @@ private function isTurnstileCheckIn($locationName, $logTime, $staffNo)
         Log::info("=== TURNSTILE CHECK START ===");
         Log::info("Parameters: StaffNo=$staffNo, Location=$locationName, Time=$logTime");
         
+        // 🔥 FIX: Use whereRaw for exact time match (avoid milliseconds/format issues)
         $logRecord = DB::table('device_access_logs')
             ->where('staff_no', $staffNo)
             ->where('location_name', $locationName)
-            ->where('created_at', $logTime)
+            ->whereRaw("DATE_FORMAT(created_at, '%Y-%m-%d %H:%i:%s') = ?", [date('Y-m-d H:i:s', strtotime($logTime))])
             ->first();
         
         if (!$logRecord) {
-            Log::warning("❌ Log record not found");
+            Log::warning("❌ Log record not found for time: $logTime");
             Log::info("=== TURNSTILE CHECK END (false) ===");
             return false;
         }
@@ -249,7 +250,7 @@ private function isTurnstileCheckIn($locationName, $logTime, $staffNo)
             return false;
         }
         
-        // 2. DEVICE CONNECTION: device_id se device_connections table mein id dhundo
+        // 2. DEVICE CONNECTION
         $deviceConnection = DB::table('device_connections')
             ->where('device_id', $logRecord->device_id)
             ->first();
@@ -260,31 +261,23 @@ private function isTurnstileCheckIn($locationName, $logTime, $staffNo)
             return false;
         }
         
-        Log::info("✅ Device connection found: ID=" . $deviceConnection->id . ", DeviceID=" . $deviceConnection->device_id);
+        Log::info("✅ Device connection found: ID=" . $deviceConnection->id);
         
-        // 3. VENDOR LOCATION: location_name se vendor_locations mein id dhundo
+        // 3. VENDOR LOCATION - 🔥 FIX: Better search
         $location = DB::table('vendor_locations')
-            ->where('name', 'like', '%' . $locationName . '%')
-            ->orWhere('name', 'like', '%13.TURNSTILE%')
+            ->where('name', 'LIKE', '%13.TURNSTILE%')
+            ->orWhere('name', 'LIKE', '%Turnstile%')
             ->first();
         
         if (!$location) {
-            Log::warning("❌ Location not found in vendor_locations for: $locationName");
-            
-            // TRY: Sirf 'TURNSTILE' search karo
-            $location = DB::table('vendor_locations')
-                ->where('name', 'like', '%13.TURNSTILE%')
-                ->first();
-                
-            if (!$location) {
-                Log::info("=== TURNSTILE CHECK END (false) ===");
-                return false;
-            }
+            Log::warning("❌ Turnstile location not found in vendor_locations");
+            Log::info("=== TURNSTILE CHECK END (false) ===");
+            return false;
         }
         
         Log::info("✅ Location found: ID=" . $location->id . ", Name=" . $location->name);
         
-        // 4. DEVICE LOCATION ASSIGN: Dono IDs se record dhundo
+        // 4. DEVICE LOCATION ASSIGN
         $deviceLocationAssign = DB::table('device_location_assigns')
             ->where('location_id', $location->id)
             ->where('device_id', $deviceConnection->id)
@@ -301,18 +294,18 @@ private function isTurnstileCheckIn($locationName, $logTime, $staffNo)
                 Log::info("✗ This is CHECK-OUT turnstile");
                 Log::info("=== TURNSTILE CHECK END (false) ===");
                 return false;
-            } else {
-                Log::warning("⚠ Unknown is_type: " . $deviceLocationAssign->is_type);
             }
         } else {
             Log::warning("❌ No device_location_assign found");
             
-            // 5. FALLBACK: Device ID ke basis par guess karo (agar naming convention ho)
-            if (strpos($logRecord->device_id, '133') !== false) {
-                Log::info("⚠ FALLBACK: Device ID contains 133, assuming CHECK-IN");
-                return true;
-            } elseif (strpos($logRecord->device_id, '134') !== false) {
-                Log::info("⚠ FALLBACK: Device ID contains 134, assuming CHECK-OUT");
+            // 🔥 FALLBACK: Agar assign nahi mila, toh kisi bi device se check karo
+            $anyCheckOut = DB::table('device_location_assigns')
+                ->where('location_id', $location->id)
+                ->where('is_type', 'check_out')
+                ->exists();
+            
+            if ($anyCheckOut) {
+                Log::info("⚠ FALLBACK: check_out exists for this location, assuming CHECK-OUT");
                 return false;
             }
         }
@@ -322,7 +315,6 @@ private function isTurnstileCheckIn($locationName, $logTime, $staffNo)
         
     } catch (\Exception $e) {
         Log::error('❌ Error in isTurnstileCheckIn: ' . $e->getMessage());
-        Log::error('Stack trace: ' . $e->getTraceAsString());
         Log::info("=== TURNSTILE CHECK END (false - exception) ===");
         return false;
     }
@@ -491,7 +483,6 @@ public function getVisitorChronology(Request $request)
     try {
         $icNo = $request->input('ic_no');
         
-        // Basic logs lo
         $accessLogs = DB::table('device_access_logs')
             ->where('staff_no', $icNo)
             ->orderBy('created_at', 'asc')
@@ -506,23 +497,41 @@ public function getVisitorChronology(Request $request)
 
         Log::info("TURNSTILE DEBUG: Total logs found: " . $accessLogs->count());
         
-        // ✅ TURNSTILE TYPE DETECTION
+        // ✅ FIXED: TURNSTILE TYPE DETECTION - BETTER APPROACH
         $turnstileTypes = [];
         foreach ($accessLogs as $log) {
-            if (strpos(strtolower($log->location_name ?? ''), '13.TURNSTILE') !== false) {
-                $result = $this->isTurnstileCheckIn(
-                    $log->location_name, 
-                    $log->created_at, 
-                    $icNo
-                );
+            // Check if location contains Turnstile (case insensitive)
+            $isTurnstile = stripos($log->location_name ?? '', 'turnstile') !== false;
+            
+            if ($isTurnstile) {
+                // 🔥 CRITICAL FIX: Directly check device_location_assigns
+                $deviceLocationAssign = DB::table('device_location_assigns as dla')
+                    ->join('device_connections as dc', 'dc.id', '=', 'dla.device_id')
+                    ->join('vendor_locations as vl', 'vl.id', '=', 'dla.location_id')
+                    ->where('dc.device_id', $log->device_id)
+                    ->where('vl.name', 'LIKE', '%Turnstile%')
+                    ->first();
                 
-                $turnstileTypes[$log->id] = $result;
-                
-                Log::info("TURNSTILE DEBUG: Log ID {$log->id} => " . ($result ? 'IN' : 'OUT'));
+                if ($deviceLocationAssign) {
+                    $isCheckIn = ($deviceLocationAssign->is_type === 'check_in');
+                    $turnstileTypes[$log->id] = $isCheckIn;
+                    Log::info("TURNSTILE DEBUG: Log ID {$log->id} => " . ($isCheckIn ? 'IN' : 'OUT') . " (from device_location_assigns)");
+                } else {
+                    // Fallback: Agar assign nahi mila, toh check karo ki kya check_out exists
+                    $checkOutExists = DB::table('device_location_assigns as dla')
+                        ->join('vendor_locations as vl', 'vl.id', '=', 'dla.location_id')
+                        ->where('vl.name', 'LIKE', '%Turnstile%')
+                        ->where('dla.is_type', 'check_out')
+                        ->exists();
+                    
+                    // Agar check_out exists, toh isko OUT maano, warna IN
+                    $turnstileTypes[$log->id] = !$checkOutExists;
+                    Log::info("TURNSTILE DEBUG: Log ID {$log->id} => " . (!$checkOutExists ? 'IN' : 'OUT') . " (fallback)");
+                }
             }
         }
         
-        Log::info("TURNSTILE DEBUG: Final turnstileTypes count: " . count($turnstileTypes));
+        Log::info("TURNSTILE DEBUG: Final turnstileTypes: " . json_encode($turnstileTypes));
         
         // Timeline banao
         $locationTimeline = [];
@@ -535,14 +544,14 @@ public function getVisitorChronology(Request $request)
             
             // FROM location check
             $fromIsCheckIn = null;
-            if (strpos(strtolower($previousLog->location_name ?? ''), '13.TURNSTILE') !== false) {
-                $fromIsCheckIn = $turnstileTypes[$previousLog->id] ?? null;
+            if (stripos($previousLog->location_name ?? '', 'turnstile') !== false) {
+                $fromIsCheckIn = $turnstileTypes[$previousLog->id] ?? false;
             }
             
             // TO location check
             $toIsCheckIn = null;
-            if (strpos(strtolower($currentLog->location_name ?? ''), '13.TURNSTILE') !== false) {
-                $toIsCheckIn = $turnstileTypes[$currentLog->id] ?? null;
+            if (stripos($currentLog->location_name ?? '', 'turnstile') !== false) {
+                $toIsCheckIn = $turnstileTypes[$currentLog->id] ?? false;
             }
             
             $locationTimeline[] = [
@@ -556,6 +565,7 @@ public function getVisitorChronology(Request $request)
                 'to_is_check_in' => $toIsCheckIn
             ];
         }
+
         
         // Debug: Check if values are set
         foreach ($locationTimeline as $index => $item) {

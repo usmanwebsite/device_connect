@@ -1195,21 +1195,13 @@ function displayAccessLogsForDate(accessLogs) {
 
 function displayTimelineForDate(timeline) {
     console.log("Displaying timeline with", timeline.length, "items");
-    
-    // 🔍 DEBUGGING: Pehle timeline data ko console mein print karo
-    if (timeline && timeline.length > 0) {
-        console.log("First timeline item:", timeline[0]);
-        console.log("All from_location values:", timeline.map(item => item.from_location));
-        console.log("All to_location values:", timeline.map(item => item.to_location));
-        console.log("from_is_check_in values:", timeline.map(item => item.from_is_check_in));
-        console.log("to_is_check_in values:", timeline.map(item => item.to_is_check_in));
-    }
+    console.log("Full timeline data:", JSON.stringify(timeline, null, 2));
     
     let timelineHtml = '';
     
     if (timeline && timeline.length > 0) {
         timelineHtml = timeline.map((item, index) => {
-            // Calculate time spent
+            // ✅ FIXED: Calculate timeSpentText properly
             let timeSpentText = '-';
             if (item.time_spent) {
                 const hours = item.time_spent.hours || 0;
@@ -1232,12 +1224,12 @@ function displayTimelineForDate(timeline) {
             let fromLocationRaw = item.from_location || 'Unknown';
             let toLocationRaw = item.to_location || 'Unknown';
             
-            console.log(`Item ${index}: from_location = "${fromLocationRaw}", includes turnstile?`, 
-                        fromLocationRaw.toLowerCase().includes('turnstile'));
-            console.log(`Item ${index}: from_is_check_in =`, item.from_is_check_in);
+            // ✅ FIXED: Better check for turnstile
+            const isFromTurnstile = fromLocationRaw && (fromLocationRaw.toLowerCase().includes('turnstile'));
+            const isToTurnstile = toLocationRaw && (toLocationRaw.toLowerCase().includes('turnstile'));
             
             let fromDisplay = fromLocationRaw;
-            if (fromDisplay && fromDisplay.toLowerCase().includes('turnstile')) {
+            if (isFromTurnstile) {
                 if (item.from_is_check_in === true) {
                     fromDisplay = 'TURNSTILE (IN)';
                 } else if (item.from_is_check_in === false) {
@@ -1248,7 +1240,7 @@ function displayTimelineForDate(timeline) {
             }
             
             let toDisplay = toLocationRaw;
-            if (toDisplay && toDisplay.toLowerCase().includes('turnstile')) {
+            if (isToTurnstile) {
                 if (item.to_is_check_in === true) {
                     toDisplay = 'TURNSTILE (IN)';
                 } else if (item.to_is_check_in === false) {
@@ -1317,18 +1309,11 @@ function displayTimelineForDate(timeline) {
             <div class="alert alert-info">
                 <i class="fas fa-info-circle mr-1"></i>
                 No movement data available for the selected date.
-                <br><small class="text-muted">This could be because:</small>
-                <ul class="mb-0 mt-2">
-                    <li><small>Visitor only scanned at one location</small></li>
-                    <li><small>Time gaps between scans are too large</small></li>
-                    <li><small>No consecutive movements recorded</small></li>
-                </ul>
             </div>
         `;
     }
     
     $('#locationTimeline').html(timelineHtml);
-    console.log("Timeline HTML set for", timeline.length, "items");
 }
 
     function displayAccessLogsForDate(accessLogs) {
@@ -1411,7 +1396,8 @@ function displayAllLocationTimeline(timeline) {
                 `${item.time_spent.hours || 0}h ${item.time_spent.minutes || 0}m ${item.time_spent.seconds || 0}s` : '-';
             
             let fromDisplay = item.from_location || 'Unknown';
-            if (fromDisplay && fromDisplay.toLowerCase().includes('turnstile')) {
+            // ✅ FIXED: Check for 13.TURNSTILE
+            if (fromDisplay && fromDisplay.toLowerCase().includes('13.turnstile')) {
                 if (item.from_is_check_in === true) {
                     fromDisplay = 'TURNSTILE (IN)';
                 } else if (item.from_is_check_in === false) {
@@ -1422,7 +1408,7 @@ function displayAllLocationTimeline(timeline) {
             }
             
             let toDisplay = item.to_location || 'Unknown';
-            if (toDisplay && toDisplay.toLowerCase().includes('turnstile')) {
+            if (toDisplay && toDisplay.toLowerCase().includes('13.turnstile')) {
                 if (item.to_is_check_in === true) {
                     toDisplay = 'TURNSTILE (IN)';
                 } else if (item.to_is_check_in === false) {
