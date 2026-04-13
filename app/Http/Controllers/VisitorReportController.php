@@ -192,7 +192,7 @@ private function getVisitorsFromDeviceLogs()
                 $dateOfVisit = $earliestLog ? $earliestLog->created_at->format('Y-m-d') : 'N/A';
 
                 $timeOut = null;
-                foreach ($logs as $log) { // Recent scan se shuru karo
+                foreach ($logs as $log) {
                     if (!$log->location_name) continue;
                     
                     $vendorLocation = VendorLocation::where('name', $log->location_name)->first();
@@ -208,9 +208,9 @@ private function getVisitorsFromDeviceLogs()
                     }
                 }
 
-                $currentLocation = $this->getCurrentLocationBasedOnLatestScan($logs);
+                // ✅ Pass $timeOut to the function
+                $currentLocation = $this->getCurrentLocationBasedOnLatestScan($logs, $timeOut);
                 
-                // Accessed locations
                 $accessedLocations = $logs->pluck('location_name')->unique()->filter()->implode(', ');
 
                 $purpose = $this->extractPurposeFromApi($visitorData ?? []);
@@ -221,7 +221,6 @@ private function getVisitorsFromDeviceLogs()
                     $logs
                 );
 
-                // Duration calculate karo
                 $duration = $this->calculateDuration($timeIn, $timeOut);
 
                 $visitors[] = [
@@ -235,7 +234,7 @@ private function getVisitorsFromDeviceLogs()
                     'time_out' => $timeOut ?? 'N/A',
                     'purpose' => $purpose,
                     'host_name' => $visitorData['personVisited'] ?? 'N/A',
-                    'current_location' => $currentLocation, // ✅ Yeh ab sahi hoga
+                    'current_location' => $currentLocation,
                     'location_accessed' => $accessedLocations ?: 'N/A',
                     'duration' => $duration,
                     'status' => $status
@@ -255,13 +254,12 @@ private function getVisitorsFromDeviceLogs()
     }
 }
 
-private function getCurrentLocationBasedOnLatestScan($logs)
+private function getCurrentLocationBasedOnLatestScan($logs, $timeOut = null)
 {
     if ($logs->isEmpty()) {
         return 'N/A';
     }
     
-    // SIRF last (most recent) scan dekho
     $latestLog = $logs->first();
     $locationName = $latestLog->location_name ?? '';
     
@@ -269,45 +267,20 @@ private function getCurrentLocationBasedOnLatestScan($logs)
         return 'N/A';
     }
     
-    $isGate =strtoupper($locationName) === "Turnstile";
+    $isGate = stripos($locationName, 'turnstile') !== false;
     
+    // Agar Turnstile nahi hai, toh location name return karo
     if (!$isGate) {
         return $locationName;
     }
     
-    try {
-        $vendorLocation = VendorLocation::where('name', 'like', '%' . $locationName . '%')->first();
-        if (!$vendorLocation) {
-            return $locationName; 
-        }
-        
-        $deviceConnection = DeviceConnection::where('device_id', $latestLog->device_id)->first();
-        if (!$deviceConnection) {
-            return $locationName;
-        }
-        
-        // DeviceLocationAssign find karo
-        $deviceLocationAssign = DeviceLocationAssign::where('device_id', $deviceConnection->id)
-            ->where('location_id', $vendorLocation->id)
-            ->first();
-        
-        if (!$deviceLocationAssign) {
-            return $locationName;
-        }
-        
-        // is_type ke hisaab se return karo
-        if ($deviceLocationAssign->is_type == 'check_in') {
-            return 'Turnstile (Entry)'; // Gate se andar aaya hai
-        } elseif ($deviceLocationAssign->is_type == 'check_out') {
-            return 'Out'; // Gate se bahar gaya hai
-        } else {
-            return $locationName;
-        }
-        
-    } catch (\Exception $e) {
-        Log::error('Error in getCurrentLocationBasedOnLatestScan: ' . $e->getMessage());
-        return $locationName;
+    // Agar Turnstile hai, toh check karo kya visitor ne check_out kiya hai?
+    if ($timeOut && $timeOut != 'N/A') {
+        return 'Turnstile (Out)';
     }
+    
+    // Agar check_out nahi hai, toh Entry hai
+    return 'Turnstile (Entry)';
 }
 
     // ✅ UPDATED: Main function with optimized current location logic
