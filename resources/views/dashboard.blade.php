@@ -1106,6 +1106,8 @@ function acknowledgeAlert() {
     .then(response => response.json())
     .then(data => {
         if (data.success) {
+
+            window.location.reload();
             // ✅ UPDATE BOTH COUNTS IMMEDIATELY
             if (alertType === 'access_denied') {
                 // Update Active Security Alerts (OVERALL)

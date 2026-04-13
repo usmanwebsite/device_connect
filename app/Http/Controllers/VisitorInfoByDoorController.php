@@ -191,8 +191,10 @@ class VisitorInfoByDoorController extends Controller
                             'date_of_visit_to' => isset($visitorData['dateOfVisitTo']) 
                                 ? Carbon::parse($visitorData['dateOfVisitTo'])->format('d M Y h:i A') 
                                 : 'N/A',
+                            // 'check_in_time' => $latestCheckIn->created_at
+                            // ->timezone('Asia/Kuala_Lumpur')
+                            // ->format('d M Y h:i A'),
                             'check_in_time' => $latestCheckIn->created_at
-                            ->timezone('Asia/Kuala_Lumpur')
                             ->format('d M Y h:i A'),
                             'device_id' => $log->device_id ?? 'N/A',
                             'location_name' => $log->location_name ?? 'N/A',

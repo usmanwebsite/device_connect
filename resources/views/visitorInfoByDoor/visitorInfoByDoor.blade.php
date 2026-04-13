@@ -5,10 +5,10 @@
 @section('content')
 <div class="container-fluid">
     <div class="row">
-        <div class="col-md-12">
+        <div class="col-md-12 mt-3">
             <div class="card">
                 <div class="card-header">
-                    <h5 class="card-title mb-0" style="font-size: 22px !important">
+                    <h5 class="card-title mb-3" style="font-size: 22px !important">
                         <i class="fas fa-door-open me-2"></i>Visitor Information By Door/Location
                     </h5>
                 </div>

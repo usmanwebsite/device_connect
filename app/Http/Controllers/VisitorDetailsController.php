@@ -387,33 +387,6 @@ private function getVisitSessions($staffNo)
     return $visitSessions;
 }
 
-private function getVisitDates($icNo)
-{
-    $logs = DB::table('device_access_logs')
-        ->where('staff_no', $icNo) // Remember, staff_no column stores IC number
-        ->where('access_granted', 1)
-        ->orderBy('created_at', 'desc')
-        ->get();
-    
-    $visitDates = [];
-    
-    foreach ($logs as $log) {
-        $dateKey = date('Y-m-d', strtotime($log->created_at));
-        $formattedDate = date('d-M-Y', strtotime($log->created_at));
-        
-        if (!isset($visitDates[$dateKey])) {
-            $visitDates[$dateKey] = $formattedDate;
-        }
-    }
-    
-    // Sort in descending order (latest first)
-    krsort($visitDates);
-    
-    Log::info("Extracted " . count($visitDates) . " unique dates for IC: $icNo");
-    
-    return array_values($visitDates);
-}
-
 // public function getVisitorChronology(Request $request)
 // {
 //     $request->validate([

@@ -22,7 +22,8 @@ use Illuminate\Support\Facades\Route;
         Route::get('/generate-encrypted', [QRCodeController::class, 'generateEncryptedString']);
     });
 
-    Route::get('visitor-types', [JavaVisitorTypeController::class, 'index']);
+Route::get('visitor-types', [JavaVisitorTypeController::class, 'index']);
+    
 
     // Device control endpoints
     Route::prefix('device')->group(function () {

@@ -23,26 +23,126 @@ class VisitorReportController extends Controller
         $this->menuService = $menuService;
     }
 
-    public function index()
+    // public function index()
+    // {
+    //     $angularMenu = $this->menuService->getFilteredAngularMenu();
+        
+    //     $visitors = $this->getVisitorsFromDeviceLogs();
+
+    //     $filterData = $this->getFilterData($visitors);
+        
+    //     return view('reports.visitor_report', compact('visitors', 'angularMenu','filterData'));
+    // }
+
+    public function index(Request $request)
     {
         $angularMenu = $this->menuService->getFilteredAngularMenu();
         
-        $visitors = $this->getVisitorsFromDeviceLogs();
+        // Get filtered visitors based on request
+        $visitors = $this->getFilteredVisitors($request);
         
-        return view('reports.visitor_report', compact('visitors', 'angularMenu'));
+        // Get unique values for filter dropdowns
+        $filterData = $this->getFilterData($visitors);
+        
+        return view('reports.visitor_report', compact('visitors', 'angularMenu', 'filterData'));
     }
 
-    public function export(Request $request)
+    private function getFilteredVisitors(Request $request)
     {
-        $type = $request->get('type', 'excel');
-        $visitors = $this->getVisitorsFromDeviceLogs();
+        $allVisitors = $this->getVisitorsFromDeviceLogs();
         
-        if ($type === 'excel') {
-            return Excel::download(new VisitorReportExport($visitors), 'visitor-report-' . date('Y-m-d') . '.xlsx');
+        // Apply filters
+        if ($request->filled('ic_passport')) {
+            $allVisitors = array_filter($allVisitors, function($visitor) use ($request) {
+                return stripos($visitor['ic_passport'], $request->ic_passport) !== false;
+            });
         }
         
-        return back()->with('success', 'Export completed successfully');
+        if ($request->filled('name')) {
+            $allVisitors = array_filter($allVisitors, function($visitor) use ($request) {
+                return stripos($visitor['name'], $request->name) !== false;
+            });
+        }
+        
+        if ($request->filled('contact_no')) {
+            $allVisitors = array_filter($allVisitors, function($visitor) use ($request) {
+                return stripos($visitor['contact_no'], $request->contact_no) !== false;
+            });
+        }
+        
+        if ($request->filled('purpose')) {
+            $allVisitors = array_filter($allVisitors, function($visitor) use ($request) {
+                return stripos($visitor['purpose'], $request->purpose) !== false;
+            });
+        }
+
+        // Status filter - Commented for client confirmation
+        if ($request->filled('status')) {
+            $allVisitors = array_filter($allVisitors, function($visitor) use ($request) {
+                return $visitor['status'] === $request->status;
+            });
+        }
+        
+        // DateTime From filter - Compare with both date and time
+        if ($request->filled('datetime_from')) {
+            $datetimeFrom = Carbon::parse($request->datetime_from);
+            $allVisitors = array_filter($allVisitors, function($visitor) use ($datetimeFrom) {
+                // Combine date_of_visit and time_in to create full datetime
+                $visitDateTime = Carbon::parse($visitor['date_of_visit'] . ' ' . ($visitor['time_in'] ?? '00:00:00'));
+                return $visitDateTime >= $datetimeFrom;
+            });
+        }
+        
+        // DateTime To filter
+        if ($request->filled('datetime_to')) {
+            $datetimeTo = Carbon::parse($request->datetime_to);
+            $allVisitors = array_filter($allVisitors, function($visitor) use ($datetimeTo) {
+                $visitDateTime = Carbon::parse($visitor['date_of_visit'] . ' ' . ($visitor['time_in'] ?? '00:00:00'));
+                return $visitDateTime <= $datetimeTo;
+            });
+        }
+        
+        return array_values($allVisitors);
     }
+
+    private function getFilterData($visitors)
+    {
+        $purposes = array_unique(array_column($visitors, 'purpose'));
+        $companies = array_unique(array_column($visitors, 'company_name'));
+        $statuses = ['Active', 'Completed', 'Scheduled'];
+        
+        return [
+            'purposes' => array_values(array_filter($purposes)),
+            'companies' => array_values(array_filter($companies)),
+            'statuses' => $statuses
+        ];
+    }
+   
+    
+    // public function export(Request $request)
+    // {
+    //     $type = $request->get('type', 'excel');
+    //     $visitors = $this->getVisitorsFromDeviceLogs();
+        
+    //     if ($type === 'excel') {
+    //         return Excel::download(new VisitorReportExport($visitors), 'visitor-report-' . date('Y-m-d') . '.xlsx');
+    //     }
+        
+    //     return back()->with('success', 'Export completed successfully');
+    // }
+    public function export(Request $request)
+{
+    $type = $request->get('type', 'excel');
+    
+    // Get filtered visitors for export
+    $visitors = $this->getFilteredVisitors($request);
+    
+    if ($type === 'excel') {
+        return Excel::download(new VisitorReportExport($visitors), 'visitor-report-' . date('Y-m-d') . '.xlsx');
+    }
+    
+    return back()->with('success', 'Export completed successfully');
+}
 
 private function getVisitorsFromDeviceLogs()
 {

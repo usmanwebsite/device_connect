@@ -5,14 +5,13 @@
 @section('content')
 
 @php
-    // Controller se aaya hua javaBaseUrl use karein
     $javaBackendUrl = $javaBaseUrl ?? env('JAVA_BACKEND_URL', 'http://127.0.0.1:8080');
 @endphp
 <div class="content-header">
     <div class="container-fluid">
         <div class="row mb-2">
             <div class="col-sm-6">
-                <h1 class="m-0" style="font-weight: 600; font-size: 22px; margin-left: 20px !important">Visitor Details</h1>
+                <h1 class="m-3" style="font-weight: 600; font-size: 22px; margin-left: 20px !important">Visitor Details</h1>
             </div>
         </div>
     </div>
@@ -34,10 +33,10 @@
                             <div class="col-md-3">
                                 <div class="form-group">
                                     <label for="searchType">Search By</label>
-                                    <select id="searchType" class="form-control form-control-lg" style="height: 55px !important">
+                                    <select id="searchType" class="form-control form-control-lg" style="height: 56px !important">
                                         <option value="">SELECT TYPE</option>
                                         <option value="staffNo">Staff Number</option>
-                                        <option value="icNo">IC Number</option>
+                                        <option value="icNo">IC Number/PASSPORT </option>
                                     </select>
                                     <small class="text-muted">
                                         <i class="fas fa-info-circle"></i> 
@@ -765,7 +764,6 @@ function displayVisitorData(data) {
         }
     };
     
-    // ✅ Status badge بنائیں
     const getStatusBadge = (visitFrom, visitTo, isCurrentlyInBuilding) => {
         if (!visitFrom || visitFrom === '-' || visitFrom === 'N/A') {
             return '<span class="badge badge-secondary">Never Visited</span>';
@@ -808,7 +806,6 @@ function displayVisitorData(data) {
             return;
         }
         
-        // ✅ VisitFrom اور VisitTo ڈیٹا استعمال کریں
         const formattedFrom = formatDateTime(visitor.visitFrom || visitor.dateOfVisitFrom || visitor.visit_from);
         const formattedTo = formatDateTime(visitor.visitTo || visitor.dateOfVisitTo || visitor.visit_to);
         const isCurrentlyInBuilding = visitor.isCurrentlyInBuilding || visitor.currently_in || false;
@@ -1232,7 +1229,6 @@ function displayTimelineForDate(timeline) {
                 ? '<span class="badge badge-success">GRANTED</span>' 
                 : '<span class="badge badge-danger">DENIED</span>';
             
-            // ✅ DEBUG: Check karo ke location mein "TURNSTILE" hai ya nahi
             let fromLocationRaw = item.from_location || 'Unknown';
             let toLocationRaw = item.to_location || 'Unknown';
             
@@ -1240,7 +1236,6 @@ function displayTimelineForDate(timeline) {
                         fromLocationRaw.toLowerCase().includes('turnstile'));
             console.log(`Item ${index}: from_is_check_in =`, item.from_is_check_in);
             
-            // ✅ FIXED: Sirf "turnstile" check karo, "13.TURNSTILE" nahi
             let fromDisplay = fromLocationRaw;
             if (fromDisplay && fromDisplay.toLowerCase().includes('turnstile')) {
                 if (item.from_is_check_in === true) {
@@ -1415,7 +1410,6 @@ function displayAllLocationTimeline(timeline) {
             const timeSpent = item.time_spent ? 
                 `${item.time_spent.hours || 0}h ${item.time_spent.minutes || 0}m ${item.time_spent.seconds || 0}s` : '-';
             
-            // ✅ FIXED: Sirf "turnstile" check karo
             let fromDisplay = item.from_location || 'Unknown';
             if (fromDisplay && fromDisplay.toLowerCase().includes('turnstile')) {
                 if (item.from_is_check_in === true) {
@@ -1772,7 +1766,6 @@ function showVisitorDetailsModal(data) {
     $('#modalPersonVisited').text(data.personvisited || '-');
     $('#modalContactNo').text(data.contactno || '-');
     
-    // ✅ اب یہ ڈیٹا device_access_logs سے آئے گا
     $('#modalDateOfVisitFrom').html(formatModalDateTime(data.visitfrom) + 
         (data.visitfrom ? '<br><small class="text-muted">(From device_access_logs)</small>' : ''));
     
@@ -1782,7 +1775,6 @@ function showVisitorDetailsModal(data) {
     $('#modalSearchType').text(data.searchtype || 'Auto Detect');
     $('#modalLastUpdated').text(new Date().toLocaleString());
     
-    // ✅ Visit duration دکھائیں
     $('#modalVisitDuration').html(`
         ${data.visitduration || 'N/A'}
         ${statusIndicator}

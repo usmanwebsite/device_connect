@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AngularRedirectController;
+use App\Http\Controllers\API\JavaVisitorTypeController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DeviceLocationAssignController;
 use App\Http\Controllers\EncryptionController;
@@ -87,7 +88,7 @@ Route::get('/dashboard/active-security-alerts-ajax', [DashboardController::class
 Route::get('/dashboard/access-denied-ajax', [DashboardController::class, 'getAccessDeniedIncidentsAjax']);
 
 // Route::get('/redirect-to-angular', [AngularRedirectController::class, 'redirect'])->name('angular.redirect');
-
+Route::get('/vms/api/visitor-types', [JavaVisitorTypeController::class, 'index']);
 
 Route::prefix('/vms/visitor-types')->group(function () {
     Route::get('/', [VisitorTypeController::class, 'index'])->name('visitor-types.index');
@@ -125,6 +126,7 @@ Route::get('/clear-session', function() {
     Route::prefix('/vms/visitor-report')->group(function () {
         Route::get('/', [VisitorReportController::class, 'index'])->name('visitor.report');
         Route::get('/export', [VisitorReportController::class, 'export'])->name('visitor.report.export');
+        Route::post('/save-hidden-columns', [VisitorReportController::class, 'saveHiddenColumns'])->name('visitor.report.save-hidden-columns');
     });
 
 
