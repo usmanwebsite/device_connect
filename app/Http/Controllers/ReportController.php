@@ -250,11 +250,14 @@ public function getStaffMovement($staffNo)
             ->get()
             ->map(function ($log) {
                 $accessGranted = (bool) $log->access_granted;
-                
                 $reason = $accessGranted ? '--' : ($log->reason ?? 'N/A');
                 
-                // Get type from device_location_assigns via device_connections
+                // ✅ FIXED: Get type from device_location_assigns via device_connections
                 $isType = 'N/A';
+                $displayLocation = $log->location_name ?? 'Unknown';
+                
+                // Check if this is a Turnstile location
+                $isTurnstile = stripos($log->location_name ?? '', 'turnstile') !== false;
                 
                 // Only proceed if device_id exists
                 if ($log->device_id) {
@@ -302,19 +305,27 @@ public function getStaffMovement($staffNo)
                     }
                     
                     // If still not found, check if location name contains "Turnstile" or similar
-                    if ($isType === 'N/A' && $log->location_name) {
-                        if (stripos($log->location_name, 'Turnstile') !== false || 
-                            stripos($log->location_name, 'Main Gate') !== false ||
-                            stripos($log->location_name, 'Entrance') !== false) {
-                            $isType = 'check_in'; // Default to check_in
-                        }
+                    if ($isType === 'N/A' && $isTurnstile) {
+                        // Default to check_in for Turnstile
+                        $isType = 'check_in';
+                    }
+                }
+                
+                // ✅ NEW: Format location display with IN/OUT for Turnstile
+                if ($isTurnstile) {
+                    if ($isType === 'check_in') {
+                        $displayLocation = $log->location_name . ' (IN)';
+                    } elseif ($isType === 'check_out') {
+                        $displayLocation = $log->location_name . ' (OUT)';
+                    } else {
+                        $displayLocation = $log->location_name ?? 'Turnstile';
                     }
                 }
                 
                 return [
                     'date_time' => Carbon::parse($log->created_at)->format('d M Y h:i:s A'),
-                    'location' => $log->location_name ?? 'Unknown',
-                    'access_granted' => $log->access_granted, // اصل value (1 یا 0)
+                    'location' => $displayLocation,
+                    'access_granted' => $log->access_granted,
                     'reason' => $reason,
                     'type' => $isType
                 ];
@@ -336,6 +347,8 @@ public function getStaffMovement($staffNo)
         ], 500);
     }
 }
+
 }
+
 
 
