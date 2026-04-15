@@ -196,6 +196,14 @@ public function getAccessLogsData(Request $request)
         $formattedData = [];
         foreach ($staffList as $index => $staff) {
             $staffLogs = $accessLogs[$staff->staff_no] ?? [];
+
+
+            $firstAccess = $staff->first_access_original 
+                ? Carbon::parse($staff->first_access_original)->setTimezone('Asia/Karachi')->format('d/m/Y H:i')
+                : 'N/A';
+            $lastAccess = $staff->last_access_original 
+                ? Carbon::parse($staff->last_access_original)->setTimezone('Asia/Karachi')->format('d/m/Y H:i')
+                : 'N/A';
             
             $formattedData[] = [
                 'DT_RowIndex' => $start + $index + 1,
@@ -205,8 +213,8 @@ public function getAccessLogsData(Request $request)
                 'ic_no' => $staff->staff_no,
                 'person_visited' => 'N/A', 
                 'total_access' => $staff->total_access,
-                'first_access' => $staff->first_access_original ? Carbon::parse($staff->first_access_original)->format('d/m/Y H:i') : 'N/A',
-                'last_access' => $staff->last_access_original ? Carbon::parse($staff->last_access_original)->format('d/m/Y H:i') : 'N/A',
+                'first_access' => $firstAccess,
+                'last_access' => $lastAccess,
                 'logs' => $staffLogs
             ];
         }
@@ -252,82 +260,52 @@ public function getStaffMovement($staffNo)
                 $accessGranted = (bool) $log->access_granted;
                 $reason = $accessGranted ? '--' : ($log->reason ?? 'N/A');
                 
-                // ✅ FIXED: Get type from device_location_assigns via device_connections
-                $isType = 'N/A';
+                // ✅ FIXED: Get type from device_location_assigns for ALL locations
+                $isType = null; // null = unknown, true = check_in, false = check_out
                 $displayLocation = $log->location_name ?? 'Unknown';
                 
-                // Check if this is a Turnstile location
-                $isTurnstile = stripos($log->location_name ?? '', 'turnstile') !== false;
-                
-                // Only proceed if device_id exists
+                // Method 1: Via device_id -> device_connections -> device_location_assigns
                 if ($log->device_id) {
-                    // First get device_connections record by matching device_id
                     $deviceConnection = DeviceConnection::where('device_id', $log->device_id)->first();
                     
                     if ($deviceConnection) {
-                        // Now use the id from device_connections to find device_location_assigns
                         $deviceLocationAssign = DeviceLocationAssign::where('device_id', $deviceConnection->id)->first();
                         
                         if ($deviceLocationAssign) {
-                            $isType = $deviceLocationAssign->is_type;
+                            $isType = ($deviceLocationAssign->is_type === 'check_in');
                         }
                     }
                 }
                 
-                // If still not found via device_id, fallback to location-based logic
-                if ($isType === 'N/A') {
-                    // First try to get by exact location_id
-                    if ($log->location_id) {
-                        $deviceLocation = DeviceLocationAssign::where('location_id', $log->location_id)->first();
-                        if ($deviceLocation) {
-                            $isType = $deviceLocation->is_type;
-                        }
-                    } 
-                    // If location_id not available, try by location name
-                    else if ($log->location_name) {
-                        // Try to find location by name
-                        $location = VendorLocation::where('name', $log->location_name)->first();
-                        if ($location) {
-                            $deviceLocation = DeviceLocationAssign::where('location_id', $location->id)->first();
-                            if ($deviceLocation) {
-                                $isType = $deviceLocation->is_type;
-                            }
-                        } else {
-                            // Try partial match if exact not found
-                            $location = VendorLocation::where('name', 'like', '%' . $log->location_name . '%')->first();
-                            if ($location) {
-                                $deviceLocation = DeviceLocationAssign::where('location_id', $location->id)->first();
-                                if ($deviceLocation) {
-                                    $isType = $deviceLocation->is_type;
-                                }
-                            }
-                        }
-                    }
+                // Method 2: Via location_name -> vendor_locations -> device_location_assigns
+                if ($isType === null && $log->location_name) {
+                    $location = VendorLocation::where('name', $log->location_name)
+                        ->orWhere('name', 'like', '%' . $log->location_name . '%')
+                        ->first();
                     
-                    // If still not found, check if location name contains "Turnstile" or similar
-                    if ($isType === 'N/A' && $isTurnstile) {
-                        // Default to check_in for Turnstile
-                        $isType = 'check_in';
+                    if ($location) {
+                        $deviceLocationAssign = DeviceLocationAssign::where('location_id', $location->id)->first();
+                        if ($deviceLocationAssign) {
+                            $isType = ($deviceLocationAssign->is_type === 'check_in');
+                        }
                     }
                 }
                 
-                // ✅ NEW: Format location display with IN/OUT for Turnstile
-                if ($isTurnstile) {
-                    if ($isType === 'check_in') {
-                        $displayLocation = $log->location_name . ' (IN)';
-                    } elseif ($isType === 'check_out') {
-                        $displayLocation = $log->location_name . ' (OUT)';
-                    } else {
-                        $displayLocation = $log->location_name ?? 'Turnstile';
-                    }
+                // ✅ NEW: Format location display with (IN)/(OUT) for ALL locations
+                if ($isType === true) {
+                    $displayLocation = $log->location_name . ' (IN)';
+                } elseif ($isType === false) {
+                    $displayLocation = $log->location_name . ' (OUT)';
+                } else {
+                    $displayLocation = $log->location_name ?? 'Unknown';
                 }
                 
                 return [
-                    'date_time' => Carbon::parse($log->created_at)->format('d M Y h:i:s A'),
+                    'date_time' => Carbon::parse($log->created_at)->setTimezone('Asia/Karachi')->format('d M Y h:i:s A'),
                     'location' => $displayLocation,
                     'access_granted' => $log->access_granted,
                     'reason' => $reason,
-                    'type' => $isType
+                    'type' => $isType === true ? 'check_in' : ($isType === false ? 'check_out' : 'N/A')
                 ];
             });
 

@@ -876,34 +876,19 @@ function displayMovementHistory(movementHistory) {
         if (displayType === 'check_in') displayType = 'Checkin';
         if (displayType === 'check_out') displayType = 'Checkout';
 
-                // ✅ Original date_time ko parse karke seconds add karein
-        const originalDateTime = movement.date_time || 'N/A';
-        let formattedDateTime = originalDateTime;
-        
-        // Agar format mein seconds nahi hain to add karein
-        if (originalDateTime !== 'N/A' && !originalDateTime.includes(':')) {
-            const date = new Date(originalDateTime);
-            formattedDateTime = date.toLocaleString('en-GB', {
-                day: '2-digit',
-                month: 'short',
-                year: 'numeric',
-                hour: '2-digit',
-                minute: '2-digit',
-                second: '2-digit',
-                hour12: true
-            });
-        }
+        // ✅ FIX: Use the already formatted date_time from server (now has correct timezone)
+        const formattedDateTime = movement.date_time || 'N/A';
 
         const row = document.createElement('tr');
         row.innerHTML = `
-            <td class="text-nowrap">${movement.date_time || 'N/A'}</td>
-            <td>${movement.location || 'N/A'}</td>
+            <td class="text-nowrap">${formattedDateTime}</td>
+            <td class="text-nowrap">${movement.location || 'N/A'}</td>
             <td class="text-center">
                 <span class="badge ${isAllowed ? 'bg-success' : 'bg-danger'}">
-                    ${movement.access_display || (isAllowed ? 'Yes' : 'No')}
+                    ${isAllowed ? 'Yes' : 'No'}
                 </span>
             </td>
-            <td>${movement.reason || 'N/A'}</td>
+            <td class="text-nowrap">${movement.reason || 'N/A'}</td>
             <td class="text-center">
                 <span class="${typeBadge}">
                     ${displayType}
@@ -911,7 +896,7 @@ function displayMovementHistory(movementHistory) {
             </td>
             <td class="text-center">
                 <span class="badge ${isAllowed ? 'bg-success' : 'bg-danger'}">
-                    ${movement.action_display || (isAllowed ? 'Allowed' : 'Not Allowed')}
+                    ${isAllowed ? 'Allowed' : 'Not Allowed'}
                 </span>
             </td>
         `;

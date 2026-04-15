@@ -276,7 +276,7 @@ private function getCurrentLocationBasedOnLatestScan($logs, $timeOut = null)
     
     // Agar Turnstile hai, toh check karo kya visitor ne check_out kiya hai?
     if ($timeOut && $timeOut != 'N/A') {
-        return 'Turnstile (Out)';
+        return 'Out';
     }
     
     // Agar check_out nahi hai, toh Entry hai

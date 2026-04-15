@@ -11,7 +11,7 @@
     <div class="container-fluid">
         <div class="row mb-2">
             <div class="col-sm-6">
-                <h1 class="m-3" style="font-weight: 600; font-size: 22px; margin-left: 20px !important">Visitor Details</h1>
+                <h1 class="m-3" style="font-weight: 600; font-size: 22px; margin-left: 20px !important">Visitor Details & Chronology</h1>
             </div>
         </div>
     </div>
@@ -1201,7 +1201,7 @@ function displayTimelineForDate(timeline) {
     
     if (timeline && timeline.length > 0) {
         timelineHtml = timeline.map((item, index) => {
-            // ✅ FIXED: Calculate timeSpentText properly
+            // Calculate timeSpentText
             let timeSpentText = '-';
             if (item.time_spent) {
                 const hours = item.time_spent.hours || 0;
@@ -1224,31 +1224,24 @@ function displayTimelineForDate(timeline) {
             let fromLocationRaw = item.from_location || 'Unknown';
             let toLocationRaw = item.to_location || 'Unknown';
             
-            // ✅ FIXED: Better check for turnstile
-            const isFromTurnstile = fromLocationRaw && (fromLocationRaw.toLowerCase().includes('turnstile'));
-            const isToTurnstile = toLocationRaw && (toLocationRaw.toLowerCase().includes('turnstile'));
-            
+            // ✅ UPDATED: Show (IN)/(OUT) for ALL locations
             let fromDisplay = fromLocationRaw;
-            if (isFromTurnstile) {
-                if (item.from_is_check_in === true) {
-                    fromDisplay = 'TURNSTILE (IN)';
-                } else if (item.from_is_check_in === false) {
-                    fromDisplay = 'TURNSTILE (OUT)';
-                } else {
-                    fromDisplay = 'TURNSTILE';
-                }
+            if (item.from_is_check_in === true) {
+                fromDisplay = `${fromLocationRaw} (IN)`;
+            } else if (item.from_is_check_in === false) {
+                fromDisplay = `${fromLocationRaw} (OUT)`;
             }
             
             let toDisplay = toLocationRaw;
-            if (isToTurnstile) {
-                if (item.to_is_check_in === true) {
-                    toDisplay = 'TURNSTILE (IN)';
-                } else if (item.to_is_check_in === false) {
-                    toDisplay = 'TURNSTILE (OUT)';
-                } else {
-                    toDisplay = 'TURNSTILE';
-                }
+            if (item.to_is_check_in === true) {
+                toDisplay = `${toLocationRaw} (IN)`;
+            } else if (item.to_is_check_in === false) {
+                toDisplay = `${toLocationRaw} (OUT)`;
             }
+            
+            // Debug log
+            console.log(`Item ${index}: from="${fromLocationRaw}", from_check_in=${item.from_is_check_in}, display="${fromDisplay}"`);
+            console.log(`Item ${index}: to="${toLocationRaw}", to_check_in=${item.to_is_check_in}, display="${toDisplay}"`);
             
             return `
                 <div class="timeline-item mb-3">
@@ -1396,26 +1389,17 @@ function displayAllLocationTimeline(timeline) {
                 `${item.time_spent.hours || 0}h ${item.time_spent.minutes || 0}m ${item.time_spent.seconds || 0}s` : '-';
             
             let fromDisplay = item.from_location || 'Unknown';
-            // ✅ FIXED: Check for 13.TURNSTILE
-            if (fromDisplay && fromDisplay.toLowerCase().includes('13.turnstile')) {
-                if (item.from_is_check_in === true) {
-                    fromDisplay = 'TURNSTILE (IN)';
-                } else if (item.from_is_check_in === false) {
-                    fromDisplay = 'TURNSTILE (OUT)';
-                } else {
-                    fromDisplay = 'TURNSTILE';
-                }
+            if (item.from_is_check_in === true) {
+                fromDisplay = `${fromDisplay} (IN)`;
+            } else if (item.from_is_check_in === false) {
+                fromDisplay = `${fromDisplay} (OUT)`;
             }
             
             let toDisplay = item.to_location || 'Unknown';
-            if (toDisplay && toDisplay.toLowerCase().includes('13.turnstile')) {
-                if (item.to_is_check_in === true) {
-                    toDisplay = 'TURNSTILE (IN)';
-                } else if (item.to_is_check_in === false) {
-                    toDisplay = 'TURNSTILE (OUT)';
-                } else {
-                    toDisplay = 'TURNSTILE';
-                }
+            if (item.to_is_check_in === true) {
+                toDisplay = `${toDisplay} (IN)`;
+            } else if (item.to_is_check_in === false) {
+                toDisplay = `${toDisplay} (OUT)`;
             }
             
             return `
