@@ -201,7 +201,7 @@ private function handleOpenDoorRequest($sock, $data, $ip)
     echo "[" . date('H:i:s') . "] 👤 IC No (Database mein store hoga): $icNo, Staff No from Java: $staffNoFromJava, Visitor Type ID: $visitorTypeId\n";
 
 
-    if ($locationName === 'Turnstile' && $isType === 'check_out') {
+    if ($locationName === '13.TURNSTILE' && $isType === 'check_out') {
         echo "[" . date('H:i:s') . "] 🔄 TURNSTILE Check-out detected - Extracting vendorPassId\n";
         
         // ✅ Extract vendorPassId from visitorData (jo aapne API response mein dekha hai)
@@ -371,13 +371,13 @@ private function handleOpenDoorRequest($sock, $data, $ip)
     
     
     // For non-Turnstile locations, check if user has checked in at Turnstile first
-    if (strtoupper($locationName) !== 'Turnstile') {
+    if (strtoupper($locationName) !== '13.TURNSTILE') {
         echo "[" . date('H:i:s') . "] 🔍 Checking if user checked in at Turnstile first\n";
         
         // ✅ SIMPLIFIED CHECK: Only check if user has any successful access at Turnstile today
         $hasCheckedIn = DB::table('device_access_logs')
             ->where('staff_no', $icNo)
-            ->where('location_name', 'Turnstile')
+            ->where('location_name', '13.TURNSTILE')
             ->where('access_granted', 1)
             ->whereDate('created_at', now()->toDateString())
             ->exists();
@@ -387,7 +387,7 @@ private function handleOpenDoorRequest($sock, $data, $ip)
         // Debug: Show all Turnstile logs for this user today
         $turnstileLogs = DB::table('device_access_logs')
             ->where('staff_no', $icNo)
-            ->where('location_name', 'Turnstile')
+            ->where('location_name', '13.TURNSTILE')
             ->whereDate('created_at', now()->toDateString())
             ->orderBy('created_at', 'desc')
             ->get();
@@ -457,14 +457,14 @@ private function handleOpenDoorRequest($sock, $data, $ip)
             // DEBUG: Check if this is a new visit session
             $todayCheckIns = DB::table('device_access_logs')
                 ->where('staff_no', $icNo)
-                ->where('location_name', 'Turnstile')
+                ->where('location_name', '13.TURNSTILE')
                 ->where('access_granted', 1)
                 ->whereDate('created_at', now()->toDateString())
                 ->count();
             
             $todayCheckOuts = DB::table('device_access_logs')
                 ->where('staff_no', $icNo)
-                ->where('location_name', 'Turnstile')
+                ->where('location_name', '13.TURNSTILE')
                 ->where('access_granted', 1)
                 ->whereDate('created_at', now()->toDateString())
                 ->where(function($query) {
@@ -500,11 +500,11 @@ private function handleOpenDoorRequest($sock, $data, $ip)
             }
             elseif ($currentIndex === $lastIndex) {
                 // Check if re-entry is allowed for this door
-                if (strtoupper($locationName) === 'Turnstile' && $isType === 'check_in') {
+                if (strtoupper($locationName) === '13.TURNSTILE' && $isType === 'check_in') {
                     // Allow Turnstile re-entry only if previous was check-out
                     $lastTurnstileLog = DB::table('device_access_logs')
                         ->where('staff_no', $icNo)
-                        ->where('location_name', 'Turnstile')
+                        ->where('location_name', '13.TURNSTILE')
                         ->where('access_granted', 1)
                         ->whereDate('created_at', now()->toDateString())
                         ->orderBy('created_at', 'desc')

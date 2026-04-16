@@ -1696,6 +1696,7 @@ function formatDateTime(dateString) {
     if (!dateString || dateString === 'N/A') return '-';
     try {
         const date = new Date(dateString);
+        // No extra +8 hours - controller already converted
         return date.toLocaleTimeString('en-US', {
             hour: '2-digit',
             minute: '2-digit',
@@ -1706,24 +1707,27 @@ function formatDateTime(dateString) {
         return dateString;
     }
 }
+
+
 function showVisitorDetailsModal(data) {
-    const formatModalDateTime = (dateString) => {
-        if (!dateString || dateString === 'N/A') return 'Not Available';
-        try {
-            const date = new Date(dateString);
-            return date.toLocaleString('en-US', {
-                weekday: 'long',
-                year: 'numeric',
-                month: 'long',
-                day: 'numeric',
-                hour: '2-digit',
-                minute: '2-digit',
-                second: '2-digit'
-            });
-        } catch (e) {
-            return dateString;
-        }
-    };
+const formatModalDateTime = (dateString) => {
+    if (!dateString || dateString === 'N/A') return 'Not Available';
+    try {
+        const date = new Date(dateString);
+        // No extra +8 hours - controller already converted
+        return date.toLocaleString('en-US', {
+            weekday: 'long',
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit'
+        });
+    } catch (e) {
+        return dateString;
+    }
+};
     
     // Status indicator based on current in/out status
     const statusIndicator = data.currentlyin ? 

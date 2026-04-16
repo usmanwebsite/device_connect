@@ -78,7 +78,7 @@
                                         <th>#</th>
                                         <th>Visitor Name</th> <!-- Column 1 -->
                                         <th>Contact No</th> <!-- Column 2 -->
-                                        <th>Staff No</th> <!-- Column 3 -->
+                                        <th>IC Number/PassPort No</th> <!-- Column 3 -->
                                         <th>Person Visited</th> <!-- Column 4 -->
                                         <th>Check-in Time</th> <!-- Column 5 -->
                                         <th>Location</th> <!-- Column 6 -->

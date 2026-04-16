@@ -15,6 +15,7 @@ use Illuminate\Support\Facades\Http;
 class ReportController extends Controller
 {
     protected $menuService;
+    const MALAYSIA_TIMEZONE = 'Asia/Kuala_Lumpur';
 
     public function __construct(MenuService $menuService)
     {
@@ -73,11 +74,19 @@ public function getAccessLogsData(Request $request)
         ]);
 
         // Convert datetime-local format to database format
-        $fromDateTime = Carbon::createFromFormat('Y-m-d H:i', $request->from_date)
-            ->format('Y-m-d H:i:s');
+        // $fromDateTime = Carbon::createFromFormat('Y-m-d H:i', $request->from_date)
+        //     ->format('Y-m-d H:i:s');
 
-        $toDateTime = Carbon::createFromFormat('Y-m-d H:i', $request->to_date)
-            ->format('Y-m-d H:i:s');
+        // $toDateTime = Carbon::createFromFormat('Y-m-d H:i', $request->to_date)
+        //     ->format('Y-m-d H:i:s');
+
+        $fromDateTime = Carbon::createFromFormat('Y-m-d H:i', $request->from_date, self::MALAYSIA_TIMEZONE)
+        ->setTimezone('UTC')
+        ->format('Y-m-d H:i:s');
+
+        $toDateTime = Carbon::createFromFormat('Y-m-d H:i', $request->to_date, self::MALAYSIA_TIMEZONE)
+        ->setTimezone('UTC')
+        ->format('Y-m-d H:i:s');
         
         Log::info('Access Logs Report Filters:', [
             'from_datetime' => $fromDateTime,
@@ -198,11 +207,18 @@ public function getAccessLogsData(Request $request)
             $staffLogs = $accessLogs[$staff->staff_no] ?? [];
 
 
+            // $firstAccess = $staff->first_access_original 
+            //     ? Carbon::parse($staff->first_access_original)->setTimezone('Asia/Karachi')->format('d/m/Y H:i')
+            //     : 'N/A';
+            // $lastAccess = $staff->last_access_original 
+            //     ? Carbon::parse($staff->last_access_original)->setTimezone('Asia/Karachi')->format('d/m/Y H:i')
+            //     : 'N/A';
+
             $firstAccess = $staff->first_access_original 
-                ? Carbon::parse($staff->first_access_original)->setTimezone('Asia/Karachi')->format('d/m/Y H:i')
-                : 'N/A';
+            ? Carbon::parse($staff->first_access_original)->setTimezone(self::MALAYSIA_TIMEZONE)->format('d/m/Y H:i')
+            : 'N/A';
             $lastAccess = $staff->last_access_original 
-                ? Carbon::parse($staff->last_access_original)->setTimezone('Asia/Karachi')->format('d/m/Y H:i')
+                ? Carbon::parse($staff->last_access_original)->setTimezone(self::MALAYSIA_TIMEZONE)->format('d/m/Y H:i')
                 : 'N/A';
             
             $formattedData[] = [
@@ -301,7 +317,8 @@ public function getStaffMovement($staffNo)
                 }
                 
                 return [
-                    'date_time' => Carbon::parse($log->created_at)->setTimezone('Asia/Karachi')->format('d M Y h:i:s A'),
+                    // 'date_time' => Carbon::parse($log->created_at)->setTimezone('Asia/Karachi')->format('d M Y h:i:s A'),
+                    'date_time' => Carbon::parse($log->created_at)->setTimezone(self::MALAYSIA_TIMEZONE)->format('d M Y h:i:s A'),
                     'location' => $displayLocation,
                     'access_granted' => $log->access_granted,
                     'reason' => $reason,

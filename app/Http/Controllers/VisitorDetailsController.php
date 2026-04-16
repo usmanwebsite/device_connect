@@ -11,11 +11,13 @@ use Barryvdh\DomPDF\Facade\Pdf;
 use App\Models\DeviceConnection;
 use App\Models\DeviceLocationAssign;
 use App\Models\VendorLocation;
+use Carbon\Carbon;
 
 class VisitorDetailsController extends Controller
 {
     protected $menuService;
     protected $javaBaseUrl;
+    const MALAYSIA_TIMEZONE = 'Asia/Kuala_Lumpur';
     
     public function __construct(MenuService $menuService, Request $request)
     {
@@ -340,6 +342,8 @@ private function getVisitSessions($staffNo)
     foreach ($turnstileLogs as $log) {
         $isCheckIn = $this->isTurnstileCheckIn($log->location_name, $log->created_at, $staffNo);
         
+        $malaysiaTime = Carbon::parse($log->created_at)->setTimezone(self::MALAYSIA_TIMEZONE);
+
         if ($isCheckIn && $currentSession === null) {
             $currentSession = [
                 'check_in_time' => $log->created_at,
@@ -350,8 +354,8 @@ private function getVisitSessions($staffNo)
                 'check_out_log_id' => null,
                 'check_out_device' => null,
                 'check_out_location' => null,
-                'visit_date' => date('Y-m-d', strtotime($log->created_at)),
-                'formatted_date' => date('d-M-Y', strtotime($log->created_at))
+                'visit_date' => $malaysiaTime->format('Y-m-d'),
+                'formatted_date' => $malaysiaTime->format('d-M-Y')
             ];
             Log::info("Started new session at: " . $log->created_at);
             
@@ -717,8 +721,10 @@ public function getVisitorChronology(Request $request)
             $locationTimeline[] = [
                 'from_location' => $previousLog->location_name ?? 'Unknown',
                 'to_location' => $currentLog->location_name ?? 'Unknown',
-                'entry_time' => $previousLog->created_at,
-                'exit_time' => $currentLog->created_at,
+                // 'entry_time' => $previousLog->created_at,
+                // 'exit_time' => $currentLog->created_at,
+                'entry_time' => Carbon::parse($previousLog->created_at)->setTimezone(self::MALAYSIA_TIMEZONE)->toDateTimeString(),
+                'exit_time' => Carbon::parse($currentLog->created_at)->setTimezone(self::MALAYSIA_TIMEZONE)->toDateTimeString(),
                 'time_spent' => $this->formatTime($timeSpent),
                 'access_granted' => $currentLog->access_granted ?? 1,
                 'from_is_check_in' => $fromIsCheckIn,
@@ -732,7 +738,8 @@ public function getVisitorChronology(Request $request)
         $timelineByDate = [];
         
         foreach ($accessLogs as $log) {
-            $dateKey = date('d-M-Y', strtotime($log->created_at));
+            $malaysiaTime = Carbon::parse($log->created_at)->setTimezone(self::MALAYSIA_TIMEZONE);
+            $dateKey = $malaysiaTime->format('d-M-Y');
             if (!in_array($dateKey, $visitDates)) {
                 $visitDates[] = $dateKey;
             }
@@ -854,8 +861,10 @@ private function generateSummary($icNo, $accessLogs)
         'total_visits' => count($accessLogs),
         'unique_locations_visited' => count($uniqueLocations),
         'locations_list' => $uniqueLocations,
-        'first_visit' => $firstLog ? $firstLog->created_at : null,
-        'last_visit' => $lastLog ? $lastLog->created_at : null,
+        // 'first_visit' => $firstLog ? $firstLog->created_at : null,
+        // 'last_visit' => $lastLog ? $lastLog->created_at : null,
+        'first_visit' => $firstLog ? Carbon::parse($firstLog->created_at)->setTimezone(self::MALAYSIA_TIMEZONE)->toDateTimeString() : null,
+        'last_visit' => $lastLog ? Carbon::parse($lastLog->created_at)->setTimezone(self::MALAYSIA_TIMEZONE)->toDateTimeString() : null,
         'successful_accesses' => collect($accessLogs)->where('access_granted', 1)->count(),
         'failed_accesses' => collect($accessLogs)->where('access_granted', 0)->count(),
         'unique_dates' => count(array_unique(
@@ -1137,9 +1146,13 @@ private function getVisitTimings($identifier)
         $firstLog = $allAccessLogs->first();
         $lastLog = $allAccessLogs->last();
         
-        $visitFrom = $firstLog->created_at;
-        $visitTo = $lastLog->created_at;
+        // $visitFrom = $firstLog->created_at;
+        // $visitTo = $lastLog->created_at;
         
+        // Convert UTC to Malaysia timezone
+        $visitFrom = Carbon::parse($firstLog->created_at)->setTimezone(self::MALAYSIA_TIMEZONE);
+        $visitTo = Carbon::parse($lastLog->created_at)->setTimezone(self::MALAYSIA_TIMEZONE);
+
         // Calculate duration
         $durationSeconds = strtotime($visitTo) - strtotime($visitFrom);
         $durationFormatted = $this->formatDuration($durationSeconds);

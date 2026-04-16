@@ -23,15 +23,15 @@
                 <div class="row mb-4 filter-form-mobile">
                     <div class="col-12 col-sm-6 col-md-3 mb-3 mb-md-0">
                         <label for="fromDate" class="form-label">From Date & Time</label>
-                        <input type="datetime-local" class="form-control datetime-picker" id="fromDate" 
-                            value="{{ now()->format('Y-m-d\T00:00') }}">
+<input type="datetime-local" class="form-control datetime-picker" id="fromDate" 
+    value="{{ now('Asia/Kuala_Lumpur')->format('Y-m-d\T00:00') }}">
                         <small class="text-muted">Start date and time</small>
                     </div>
                     
                     <div class="col-12 col-sm-6 col-md-3 mb-3 mb-md-0">
                         <label for="toDate" class="form-label">To Date & Time</label>
-                        <input type="datetime-local" class="form-control datetime-picker" id="toDate" 
-                            value="{{ now()->format('Y-m-d\T23:59') }}">
+<input type="datetime-local" class="form-control datetime-picker" id="toDate" 
+    value="{{ now('Asia/Kuala_Lumpur')->format('Y-m-d\T23:59') }}">
                         <small class="text-muted">End date and time</small>
                     </div>
                     

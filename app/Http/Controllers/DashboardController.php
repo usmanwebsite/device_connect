@@ -22,6 +22,8 @@ class DashboardController extends Controller
 
     public function __construct(MenuService $menuService)
     {
+        // date_default_timezone_set('Asia/Kuala_Lumpur');
+        // Carbon::setLocale('en');
         $this->menuService = $menuService;
     }
 
@@ -215,6 +217,9 @@ private function getCriticalSecurityAlertWithPriority()
 {
     try {
         Log::info('=== Starting getCriticalSecurityAlertWithPriority ===');
+
+
+        
         
         // Step 1: Get priority settings
         $accessDeniedPriority = SecurityAlertPriority::where('security_alert', 'Access Denied Incidents')->first();
@@ -300,14 +305,20 @@ private function getCriticalSecurityAlertWithPriority()
                 'card_no' => $topAlert['card_no'] ?? 'EMPTY',
                 'created_at' => $topAlert['created_at']->format('Y-m-d H:i:s')
             ]);
+
+            $currentMalaysiaTime = Carbon::now('Asia/Kuala_Lumpur');
             
             if ($topAlert['type'] === 'access_denied') {
                 $alert = $topAlert['data'];
                 
+                // dd($alert->created_at);
+                
                 // ✅ Use visitor_name from the alert array we added above
                 $visitorName = $topAlert['visitor_name'] ?? 'Unknown Visitor';
                 
-                $createdAt = Carbon::parse($alert->created_at);
+                // $createdAt = Carbon::parse($alert->created_at);
+                // $timeAgo = $createdAt->diffForHumans();
+                $createdAt = Carbon::parse($alert->created_at)->setTimezone('Asia/Kuala_Lumpur');
                 $timeAgo = $createdAt->diffForHumans();
                 
                 return [
@@ -319,7 +330,7 @@ private function getCriticalSecurityAlertWithPriority()
                     'original_location' => $topAlert['original_location'],
                     'created_at' => $createdAt->format('Y-m-d h:i A'),
                     'time_ago' => $timeAgo,
-                    'malaysia_time' => Carbon::now('Asia/Kuala_Lumpur')->format('Y-m-d h:i A'), 
+                    'malaysia_time' => $currentMalaysiaTime->format('Y-m-d h:i A'), 
                     'reason' => $alert->reason ?? 'Other Reason',
                     'visitor_name' => $visitorName, // ✅ Already fetched above
                     'incident_type' => 'Unauthorized Access Attempt',
@@ -338,9 +349,9 @@ private function getCriticalSecurityAlertWithPriority()
                     'card_no' => $alert['card_no'] ?? '',   // ✅ Use card_no when staff_no is empty
                     'location' => $topAlert['display_location'],
                     'original_location' => $topAlert['original_location'],
-                    'created_at' => Carbon::parse($alert['check_in_time'])->format('Y-m-d h:i A'),
-                    'malaysia_time' => $currentTime->format('Y-m-d h:i A'), 
-                    'time_ago' => Carbon::parse($alert['check_in_time'])->diffForHumans(), 
+                    'created_at' => Carbon::parse($alert['check_in_time'])->setTimezone('Asia/Kuala_Lumpur')->format('Y-m-d h:i A'),
+                    'malaysia_time' => $currentMalaysiaTime->format('Y-m-d h:i A'), 
+                    'time_ago' => Carbon::parse($alert['check_in_time'])->setTimezone('Asia/Kuala_Lumpur')->diffForHumans(),
                     'visitor_name' => $alert['visitor_name'],
                     'incident_type' => 'Visitor Overstay Alert',
                     'priority' => $topAlert['priority'],
@@ -432,7 +443,7 @@ public function getSecurityAlertsData(Request $request)
                 'host' => $visitorDetails['personVisited'] ?? 'N/A',
                 'location' => $log->location_name ?? 'Unknown Location',
                 'reason' => $log->reason ?: 'Other Reason',
-                'date_time' => Carbon::parse($log->created_at)->format('d M Y h:i A'),
+                'date_time' => Carbon::parse($log->created_at)->setTimezone('Asia/Kuala_Lumpur')->format('d M Y h:i A'),
                 // 'actions' => '<button class="btn btn-sm btn-info view-details" data-id="'.$log->id.'"><i class="fas fa-eye"></i> View</button>' // REMOVED
             ];
         }
@@ -494,7 +505,7 @@ public function getAccessDeniedIncidentsAjax(Request $request)
                 <td>' . ($enrichedLog['visitor_details']['personVisited'] ?? 'N/A') . '</td>
                 <td>' . ($enrichedLog['log']->location_name ?? 'Unknown Location') . '</td>
                 <td>' . ($enrichedLog['log']->reason ?: 'Other Reason') . '</td>
-                <td>' . Carbon::parse($enrichedLog['log']->created_at)->format('d M Y h:i A') . '</td>
+                <td>' . Carbon::parse($enrichedLog['log']->created_at)->setTimezone('Asia/Kuala_Lumpur')->format('d M Y h:i A') . '</td>
             </tr>';
         }
         
@@ -742,7 +753,8 @@ private function getUnacknowledgedOverstayAlerts($allDeviceUsers = null)
         ->get();
         // dd($allDeviceUsers);
         
-        $currentTime = now();
+        // $currentTime = now();
+        $currentTime = Carbon::now('Asia/Kuala_Lumpur');
         $overstayAlerts = [];
         
         foreach ($allDeviceUsers as $user) {
@@ -764,7 +776,8 @@ private function getUnacknowledgedOverstayAlerts($allDeviceUsers = null)
                     $visitorData = $javaApiResponse['data'];
                     
                     if (isset($visitorData['dateOfVisitTo'])) {
-                        $dateOfVisitTo = Carbon::parse($visitorData['dateOfVisitTo']);
+                        // $dateOfVisitTo = Carbon::parse($visitorData['dateOfVisitTo']);
+                        $dateOfVisitTo = Carbon::parse($visitorData['dateOfVisitTo'])->setTimezone('Asia/Kuala_Lumpur');
                         
                         if ($currentTime->greaterThan($dateOfVisitTo)) {
                             $dateOfVisitFrom = isset($visitorData['dateOfVisitFrom']) 
@@ -924,7 +937,8 @@ private function getUnacknowledgedOverstayAlerts($allDeviceUsers = null)
                         'full_name' => $visitorDetails['fullName'] ?? 'N/A',
                         'person_visited' => $visitorDetails['personVisited'] ?? 'N/A',
                         'location_name' => $status['last_check_in_log']->location_name,
-                        'created_at' => $status['last_check_in'],
+                        // 'created_at' => $status['last_check_in'],
+                        'created_at' => Carbon::parse($status['last_check_in'])->setTimezone('Asia/Kuala_Lumpur'),  // Converted
                         'device_id' => $status['last_check_in_log']->device_id,
                         'log_id' => $status['last_check_in_log']->id
                     ];
@@ -1248,7 +1262,8 @@ public function acknowledgeAlert(Request $request)
     public function refreshDashboardCounts()
     {
         try {
-            $twentyFourHoursAgo = Carbon::now()->subHours(24);            
+            // $twentyFourHoursAgo = Carbon::now()->subHours(24); 
+            $twentyFourHoursAgo = Carbon::now('Asia/Kuala_Lumpur')->subHours(24);           
             
             // ✅ 1. Access Denied Count - LAST 24 HOURS ONLY
             $deniedAccessCount24h = DeviceAccessLog::where('access_granted', 0)
@@ -1556,7 +1571,8 @@ private function callJavaVendorApi($staffNo)
     private function getHourlyTrafficData()
     {
         try {
-            $today = now()->format('Y-m-d');
+            // $today = now()->format('Y-m-d');
+            $today = Carbon::now('Asia/Kuala_Lumpur')->format('Y-m-d');
 
             $todayAccessLogs = DeviceAccessLog::whereDate('created_at', $today)
                 ->where('access_granted', 1)
@@ -1799,7 +1815,8 @@ private function callJavaVendorApi($staffNo)
         try {
             Log::info('=== Starting getCheckoutsTodayModalData (Updated Logic) ===');
             
-            $today = now()->format('Y-m-d');
+            // $today = now()->format('Y-m-d');
+            $today = Carbon::now('Asia/Kuala_Lumpur')->format('Y-m-d');
             $checkoutRecords = [];
 
             // Sabhi logs le lo jisme access granted hai
@@ -1972,12 +1989,12 @@ private function callJavaVendorApi($staffNo)
 private function getDeniedAccessCount24h()
 {
     try {
+        $twentyFourHoursAgo = Carbon::now('Asia/Kuala_Lumpur')->subHours(24);
         return DeviceAccessLog::where('access_granted', 0)
             ->where('acknowledge', 0)
-            ->whereRaw('created_at >= CURDATE()')
+            ->where('created_at', '>=', $twentyFourHoursAgo->setTimezone('UTC')) 
             ->orderBy('created_at', 'desc')
             ->count();
-            // dd($count->toSql()); 
     } catch (\Exception $e) {
         Log::error('Error in getDeniedAccessCount24h: ' . $e->getMessage());
         return 0;
@@ -2372,7 +2389,7 @@ public function getActiveSecurityAlertsAjax(Request $request)
                     <td>' . ($enrichedLog['visitor_details']['personVisited'] ?? 'N/A') . '</td>
                     <td>' . ($enrichedLog['log']->location_name ?? 'Unknown Location') . '</td>
                     <td>' . ($enrichedLog['log']->reason ?: 'Other Reason') . '</td>
-                    <td>' . (\Carbon\Carbon::parse($enrichedLog['log']->created_at)->format('d M Y h:i A')) . '</td>
+                    <td>' . (Carbon::parse($enrichedLog['log']->created_at)->setTimezone('Asia/Kuala_Lumpur')->format('d M Y h:i A')) . '</td>
                 </tr>';
             }
         } else {
