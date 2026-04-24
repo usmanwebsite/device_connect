@@ -1,8 +1,13 @@
 <aside class="sidebar" id="sidebar">
     <div class="sidebar-header">
         <img src="{{ asset('logo_image/mnr_logo.jpeg')}}" alt="SafeG Logo" class="img-style">
-        {{--<img src="{{ asset('logo_image/LogoMnRTrams.png')}}" alt="SafeG Logo" class="img-style"> --}}
+        <button class="sidebar-close-btn" onclick="toggleSidebar()" aria-label="Close sidebar">
+            &#9776;
+        </button>
     </div>
+    {{-- <div class="sidebar-header">
+        <img src="{{ asset('logo_image/mnr_logo.jpeg')}}" alt="SafeG Logo" class="img-style">
+    </div> --}}
     
     @if(isset($angularMenu) && count($angularMenu) > 0)
     <ul class="sidebar-menu">

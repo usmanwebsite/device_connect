@@ -159,6 +159,51 @@
             padding: 8px 12px !important;
             vertical-align: middle;
         }
+
+        .sidebar-header {
+            position: relative;   /* needed for absolute positioning of close button */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px 10px;
+        }
+
+        .sidebar-close-btn {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            background: transparent;
+            border: none;
+            color: #a6b0cf;
+            font-size: 20px;
+            cursor: pointer;
+            transition: color 0.2s;
+            padding: 5px;
+            line-height: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .sidebar-close-btn:hover {
+            color: #ffffff;
+        }
+
+        /* When sidebar is collapsed, hide the close button (optional but cleaner) */
+        .sidebar.collapsed .sidebar-close-btn {
+            display: none;
+        }
+
+        /* On mobile, ensure close button is touch-friendly */
+        @media (max-width: 768px) {
+            .sidebar-close-btn {
+                top: 10px;
+                right: 10px;
+                font-size: 22px;
+                padding: 8px;
+            }
+        }
+
     </style>
     
     @yield('styles')
@@ -195,120 +240,134 @@
     
     @yield('scripts')
 
-    <script>
-    document.addEventListener('DOMContentLoaded', function() {
-        // Main dropdown functionality
-        const menuItems = document.querySelectorAll('.menu-item');
-        
-        menuItems.forEach(item => {
-            const menuMain = item.querySelector('.menu-main');
-            
-            if (menuMain) {
-                menuMain.addEventListener('click', function(e) {
-                    if (e.target.type === 'checkbox') return;
-                    
-                    // Close other dropdowns when opening a new one
-                    if (!item.classList.contains('active')) {
-                        menuItems.forEach(otherItem => {
-                            if (otherItem !== item) {
-                                otherItem.classList.remove('active');
-                            }
-                        });
-                    }
-                    
-                    item.classList.toggle('active');
-                });
-            }
-        });
-
-        const menuToggle = document.getElementById('menuToggle');
+<script>
+    // ========== GLOBAL FUNCTIONS ==========
+    function toggleSidebar() {
         const sidebar = document.querySelector('.sidebar');
+        const mainContent = document.querySelector('.main-content');
+        if (!sidebar || !mainContent) return;
 
-        menuToggle.addEventListener('click', function(e) {
-            e.stopPropagation();
-            sidebar.classList.toggle('collapsed');
-        });
-
-        // Nested dropdown functionality
-        const submenus = document.querySelectorAll('.submenu');
-        
-        submenus.forEach(submenu => {
-            const submenuHeader = submenu.querySelector('.submenu-header');
-            
-            if (submenuHeader) {
-                submenuHeader.addEventListener('click', function(e) {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    
-                    // Close other submenus at the same level
-                    const parentList = this.closest('.nested-dropdown');
-                    if (parentList) {
-                        const siblings = parentList.querySelectorAll('.submenu');
-                        siblings.forEach(sibling => {
-                            if (sibling !== submenu) {
-                                sibling.classList.remove('active');
-                            }
-                        });
-                    }
-                    
-                    submenu.classList.toggle('active');
-                });
-            }
-        });
-
-        // Close dropdowns when clicking outside
-        document.addEventListener('click', function(e) {
-            if (!e.target.closest('.sidebar')) {
-                // Close all dropdowns
-                menuItems.forEach(item => {
-                    item.classList.remove('active');
-                });
-                
-                submenus.forEach(submenu => {
-                    submenu.classList.remove('active');
-                });
-            }
-        });
-
-        // Close dropdowns when a link is clicked
-        const navLinks = document.querySelectorAll('.nav-link');
-        navLinks.forEach(link => {
-            link.addEventListener('click', function() {
-                // Optional: Add any link click handling here
-            });
-        });
-
-
-        
-            const userMenuBtn = document.getElementById('userMenuBtn');
-    const dropdownMenu = document.getElementById('dropdownMenu');
-    const userDropdown = document.querySelector('.user-dropdown');
-
-    if (userMenuBtn && dropdownMenu && userDropdown) {
-        userMenuBtn.addEventListener('click', function(e) {
-            e.stopPropagation();
-            userDropdown.classList.toggle('show');
-        });
-
-        // Close dropdown when clicking outside
-        document.addEventListener('click', function(e) {
-            if (!userDropdown.contains(e.target)) {
-                userDropdown.classList.remove('show');
-            }
-        });
-        
-        // Close dropdown when clicking on a link
-        const dropdownLinks = document.querySelectorAll('.dropdown-link');
-        dropdownLinks.forEach(link => {
-            link.addEventListener('click', function() {
-                userDropdown.classList.remove('show');
-            });
-        });
+        sidebar.classList.toggle('collapsed');
+        mainContent.style.marginLeft = sidebar.classList.contains('collapsed') ? '0' : '';
     }
 
+    function handleResponsiveSidebar() {
+        const sidebar = document.querySelector('.sidebar');
+        const mainContent = document.querySelector('.main-content');
+        if (!sidebar || !mainContent) return;
 
+        if (window.innerWidth < 768) {
+            if (!sidebar.classList.contains('collapsed')) {
+                sidebar.classList.add('collapsed');
+                mainContent.style.marginLeft = '0';
+            }
+        } else {
+            if (sidebar.classList.contains('collapsed')) {
+                sidebar.classList.remove('collapsed');
+                mainContent.style.marginLeft = '';
+            }
+        }
+    }
+
+    // ========== DOM CONTENT LOADED ==========
+    document.addEventListener('DOMContentLoaded', function() {
+        // 1. Responsive sidebar initial state
+        handleResponsiveSidebar();
+
+        // 2. Main menu dropdowns (click + touch for mobile)
+        const menuItems = document.querySelectorAll('.menu-item');
+        menuItems.forEach(item => {
+            const menuMain = item.querySelector('.menu-main');
+            if (!menuMain) return;
+
+            const toggleActive = (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+
+                // Close other open dropdowns
+                menuItems.forEach(other => {
+                    if (other !== item && other.classList.contains('active')) {
+                        other.classList.remove('active');
+                    }
+                });
+                item.classList.toggle('active');
+            };
+
+            menuMain.addEventListener('click', toggleActive);
+            menuMain.addEventListener('touchstart', toggleActive, { passive: false });
+        });
+
+        // 3. Hamburger menu (calls global toggleSidebar)
+        const menuToggle = document.getElementById('menuToggle');
+        const sidebar = document.querySelector('.sidebar');
+        if (menuToggle && sidebar) {
+            const toggleHandler = (e) => {
+                e.stopPropagation();
+                toggleSidebar();
+            };
+            menuToggle.addEventListener('click', toggleHandler);
+            menuToggle.addEventListener('touchstart', toggleHandler, { passive: false });
+        }
+
+        // 4. Nested submenu dropdowns (level 2 & 3)
+        const submenus = document.querySelectorAll('.submenu');
+        submenus.forEach(submenu => {
+            const submenuHeader = submenu.querySelector('.submenu-header');
+            if (!submenuHeader) return;
+
+            const toggleSubmenu = (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+
+                // Close siblings at same level
+                const parentList = submenu.closest('.nested-dropdown');
+                if (parentList) {
+                    parentList.querySelectorAll('.submenu').forEach(sibling => {
+                        if (sibling !== submenu) sibling.classList.remove('active');
+                    });
+                }
+                submenu.classList.toggle('active');
+            };
+
+            submenuHeader.addEventListener('click', toggleSubmenu);
+            submenuHeader.addEventListener('touchstart', toggleSubmenu, { passive: false });
+        });
+
+        // 5. Close dropdowns when clicking outside the sidebar
+        document.addEventListener('click', function(e) {
+            if (!e.target.closest('.sidebar')) {
+                menuItems.forEach(item => item.classList.remove('active'));
+                submenus.forEach(sub => sub.classList.remove('active'));
+            }
+        });
+
+        // 6. User dropdown (if present)
+        const userMenuBtn = document.getElementById('userMenuBtn');
+        const userDropdown = document.querySelector('.user-dropdown');
+        if (userMenuBtn && userDropdown) {
+            const toggleUserDropdown = (e) => {
+                e.stopPropagation();
+                userDropdown.classList.toggle('show');
+            };
+            userMenuBtn.addEventListener('click', toggleUserDropdown);
+            userMenuBtn.addEventListener('touchstart', toggleUserDropdown, { passive: false });
+
+            // Close when clicking outside
+            document.addEventListener('click', function(e) {
+                if (userDropdown && !userDropdown.contains(e.target)) {
+                    userDropdown.classList.remove('show');
+                }
+            });
+            // Close when a dropdown link is clicked
+            document.querySelectorAll('.dropdown-link').forEach(link => {
+                link.addEventListener('click', () => userDropdown.classList.remove('show'));
+            });
+        }
     });
-    </script>
+
+    // 7. Re-run responsive check on window resize
+    window.addEventListener('resize', handleResponsiveSidebar);
+</script>
 
 </body>
 </html>
