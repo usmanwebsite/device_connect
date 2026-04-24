@@ -582,6 +582,46 @@ function showAccessDeniedModal() {
     modal.show();
 }
 
+function toggleSidebar() {
+    const sidebar = document.querySelector('.sidebar');
+    const mainContent = document.querySelector('.main-content');
+    
+    if (!sidebar || !mainContent) return;
+    
+    sidebar.classList.toggle('collapsed');
+    
+    // Toggle margin on main content based on sidebar state
+    if (sidebar.classList.contains('collapsed')) {
+        mainContent.style.marginLeft = '0';
+    } else {
+        mainContent.style.marginLeft = ''; // revert to CSS default (250px)
+    }
+}
+
+// Auto-collapse sidebar on mobile devices (< 768px)
+function handleResponsiveSidebar() {
+    const sidebar = document.querySelector('.sidebar');
+    const mainContent = document.querySelector('.main-content');
+    if (!sidebar || !mainContent) return;
+    
+    if (window.innerWidth < 768) {
+        if (!sidebar.classList.contains('collapsed')) {
+            sidebar.classList.add('collapsed');
+            mainContent.style.marginLeft = '0';
+        }
+    } else {
+        if (sidebar.classList.contains('collapsed')) {
+            sidebar.classList.remove('collapsed');
+            mainContent.style.marginLeft = '';
+        }
+    }
+}
+
+// Listen for resize events
+window.addEventListener('resize', handleResponsiveSidebar);
+// Initialize on page load
+document.addEventListener('DOMContentLoaded', handleResponsiveSidebar);
+
 function loadAccessDeniedIncidents(page = 1) {
     console.log('loadAccessDeniedIncidents called, page:', page);
     

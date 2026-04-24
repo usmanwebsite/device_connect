@@ -1882,8 +1882,10 @@ private function callJavaVendorApi($staffNo)
                     $checkoutRecords[] = [
                         'visitor_name' => $visitorDetails['fullName'] ?? 'N/A',
                         'host' => $visitorDetails['personVisited'] ?? 'N/A',
-                        'check_in_time' => $checkInLog ? $checkInLog->created_at->format('h:i A') : 'N/A',
-                        'check_out_time' => $checkoutLog->created_at->format('h:i A'),
+                        // 'check_in_time' => $checkInLog ? $checkInLog->created_at->format('h:i A') : 'N/A',
+                        // 'check_out_time' => $checkoutLog->created_at->format('h:i A'),
+                        'check_in_time' => $checkInLog ? Carbon::parse($checkInLog->created_at)->setTimezone('Asia/Kuala_Lumpur')->format('h:i A') : 'N/A',
+                        'check_out_time' => Carbon::parse($checkoutLog->created_at)->setTimezone('Asia/Kuala_Lumpur')->format('h:i A'),
                         'duration' => $duration,
                         'staff_no' => $checkoutLog->staff_no,
                         'location' => $displayLocation,

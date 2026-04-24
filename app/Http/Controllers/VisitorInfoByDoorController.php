@@ -13,6 +13,7 @@ use Carbon\Carbon;
 class VisitorInfoByDoorController extends Controller
 {
     protected $menuService;
+    const MALAYSIA_TIMEZONE = 'Asia/Kuala_Lumpur';
 
     public function __construct(MenuService $menuService)
     {
@@ -186,15 +187,15 @@ class VisitorInfoByDoorController extends Controller
                             'ic_no' => $visitorData['icNo'] ?? 'N/A',
                             'sex' => $visitorData['sex'] ?? 'N/A',
                             'date_of_visit_from' => isset($visitorData['dateOfVisitFrom']) 
-                                ? Carbon::parse($visitorData['dateOfVisitFrom'])->format('d M Y h:i A') 
+                                ? Carbon::parse($visitorData['dateOfVisitFrom'])->setTimezone(self::MALAYSIA_TIMEZONE)->format('d M Y h:i A') 
                                 : 'N/A',
                             'date_of_visit_to' => isset($visitorData['dateOfVisitTo']) 
-                                ? Carbon::parse($visitorData['dateOfVisitTo'])->format('d M Y h:i A') 
+                                ? Carbon::parse($visitorData['dateOfVisitTo'])->setTimezone(self::MALAYSIA_TIMEZONE)->format('d M Y h:i A') 
                                 : 'N/A',
                             // 'check_in_time' => $latestCheckIn->created_at
-                            // ->timezone('Asia/Kuala_Lumpur')
                             // ->format('d M Y h:i A'),
-                            'check_in_time' => $latestCheckIn->created_at
+                            'check_in_time' => Carbon::parse($latestCheckIn->created_at)
+                            ->setTimezone(self::MALAYSIA_TIMEZONE)
                             ->format('d M Y h:i A'),
                             'device_id' => $log->device_id ?? 'N/A',
                             'location_name' => $log->location_name ?? 'N/A',
@@ -222,8 +223,8 @@ class VisitorInfoByDoorController extends Controller
                             'sex' => 'N/A',
                             'date_of_visit_from' => 'N/A',
                             'date_of_visit_to' => 'N/A',
-                            'check_in_time' => $latestCheckIn->created_at
-                            ->timezone('Asia/Kuala_Lumpur')
+                            'check_in_time' => Carbon::parse($latestCheckIn->created_at)
+                            ->setTimezone(self::MALAYSIA_TIMEZONE)
                             ->format('d M Y h:i A'),
                             'device_id' => $log->device_id ?? 'N/A',
                             'location_name' => $log->location_name ?? 'N/A',
@@ -319,10 +320,10 @@ class VisitorInfoByDoorController extends Controller
                         'ic_no' => $visitorData['icNo'] ?? 'N/A',
                         'sex' => $visitorData['sex'] ?? 'N/A',
                         'date_of_visit_from' => isset($visitorData['dateOfVisitFrom']) 
-                            ? Carbon::parse($visitorData['dateOfVisitFrom'])->format('d M Y h:i A') 
+                            ? Carbon::parse($visitorData['dateOfVisitFrom'])->setTimezone(self::MALAYSIA_TIMEZONE)->format('d M Y h:i A') 
                             : 'N/A',
                         'date_of_visit_to' => isset($visitorData['dateOfVisitTo']) 
-                            ? Carbon::parse($visitorData['dateOfVisitTo'])->format('d M Y h:i A') 
+                            ? Carbon::parse($visitorData['dateOfVisitTo'])->setTimezone(self::MALAYSIA_TIMEZONE)->format('d M Y h:i A') 
                             : 'N/A',
                         'email' => $visitorData['email'] ?? 'N/A',
                         'company_name' => $visitorData['companyName'] ?? 'N/A',
@@ -404,7 +405,7 @@ class VisitorInfoByDoorController extends Controller
                             : 'N/A',
                         'Location' => $log->location_name ?? 'N/A',
                         'Device ID' => $log->device_id ?? 'N/A',
-                        'Check-in Time' => $log->created_at->format('d M Y h:i A'),
+                        'Check-in Time' => Carbon::parse($log->created_at)->setTimezone(self::MALAYSIA_TIMEZONE)->format('d M Y h:i A'),
                         'Access Granted' => $log->access_granted ? 'Yes' : 'No'
                     ];
                 }

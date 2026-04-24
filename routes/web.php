@@ -11,11 +11,14 @@ use App\Http\Controllers\PathController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\SecurityAlertController;
 use App\Http\Controllers\SecurityAlertPriorityController;
+use App\Http\Controllers\SyncSettingController;
 use App\Http\Controllers\VisitorDetailsController;
 use App\Http\Controllers\VisitorInfoByDoorController;
 use App\Http\Controllers\VisitorReportController;
 use App\Http\Controllers\VisitorTypeController;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\Config;
 
 /*
 |--------------------------------------------------------------------------
@@ -122,6 +125,35 @@ Route::get('/clear-session', function() {
     Route::post('/vms/vendor-locations/refresh-hierarchy', [PathController::class, 'refreshLocationHierarchy'])
     ->name('vendor.locations.refresh.hierarchy');
 
+    Route::prefix('/vms/sync-settings')->group(function () {
+        Route::get('/', [SyncSettingController::class, 'index'])->name('sync-settings.index');
+        Route::get('/create', [SyncSettingController::class, 'create'])->name('sync-settings.create');
+        Route::post('/', [SyncSettingController::class, 'store'])->name('sync-settings.store');
+        Route::get('/{id}/edit', [SyncSettingController::class, 'edit'])->name('sync-settings.edit');
+        Route::put('/{id}', [SyncSettingController::class, 'update'])->name('sync-settings.update');
+        Route::delete('/{id}', [SyncSettingController::class, 'destroy'])->name('sync-settings.destroy');
+    });
+
+
+    Route::get('/test-sync-db', function () {
+        try {
+            $dbName = DB::connection('mysql_second')->getDatabaseName();
+            $host = Config::get('database.connections.mysql_second.host');
+            $username = Config::get('database.connections.mysql_second.username');
+            
+            return response()->json([
+                'success' => true,
+                'db_name' => $dbName,
+                'host' => $host,
+                'username' => $username,
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'error' => $e->getMessage()
+            ]);
+        }
+    });
 
     Route::prefix('/vms/visitor-report')->group(function () {
         Route::get('/', [VisitorReportController::class, 'index'])->name('visitor.report');
