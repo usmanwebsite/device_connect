@@ -1,6 +1,6 @@
 <aside class="sidebar" id="sidebar">
     <div class="sidebar-header">
-        <img src="{{ asset('logo_image/mnr_logo.jpeg')}}" alt="SafeG Logo" class="img-style">
+        <img src="{{ asset('logo_image/mnr_logo.jpeg')}}" alt="SafeG Logo" class="img-style" height="44px">
         {{-- <button class="sidebar-close-btn" onclick="toggleSidebar()" aria-label="Close sidebar">
             ✕
         </button> --}}
@@ -13,7 +13,7 @@
     <ul class="sidebar-menu">
         @foreach($angularMenu as $mainItem)
         <li class="menu-item dropdown">
-            <div class="menu-main">
+            <div class="menu-main" >
                 <div class="menu-icon-section">
                     <i class='bx {{ $mainItem['icon'] }} menu-icon'></i>
                 </div>

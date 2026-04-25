@@ -165,7 +165,9 @@
             display: flex;
             justify-content: center;
             align-items: center;
-            padding: 20px 10px;
+        }
+        .bx-chevron-down:before{
+            margin-right: 14px;
         }
 
         #menuToggle {

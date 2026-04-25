@@ -80,7 +80,7 @@ table.dataTable td {
 .menu-main {
     display: flex;
     align-items: center;
-    padding: 10px 8px;
+    /* padding: 10px 8px; */
     border-radius: 4px;
     width: 100%;
     min-height: 40px;
