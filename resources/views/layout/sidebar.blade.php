@@ -1,9 +1,9 @@
 <aside class="sidebar" id="sidebar">
     <div class="sidebar-header">
         <img src="{{ asset('logo_image/mnr_logo.jpeg')}}" alt="SafeG Logo" class="img-style">
-        <button class="sidebar-close-btn" onclick="toggleSidebar()" aria-label="Close sidebar">
-            &#9776;
-        </button>
+        {{-- <button class="sidebar-close-btn" onclick="toggleSidebar()" aria-label="Close sidebar">
+            ✕
+        </button> --}}
     </div>
     {{-- <div class="sidebar-header">
         <img src="{{ asset('logo_image/mnr_logo.jpeg')}}" alt="SafeG Logo" class="img-style">

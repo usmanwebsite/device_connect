@@ -168,41 +168,43 @@
             padding: 20px 10px;
         }
 
-        .sidebar-close-btn {
-            position: absolute;
-            top: 15px;
-            right: 15px;
-            background: transparent;
-            border: none;
-            color: #a6b0cf;
-            font-size: 20px;
-            cursor: pointer;
-            transition: color 0.2s;
-            padding: 5px;
-            line-height: 1;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
+        #menuToggle {
+    display: inline-flex !important;     /* block ki jagah inline-flex */
+    align-items: center;
+    justify-content: center;
+    width: 44px !important;              /* Fixed width – icon size */
+    height: 44px !important;             /* Proper touch target */
+    padding: 0 !important;               /* Extra padding hatao */
+    margin: 0 !important;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+}
 
-        .sidebar-close-btn:hover {
-            color: #ffffff;
-        }
+.menu-icon {
+    display: inline-block;   /* important */
+    width: auto;
+    cursor: pointer;
+    padding: 8px;            /* optional for better UX */
+}
+.left-section {
+    width: auto;            /* full width na le */
+    display: flex;
+    align-items: center;
+}
 
-        /* When sidebar is collapsed, hide the close button (optional but cleaner) */
-        .sidebar.collapsed .sidebar-close-btn {
-            display: none;
-        }
+.header-left,
+.navbar-left,
+.d-flex.align-items-center {
+    display: inline-flex !important;     /* ya flex with auto width */
+    width: auto !important;
+    gap: 0.5rem;
+}
+        
 
-        /* On mobile, ensure close button is touch-friendly */
-        @media (max-width: 768px) {
-            .sidebar-close-btn {
-                top: 10px;
-                right: 10px;
-                font-size: 22px;
-                padding: 8px;
-            }
-        }
+         body.sidebar-open {
+    overflow: hidden;
+}
 
     </style>
     
@@ -242,14 +244,23 @@
 
 <script>
     // ========== GLOBAL FUNCTIONS ==========
-    function toggleSidebar() {
-        const sidebar = document.querySelector('.sidebar');
-        const mainContent = document.querySelector('.main-content');
-        if (!sidebar || !mainContent) return;
+function toggleSidebar() {
+    const sidebar = document.querySelector('.sidebar');
 
-        sidebar.classList.toggle('collapsed');
-        mainContent.style.marginLeft = sidebar.classList.contains('collapsed') ? '0' : '';
+    if (!sidebar) return;
+
+    const isCollapsed = sidebar.classList.contains('collapsed');
+
+    if (isCollapsed) {
+        sidebar.classList.remove('collapsed');
+        if (window.innerWidth < 768) {
+            document.body.classList.add('sidebar-open');
+        }
+    } else {
+        sidebar.classList.add('collapsed');
+        document.body.classList.remove('sidebar-open');
     }
+}
 
     function handleResponsiveSidebar() {
         const sidebar = document.querySelector('.sidebar');
@@ -298,16 +309,23 @@
         });
 
         // 3. Hamburger menu (calls global toggleSidebar)
-        const menuToggle = document.getElementById('menuToggle');
-        const sidebar = document.querySelector('.sidebar');
-        if (menuToggle && sidebar) {
-            const toggleHandler = (e) => {
-                e.stopPropagation();
-                toggleSidebar();
-            };
-            menuToggle.addEventListener('click', toggleHandler);
-            menuToggle.addEventListener('touchstart', toggleHandler, { passive: false });
-        }
+const menuToggle = document.getElementById('menuToggle');
+const sidebar = document.querySelector('.sidebar');
+
+if (menuToggle && sidebar) {
+    menuToggle.addEventListener('click', function(e) {
+        if (!e.target.closest('#menuToggle')) return;
+        e.stopPropagation();
+        toggleSidebar();
+    });
+
+    menuToggle.addEventListener('touchstart', function(e) {
+        if (!e.target.closest('#menuToggle')) return;
+        e.preventDefault();
+        e.stopPropagation();
+        toggleSidebar();
+    }, { passive: false });
+}
 
         // 4. Nested submenu dropdowns (level 2 & 3)
         const submenus = document.querySelectorAll('.submenu');
@@ -333,13 +351,23 @@
             submenuHeader.addEventListener('touchstart', toggleSubmenu, { passive: false });
         });
 
-        // 5. Close dropdowns when clicking outside the sidebar
-        document.addEventListener('click', function(e) {
-            if (!e.target.closest('.sidebar')) {
-                menuItems.forEach(item => item.classList.remove('active'));
-                submenus.forEach(sub => sub.classList.remove('active'));
-            }
-        });
+document.addEventListener('click', function(e) {
+    const sidebar = document.querySelector('.sidebar');
+    const toggleBtn = document.getElementById('menuToggle');
+
+    if (
+        !e.target.closest('.sidebar') &&
+        !e.target.closest('#menuToggle')
+    ) {
+        menuItems.forEach(item => item.classList.remove('active'));
+        submenus.forEach(sub => sub.classList.remove('active'));
+
+        if (window.innerWidth < 768) {
+            sidebar.classList.add('collapsed');
+            document.body.classList.remove('sidebar-open');
+        }
+    }
+});
 
         // 6. User dropdown (if present)
         const userMenuBtn = document.getElementById('userMenuBtn');
@@ -367,6 +395,7 @@
 
     // 7. Re-run responsive check on window resize
     window.addEventListener('resize', handleResponsiveSidebar);
+
 </script>
 
 </body>
