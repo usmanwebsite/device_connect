@@ -1,11 +1,6 @@
 @extends('layout.main_layout')
 
 @section('content')
-<!-- Mobile Menu Toggle Button -->
-<button class="mobile-menu-toggle" id="mobileMenuToggle">
-    <i class="fas fa-bars"></i>
-</button>
-
 <div class="container-fluid">
     <div class="row mb-4">
         <div class="col-12">
@@ -208,74 +203,11 @@
         </div>
     </div>
 </div>
-
-@endsection
-
-@section('styles')
-<style>
-/* Additional inline styles for better table display */
-.date-time {
-    line-height: 1.2;
-}
-
-.date {
-    font-weight: 500;
-}
-
-.time {
-    font-size: 12px;
-}
-
-.alert-name {
-    word-break: break-word;
-    overflow-wrap: break-word;
-}
-
-.table-container-wrapper::-webkit-scrollbar {
-    height: 8px;
-    width: 8px;
-}
-
-.table-container-wrapper::-webkit-scrollbar-track {
-    background: #f1f1f1;
-    border-radius: 4px;
-}
-
-.table-container-wrapper::-webkit-scrollbar-thumb {
-    background: #c1c1c1;
-    border-radius: 4px;
-}
-
-.table-container-wrapper::-webkit-scrollbar-thumb:hover {
-    background: #a8a8a8;
-}
-</style>
 @endsection
 
 @section('scripts')
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    // Mobile Menu Toggle
-    const mobileMenuToggle = document.getElementById('mobileMenuToggle');
-    if (mobileMenuToggle) {
-        mobileMenuToggle.addEventListener('click', function() {
-            const sidebar = document.querySelector('.sidebar');
-            sidebar.classList.toggle('mobile-open');
-        });
-    }
-    
-    document.addEventListener('click', function(e) {
-        const sidebar = document.querySelector('.sidebar');
-        const mobileToggle = document.getElementById('mobileMenuToggle');
-        
-        if (window.innerWidth <= 768 && 
-            !sidebar.contains(e.target) && 
-            !mobileToggle.contains(e.target) &&
-            sidebar.classList.contains('mobile-open')) {
-            sidebar.classList.remove('mobile-open');
-        }
-    });
-    
     // Auto-hide alerts after 5 seconds
     setTimeout(function() {
         const alerts = document.querySelectorAll('.alert');
@@ -291,18 +223,13 @@ document.addEventListener('DOMContentLoaded', function() {
         if (tableContainer) {
             const windowHeight = window.innerHeight;
             const containerOffset = tableContainer.getBoundingClientRect().top;
-            const calculatedHeight = windowHeight - containerOffset - 200; // 200px for pagination and margins
-            
+            const calculatedHeight = windowHeight - containerOffset - 200;
             if (calculatedHeight > 300) {
                 tableContainer.style.maxHeight = calculatedHeight + 'px';
             }
         }
     }
-    
-    // Initial adjustment
     adjustTableHeight();
-    
-    // Adjust on window resize
     window.addEventListener('resize', adjustTableHeight);
 });
 </script>

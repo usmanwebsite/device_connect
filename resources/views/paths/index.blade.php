@@ -40,8 +40,8 @@
                 </div>
                 
                 <div class="col-md-2 text-center d-flex flex-column justify-content-center">
-                    <button type="button" id="addDoor" class="btn btn-primary btn-sm mb-2" style="width: 120px !important; height: 36px">→ Add</button>
-                    <button type="button" id="removeDoor" class="btn btn-secondary btn-sm" style="width: 120px !important">← Remove</button>
+                    <button type="button" id="addDoor" class="btn btn-primary btn-sm mb-2">→ Add</button>
+                    <button type="button" id="removeDoor" class="btn btn-secondary btn-sm">← Remove</button>
                 </div>
                 
                 <div class="col-md-5">
@@ -55,7 +55,7 @@
             <small class="text-muted mt-2 d-block">Select doors from left, use buttons to move, and drag to reorder on right</small>
         </div>
 
-        <div class="d-flex justify-content-between">
+        <div class="d-flex justify-content-between gap-2">
             <button type="submit" class="btn btn-primary btn-sm">Add Path</button>
             <button type="button" id="clearForm" class="btn btn-outline-secondary btn-sm">Clear Form</button>
         </div>
@@ -63,16 +63,14 @@
 
     <hr class="my-4">
 
-    <div class="d-flex justify-content-between align-items-center mb-3">
-        <h3 class="mb-0">Existing Paths</h3>
-        <div>
-            <span class="badge bg-info">{{ $paths->count() }} paths</span>
-
-            <button type="button" id="refreshHierarchy" class="btn btn-sm btn-outline-info ms-2">
+    <div class="d-flex justify-content-between align-items-center flex-wrap mb-3">
+        <h3 class="mb-2 mb-sm-0">Existing Paths</h3>
+        <div class="d-flex gap-2">
+            <span class="badge bg-info align-self-center">{{ $paths->count() }} paths</span>
+            <button type="button" id="refreshHierarchy" class="btn btn-sm btn-outline-info">
                 <i class="fas fa-sitemap"></i> Refresh Locations
             </button>
-
-            <button type="button" id="reloadTable" class="btn btn-sm btn-outline-warning ms-2">
+            <button type="button" id="reloadTable" class="btn btn-sm btn-outline-warning">
                 <i class="fas fa-sync-alt"></i> Refresh
             </button>
         </div>
@@ -109,7 +107,7 @@
                                 </div>
                             </td>
                             <td class="text-center">
-                                <a href="{{ route('paths.edit', $path->id) }}" class="btn btn-sm btn-warning" style="width: 120px !important; height: 36px !important">
+                                <a href="{{ route('paths.edit', $path->id) }}" class="btn btn-sm btn-warning">
                                     <i class="fas fa-edit"></i> Edit
                                 </a>
                             </td>
@@ -123,6 +121,81 @@
 </div>
 @endsection
 
+@section('styles')
+<style>
+    /* Consistent button sizing */
+    .btn-sm, .btn-group-sm > .btn {
+        min-width: 100px;
+        min-height: 34px;
+        font-size: 0.8rem;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+    }
+    /* Special case for transfer buttons to keep them compact */
+    #addDoor, #removeDoor {
+        min-width: 85px;
+        width: auto !important;
+    }
+    /* DataTables length menu styling */
+    .dataTables_length select {
+        width: auto;
+        min-width: 70px;
+        display: inline-block;
+        margin: 0 5px;
+        padding: 0.25rem 1.5rem 0.25rem 0.5rem;
+        background-position: right 0.5rem center;
+        line-height: 1.5;
+        border: 1px solid #ced4da;
+        border-radius: 0.25rem;
+    }
+    .dataTables_wrapper .row:first-child {
+        margin-bottom: 1rem;
+    }
+    .dataTables_filter input {
+        margin-left: 0.5rem;
+        border: 1px solid #ced4da;
+        border-radius: 0.25rem;
+        padding: 0.25rem 0.5rem;
+    }
+    /* Door selection visual feedback */
+    .draggable-door {
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+    .draggable-door.selected {
+        background-color: #0d6efd !important;
+        color: white !important;
+        border-color: #0d6efd;
+    }
+    #selectedDoors .draggable-door {
+        cursor: grab;
+    }
+    #selectedDoors .draggable-door:active {
+        cursor: grabbing;
+    }
+    /* Sortable placeholder style */
+    .ui-state-highlight {
+        background-color: #fff3cd;
+        border: 2px dashed #ffc107;
+        height: 38px;
+        margin: 4px 0;
+    }
+    /* Responsive adjustments */
+    @media (max-width: 768px) {
+        .btn-sm {
+            min-width: 80px;
+        }
+        #addDoor, #removeDoor {
+            min-width: 70px;
+        }
+        .dataTables_length select {
+            min-width: 60px;
+        }
+    }
+</style>
+@endsection
+
 @section('scripts')
 <!-- Include jQuery UI for drag and drop -->
 <script src="https://code.jquery.com/ui/1.13.0/jquery-ui.min.js"></script>
@@ -134,227 +207,144 @@
 
 <script>
 $(document).ready(function() {
-    // Initialize DataTable with proper configuration
-    let dataTable = null;
-    
-    function initializeDataTable() {
-        if ($.fn.DataTable.isDataTable('#pathsTable')) {
-            dataTable.destroy();
-            $('#pathsTable').removeClass('dataTable');
-            $('#pathsTable_wrapper').remove();
-        }
-        
-        dataTable = $('#pathsTable').DataTable({
-            dom: "<'row'<'col-sm-12 col-md-6'l><'col-sm-12 col-md-6'f>>" +
-                 "<'row'<'col-sm-12'tr>>" +
-                 "<'row'<'col-sm-12 col-md-5'i><'col-sm-12 col-md-7'p>>",
-            lengthMenu: [[5, 10, 25, 50, -1], [5, 10, 25, 50, "All"]],
-            pageLength: 10,
-            autoWidth: false,
-            responsive: true,
-            scrollX: false,
-            scrollCollapse: true,
-            columnDefs: [
-                { 
-                    width: "10%", 
-                    targets: 0,
-                    className: "dt-center"
-                },
-                { 
-                    width: "25%", 
-                    targets: 1,
-                    className: "dt-left"
-                },
-                { 
-                    width: "50%", 
-                    targets: 2,
-                    className: "dt-left"
-                },
-                { 
-                    width: "15%", 
-                    targets: 3,
-                    className: "dt-center",
-                    orderable: false
-                }
-            ],
-            order: [[0, 'desc']],
-            language: {
-                lengthMenu: "Show _MENU_ entries",
-                zeroRecords: "No records found",
-                info: "Showing _START_ to _END_ of _TOTAL_ entries",
-                infoEmpty: "No records available",
-                infoFiltered: "(filtered from _MAX_ total records)",
-                search: "Search:",
-                paginate: {
-                    first: "First",
-                    last: "Last",
-                    next: "Next",
-                    previous: "Previous"
-                }
+    // Initialize DataTable with improved length menu visibility
+    let dataTable = $('#pathsTable').DataTable({
+        dom: "<'row'<'col-sm-12 col-md-6'l><'col-sm-12 col-md-6'f>>" +
+             "<'row'<'col-sm-12'tr>>" +
+             "<'row'<'col-sm-12 col-md-5'i><'col-sm-12 col-md-7'p>>",
+        lengthMenu: [[5, 10, 25, 50, -1], [5, 10, 25, 50, "All"]],
+        pageLength: 10,
+        autoWidth: false,
+        responsive: true,
+        columnDefs: [
+            { width: "10%", targets: 0, className: "dt-center" },
+            { width: "25%", targets: 1 },
+            { width: "50%", targets: 2 },
+            { width: "15%", targets: 3, orderable: false, className: "dt-center" }
+        ],
+        order: [[0, 'desc']],
+        language: {
+            lengthMenu: "Show _MENU_ entries",
+            zeroRecords: "No records found",
+            info: "Showing _START_ to _END_ of _TOTAL_ entries",
+            infoEmpty: "No records available",
+            infoFiltered: "(filtered from _MAX_ total records)",
+            search: "Search:",
+            paginate: {
+                first: "First",
+                last: "Last",
+                next: "Next",
+                previous: "Previous"
             }
-        });
-    }
-    
-    // Initialize on page load
-    initializeDataTable();
-    
-    // Reload table button
-    $('#reloadTable').click(function() {
-        location.reload(); // Simple refresh
+        }
     });
-    
+
+    // Refresh button reloads page
+    $('#reloadTable').click(() => location.reload());
+
     // Clear form button
     $('#clearForm').click(function() {
         $('#pathForm')[0].reset();
         $('#selectedDoors').empty();
-        
-        // Move all doors back to available
-        const selectedDoors = $('#selectedDoors .draggable-door');
-        selectedDoors.each(function() {
-            const doorValue = $(this).data('value');
-            const doorText = $(this).text().trim();
-            
-            // Add back to available if not already there
-            if (!$('#availableDoors').find(`[data-value="${doorValue}"]`).length) {
-                $('#availableDoors').append(
-                    `<div class="list-group-item list-group-item-action draggable-door py-2" data-value="${doorValue}">
-                        ${doorText}
-                    </div>`
-                );
+        // Restore all doors to available list (avoid duplicates)
+        const selectedItems = $('#selectedDoors .draggable-door');
+        selectedItems.each(function() {
+            const val = $(this).data('value');
+            const txt = $(this).text().trim();
+            if (!$('#availableDoors').find(`[data-value="${val}"]`).length) {
+                $('#availableDoors').append(`<div class="list-group-item list-group-item-action draggable-door py-2" data-value="${val}">${txt}</div>`);
             }
             $(this).remove();
         });
+        updateHiddenInputs();
     });
-    
+
     // Make selected doors sortable
     $("#selectedDoors").sortable({
         placeholder: "ui-state-highlight",
-        update: function(event, ui) {
-            updateHiddenInputs();
-        }
+        update: function() { updateHiddenInputs(); }
     });
-    
-    // Add door button click
+
+    // Add door(s) – move selected from left to right
     $("#addDoor").click(function() {
-        $("#availableDoors .list-group-item.selected").each(function() {
-            const doorValue = $(this).data('value');
-            const doorText = $(this).text().trim();
-            
-            // Move to selected
+        $("#availableDoors .draggable-door.selected").each(function() {
+            const val = $(this).data('value');
+            const txt = $(this).text().trim();
             $(this).remove();
-            
-            // Add to selected list
-            const newItem = $(
-                `<div class="list-group-item draggable-door py-2" data-value="${doorValue}">
-                    ${doorText}
-                    <input type="hidden" name="doors[]" value="${doorValue}">
-                </div>`
-            );
+            const newItem = $(`<div class="list-group-item draggable-door py-2" data-value="${val}">${txt}</div>`);
             $("#selectedDoors").append(newItem);
         });
-        
-        // Update sortable
         $("#selectedDoors").sortable("refresh");
         updateHiddenInputs();
     });
-    
-    // Remove door button click
+
+    // Remove door(s) – move selected from right to left
     $("#removeDoor").click(function() {
-        $("#selectedDoors .list-group-item.selected").each(function() {
-            const doorValue = $(this).data('value');
-            const doorText = $(this).text().trim();
-            
-            // Remove from selected
+        $("#selectedDoors .draggable-door.selected").each(function() {
+            const val = $(this).data('value');
+            const txt = $(this).text().trim();
             $(this).remove();
-            
-            // Add back to available
-            const newItem = $(
-                `<div class="list-group-item list-group-item-action draggable-door py-2" data-value="${doorValue}">
-                    ${doorText}
-                </div>`
-            );
-            $("#availableDoors").append(newItem);
+            if (!$('#availableDoors').find(`[data-value="${val}"]`).length) {
+                $('#availableDoors').append(`<div class="list-group-item list-group-item-action draggable-door py-2" data-value="${val}">${txt}</div>`);
+            }
         });
-        
         updateHiddenInputs();
     });
-    
-    // Select doors on click
-    $(document).on('click', '.draggable-door', function() {
-        $(this).toggleClass('selected');
+
+    // Toggle 'selected' class when clicking a door
+    $(document).on('click', '.draggable-door', function(e) {
+        // Don't toggle when dragging
+        if (!$(this).hasClass('ui-sortable-helper')) {
+            $(this).toggleClass('selected');
+        }
     });
-    
-    // Update hidden inputs when order changes
+
+    // Update hidden inputs after order change
     function updateHiddenInputs() {
         $("#selectedDoors input[name='doors[]']").remove();
-        
         $("#selectedDoors .draggable-door").each(function() {
-            const doorValue = $(this).data('value');
-            $(this).append(`<input type="hidden" name="doors[]" value="${doorValue}">`);
+            const val = $(this).data('value');
+            $(this).append(`<input type="hidden" name="doors[]" value="${val}">`);
         });
     }
-    
-    // Prevent form submit if no doors selected
+
+    // Form validation: at least one door selected
     $("#pathForm").submit(function(e) {
         if ($("#selectedDoors .draggable-door").length === 0) {
             e.preventDefault();
-            alert("Please select at least one door");
+            alert("Please select at least one door.");
             return false;
         }
     });
 
-
-$('#refreshHierarchy').on('click', function () {
-    if (!confirm('This will fetch location hierarchy from Java system:\n• Main Locations → locations table\n• Sub-Locations → vendor_locations table\n\nDo you want to continue?')) {
-        return;
-    }
-
-    const $btn = $(this);
-    const originalHtml = $btn.html();
-    $btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Syncing Hierarchy...');
-
-    $.ajax({
-        url: "{{ route('vendor.locations.refresh.hierarchy') }}",
-        type: "POST",
-        data: {
-            _token: "{{ csrf_token() }}"
-        },
-        success: function (response) {
-            if (response.success) {
-                const summary = response.summary;
-                // CORRECTED: PHP में 'locations' और 'vendor_locations' हैं
-                const mainLocations = summary.locations || { total: 0, inserted: 0, skipped: 0 };
-                const subLocations = summary.vendor_locations || { total: 0, inserted: 0, skipped: 0 };
-                
-                const message = `✅ ${response.message}\n\n📊 Main Locations:\n• Received: ${mainLocations.total}\n• New Added: ${mainLocations.inserted}\n• Already Existed: ${mainLocations.skipped}\n\n📊 Sub-Locations:\n• Received: ${subLocations.total}\n• New Added: ${subLocations.inserted}\n• Already Existed: ${subLocations.skipped}\n\nPage will reload in 3 seconds...`;
-                
-                alert(message);
-                
-                setTimeout(() => {
-                    location.reload();
-                }, 3000);
-            } else {
-                alert('❌ Error: ' + response.message);
+    // Refresh hierarchy from Java API
+    $('#refreshHierarchy').on('click', function () {
+        if (!confirm('Fetch location hierarchy from Java system?\nMain Locations → locations table\nSub-Locations → vendor_locations table\n\nContinue?')) return;
+        const $btn = $(this);
+        const originalHtml = $btn.html();
+        $btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Syncing...');
+        $.ajax({
+            url: "{{ route('vendor.locations.refresh.hierarchy') }}",
+            type: "POST",
+            data: { _token: "{{ csrf_token() }}" },
+            success: function (resp) {
+                if (resp.success) {
+                    const main = resp.summary.locations || { total: 0, inserted: 0, skipped: 0 };
+                    const sub = resp.summary.vendor_locations || { total: 0, inserted: 0, skipped: 0 };
+                    alert(`✅ Hierarchy refreshed!\n📊 Main Locations: ${main.inserted} new, ${main.skipped} existing\n📊 Sub-Locations: ${sub.inserted} new, ${sub.skipped} existing\nReloading page...`);
+                    setTimeout(() => location.reload(), 2000);
+                } else {
+                    alert('❌ Error: ' + resp.message);
+                    $btn.prop('disabled', false).html(originalHtml);
+                }
+            },
+            error: function(xhr) {
+                alert('❌ Failed: ' + (xhr.responseJSON?.message || 'Network error'));
                 $btn.prop('disabled', false).html(originalHtml);
             }
-        },
-        error: function (xhr) {
-            let errorMessage = 'Failed to refresh location hierarchy. ';
-            if (xhr.responseJSON && xhr.responseJSON.message) {
-                errorMessage += xhr.responseJSON.message;
-            } else if (xhr.status === 0) {
-                errorMessage += 'Network error. Please check your connection.';
-            } else {
-                errorMessage += 'Status: ' + xhr.status;
-            }
-            alert('❌ ' + errorMessage);
-            console.error(xhr);
-            
-            $btn.prop('disabled', false).html(originalHtml);
-        }
+        });
     });
-});
-
 });
 </script>
 @endsection
+

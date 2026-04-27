@@ -227,20 +227,69 @@
 </div>
 @endsection
 
+@section('styles')
+<style>
+    /* DataTables length menu dropdown styling */
+    .dataTables_length select {
+        width: auto;
+        min-width: 70px;
+        display: inline-block;
+        margin: 0 5px;
+        padding: 0.25rem 1.5rem 0.25rem 0.5rem;
+        background-position: right 0.5rem center;
+        line-height: 1.5;
+        border: 1px solid #ced4da;
+        border-radius: 0.25rem;
+    }
+    .dataTables_wrapper .row:first-child {
+        margin-bottom: 1rem;
+    }
+    .dataTables_filter input {
+        margin-left: 0.5rem;
+        border: 1px solid #ced4da;
+        border-radius: 0.25rem;
+        padding: 0.25rem 0.5rem;
+    }
+    /* Responsive adjustments */
+    @media (max-width: 768px) {
+        .dataTables_length select {
+            min-width: 60px;
+        }
+    }
+</style>
+@endsection
+
 @section('scripts')
 <script>
 $(document).ready(function() {
-    // Initialize DataTable
+    // Initialize DataTable with improved dom to avoid overlapping
     $('#assignmentsTable').DataTable({
         paging: true,
         searching: true,
         ordering: true,
         pageLength: 10,
+        lengthMenu: [[5, 10, 25, 50, -1], [5, 10, 25, 50, "All"]],
+        dom: "<'row'<'col-sm-12 col-md-6'l><'col-sm-12 col-md-6'f>>" +
+             "<'row'<'col-sm-12'tr>>" +
+             "<'row'<'col-sm-12 col-md-5'i><'col-sm-12 col-md-7'p>>",
         language: {
             search: "_INPUT_",
-            searchPlaceholder: "Search..."
+            searchPlaceholder: "Search...",
+            lengthMenu: "Show _MENU_ entries",
+            zeroRecords: "No records found",
+            info: "Showing _START_ to _END_ of _TOTAL_ entries",
+            infoEmpty: "No records available",
+            infoFiltered: "(filtered from _MAX_ total records)",
+            paginate: {
+                first: "First",
+                last: "Last",
+                next: "Next",
+                previous: "Previous"
+            }
         },
-        dom: '<"row"<"col-md-6"l><"col-md-6"f>>rt<"row"<"col-md-6"i><"col-md-6"p>>'
+        autoWidth: false,
+        scrollX: true,
+        scrollCollapse: true
     });
 
     // IP Range Form Submit using AJAX

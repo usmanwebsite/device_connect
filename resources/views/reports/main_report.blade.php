@@ -5,9 +5,9 @@
     $domain = request()->getSchemeAndHttpHost();
 @endphp
 
-<button class="mobile-menu-toggle" id="mobileMenuToggle">
+{{-- <button class="mobile-menu-toggle" id="mobileMenuToggle">
     <i class="fas fa-bars"></i>
-</button>
+</button> --}}
 
 <div class="container-fluid">
     <div class="row mb-4">
@@ -308,13 +308,13 @@ document.addEventListener('DOMContentLoaded', function() {
     
     updateSelectedLocationsDisplay();
     
-    const mobileMenuToggle = document.getElementById('mobileMenuToggle');
-    if (mobileMenuToggle) {
-        mobileMenuToggle.addEventListener('click', function() {
-            const sidebar = document.querySelector('.sidebar');
-            sidebar.classList.toggle('mobile-open');
-        });
-    }
+    // const mobileMenuToggle = document.getElementById('mobileMenuToggle');
+    // if (mobileMenuToggle) {
+    //     mobileMenuToggle.addEventListener('click', function() {
+    //         const sidebar = document.querySelector('.sidebar');
+    //         sidebar.classList.toggle('mobile-open');
+    //     });
+    // }
     
     document.addEventListener('click', function(e) {
         const sidebar = document.querySelector('.sidebar');

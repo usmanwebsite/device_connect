@@ -1,12 +1,10 @@
 @extends('layout.main_layout')
 
-{{-- @section('title', 'Visitor Types') --}}
-
 @section('content')
 <div class="container mt-4 mb-3">
-    <div class="d-flex justify-content-between align-items-center mb-4">
+    <div class="d-flex justify-content-between align-items-center flex-wrap mb-4">
         <h4>Visitor Types</h4>
-        <a href="{{ route('visitor-types.create') }}" class="btn btn-primary">
+        <a href="{{ route('visitor-types.create') }}" class="btn btn-primary btn-sm">
             <i class="fas fa-plus"></i> Add Visitor Type
         </a>
     </div>
@@ -20,13 +18,13 @@
 
     <div class="card p-3">
         <div class="table-responsive">
-            <table class="table table-bordered table-striped" id="visitorTypesTable">
+            <table class="table table-bordered table-striped" id="visitorTypesTable" style="width:100%">
                 <thead>
                     <tr>
-                        <th>#</th>
-                        <th>Visitor Type</th>
-                        <th>Path</th>
-                        <th>Actions</th>
+                        <th width="10%">#</th>
+                        <th width="40%">Visitor Type</th>
+                        <th width="35%">Path</th>
+                        <th width="15%">Actions</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -56,7 +54,7 @@
     </div>
 </div>
 
-<!-- ✅ Bootstrap Modal for Delete Confirmation -->
+<!-- Delete Confirmation Modal -->
 <div class="modal fade" id="deleteModal" tabindex="-1" aria-labelledby="deleteModalLabel" aria-hidden="true">
     <div class="modal-dialog">
         <div class="modal-content">
@@ -83,178 +81,157 @@
 </div>
 @endsection
 
+@section('styles')
+<style>
+    /* Improved DataTable dropdown styling */
+    .dataTables_length select {
+        width: auto;
+        min-width: 70px;
+        display: inline-block;
+        margin: 0 5px;
+        padding: 0.25rem 1.5rem 0.25rem 0.5rem;
+        background-position: right 0.5rem center;
+        line-height: 1.5;
+        border: 1px solid #ced4da;
+        border-radius: 0.25rem;
+    }
+    .dataTables_wrapper .row:first-child {
+        margin-bottom: 1rem;
+    }
+    .dataTables_filter input {
+        margin-left: 0.5rem;
+        border: 1px solid #ced4da;
+        border-radius: 0.25rem;
+        padding: 0.25rem 0.5rem;
+    }
+    /* Consistent button sizing */
+    .btn-sm {
+        min-width: 80px;
+        min-height: 32px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 4px;
+    }
+    /* Responsive adjustments */
+    @media (max-width: 768px) {
+        .dataTables_length select {
+            min-width: 60px;
+        }
+        .btn-sm {
+            min-width: 70px;
+        }
+        .btn-group .btn-sm {
+            min-width: 65px;
+        }
+    }
+</style>
+@endsection
+
 @section('scripts')
 <script>
 $(document).ready(function() {
-    console.log("✅ Document ready");
-    
-    // Variables to store delete data
+    // Initialize DataTable with improved dom and styling
+    $('#visitorTypesTable').DataTable({
+        paging: true,
+        searching: true,
+        ordering: true,
+        info: true,
+        pageLength: 10,
+        lengthMenu: [[5, 10, 25, 50, -1], [5, 10, 25, 50, "All"]],
+        dom: "<'row'<'col-sm-12 col-md-6'l><'col-sm-12 col-md-6'f>>" +
+             "<'row'<'col-sm-12'tr>>" +
+             "<'row'<'col-sm-12 col-md-5'i><'col-sm-12 col-md-7'p>>",
+        language: {
+            search: "_INPUT_",
+            searchPlaceholder: "Search...",
+            lengthMenu: "Show _MENU_ entries",
+            zeroRecords: "No records found",
+            info: "Showing _START_ to _END_ of _TOTAL_ entries",
+            infoEmpty: "No records available",
+            infoFiltered: "(filtered from _MAX_ total records)",
+            paginate: {
+                first: "First",
+                last: "Last",
+                next: "Next",
+                previous: "Previous"
+            }
+        },
+        columnDefs: [
+            { width: "10%", targets: 0, className: "dt-center" },
+            { width: "40%", targets: 1 },
+            { width: "35%", targets: 2 },
+            { width: "15%", targets: 3, orderable: false, className: "dt-center" }
+        ],
+        autoWidth: false,
+        scrollX: true,          // Horizontal scroll on mobile
+        scrollCollapse: true
+    });
+
+    // Delete button handler
     var deleteUrl = '';
     var deleteId = '';
-    
-    // Initialize DataTable
-    if ($.fn.DataTable) {
-        $('#visitorTypesTable').DataTable({
-            paging: true,
-            searching: true,
-            ordering: true,
-            info: true,
-            pageLength: 10,
-            language: {
-                search: "_INPUT_",
-                searchPlaceholder: "Search..."
-            },
-            dom: '<"row"<"col-md-6"l><"col-md-6"f>>rt<"row"<"col-md-6"i><"col-md-6"p>>'
-        });
-        console.log("✅ DataTable initialized");
-    }
 
-    // ✅ Handle delete button click - USING EVENT DELEGATION
     $(document).on('click', '.delete-btn', function(e) {
         e.preventDefault();
-        e.stopPropagation();
-        
         deleteUrl = $(this).data('url');
         deleteId = $(this).data('id');
-        
-        console.log("🗑️ Delete button clicked - URL:", deleteUrl, "ID:", deleteId);
-        
-        if (!deleteUrl) {
-            console.error("❌ No delete URL found");
-            return;
-        }
-        
-        // Show Bootstrap Modal
         $('#deleteModal').modal('show');
     });
 
-    // ✅ Handle confirm delete button click
     $('#confirmDeleteBtn').click(function() {
-        if (!deleteUrl || !deleteId) {
-            console.error("❌ No delete URL or ID found");
-            return;
-        }
-        
-        console.log("✅ Confirming delete for URL:", deleteUrl, "ID:", deleteId);
-        
-        // Show loading state
-        var $confirmBtn = $('#confirmDeleteBtn');
-        var originalHtml = $confirmBtn.html();
-        $confirmBtn.html('<i class="fas fa-spinner fa-spin"></i> Deleting...');
-        $confirmBtn.prop('disabled', true);
-        
-        // Get CSRF token
-        var csrfToken = $('meta[name="csrf-token"]').attr('content');
-        
-        console.log("📤 Sending DELETE request to:", deleteUrl);
-        
-        // Send AJAX request
+        if (!deleteUrl) return;
+        var $btn = $(this);
+        var originalHtml = $btn.html();
+        $btn.html('<i class="fas fa-spinner fa-spin"></i> Deleting...').prop('disabled', true);
+
         $.ajax({
             url: deleteUrl,
             type: 'DELETE',
-            headers: {
-                'X-CSRF-TOKEN': csrfToken
-            },
-            data: {
-                _token: csrfToken,
-                _method: 'DELETE'
-            },
+            headers: { 'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content') },
             success: function(response) {
-                console.log("✅ Delete successful:", response);
-                
-                // Hide modal
                 $('#deleteModal').modal('hide');
-                
-                // Reset button
-                $confirmBtn.html(originalHtml);
-                $confirmBtn.prop('disabled', false);
-                
                 if (response.success) {
+                    // Remove row and redraw DataTable
+                    var table = $('#visitorTypesTable').DataTable();
+                    var row = table.row('#row-' + deleteId);
+                    row.remove().draw();
                     // Show success message
                     showAlert('success', response.message);
-                    
-                    // Remove row from table
-                    $('#row-' + deleteId).fadeOut(500, function() {
-                        $(this).remove();
-                        
-                        // If using DataTable, redraw
-                        if ($.fn.DataTable && $('#visitorTypesTable').DataTable()) {
-                            $('#visitorTypesTable').DataTable().row('#row-' + deleteId).remove().draw();
-                        }
-                    });
                 } else {
                     showAlert('error', response.message || 'Delete failed');
                 }
             },
-            error: function(xhr, status, error) {
-                console.error("❌ Delete error:");
-                console.error("Status:", status);
-                console.error("Error:", error);
-                console.error("Response:", xhr.responseText);
-                
-                // Hide modal
+            error: function(xhr) {
                 $('#deleteModal').modal('hide');
-                
-                // Reset button
-                $confirmBtn.html(originalHtml);
-                $confirmBtn.prop('disabled', false);
-                
-                var errorMsg = 'An error occurred while deleting.';
-                try {
-                    var response = JSON.parse(xhr.responseText);
-                    if (response.message) {
-                        errorMsg = response.message;
-                    } else if (response.error) {
-                        errorMsg = response.error;
-                    }
-                } catch (e) {
-                    errorMsg = xhr.responseText || errorMsg;
-                }
-                
+                var errorMsg = xhr.responseJSON?.message || 'An error occurred';
                 showAlert('error', errorMsg);
+            },
+            complete: function() {
+                $btn.html(originalHtml).prop('disabled', false);
             }
         });
     });
 
-    // Function to show alerts
-    function showAlert(type, message) {
-        var alertClass = type === 'success' ? 'alert-success' : 'alert-danger';
-        var icon = type === 'success' ? 'fa-check-circle' : 'fa-exclamation-circle';
-        
-        var alertHtml = `
-            <div class="alert ${alertClass} alert-dismissible fade show" role="alert" id="dynamicAlert">
-                <i class="fas ${icon}"></i> ${message}
-                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-            </div>
-        `;
-        
-        // Remove existing dynamic alerts
-        $('#dynamicAlert').remove();
-        
-        // Add new alert
-        $('.container.mt-4.mb-3').prepend(alertHtml);
-        
-        // Auto remove alert after 5 seconds
-        setTimeout(function() {
-            $('#dynamicAlert').alert('close');
-        }, 5000);
-    }
-
-    // Reset modal on hide
     $('#deleteModal').on('hidden.bs.modal', function () {
         deleteUrl = '';
         deleteId = '';
-        $('#confirmDeleteBtn').html('<i class="fas fa-trash"></i> Delete');
-        $('#confirmDeleteBtn').prop('disabled', false);
+        $('#confirmDeleteBtn').html('<i class="fas fa-trash"></i> Delete').prop('disabled', false);
     });
-    
-    // Log for debugging
-    console.log("🔍 Testing delete buttons:", $('.delete-btn').length, "buttons found");
-    
-    // Test button click
-    $('.delete-btn').first().on('click', function() {
-        console.log("🟢 First delete button click test successful");
-    });
+
+    function showAlert(type, message) {
+        var alertClass = type === 'success' ? 'alert-success' : 'alert-danger';
+        var icon = type === 'success' ? 'fa-check-circle' : 'fa-exclamation-circle';
+        var alertHtml = `
+            <div class="alert ${alertClass} alert-dismissible fade show" id="dynamicAlert">
+                <i class="fas ${icon}"></i> ${message}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        `;
+        $('#dynamicAlert').remove();
+        $('.container.mt-4.mb-3').prepend(alertHtml);
+        setTimeout(() => $('#dynamicAlert').alert('close'), 5000);
+    }
 });
 </script>
 @endsection
