@@ -2272,3 +2272,44 @@ body.modal-open {
 #chronologyModal .badge-danger {
     background-color: #dc3545 !important;
 }
+
+
+/* ✅ Mobile par Search Term input field full width aur buttons stack ho jayein */
+@media (max-width: 767.98px) {
+    /* Search container ko column mein change karein */
+    .card-body .input-group {
+        flex-direction: column !important;
+        gap: 10px !important;
+    }
+
+    /* Input field pura width le */
+    .card-body .input-group .form-control {
+        width: 100% !important;
+        margin-bottom: 0 !important;
+        font-size: 16px !important; /* Mobile par readable */
+    }
+
+    /* Button group ko column mein dikhayein */
+    .card-body .input-group-append {
+        display: flex !important;
+        flex-direction: column !important;
+        width: 100% !important;
+        gap: 8px !important;
+        margin-left: 0 !important;
+    }
+
+    /* Dono buttons full width aur fixed width hatao */
+    .card-body .input-group-append .btn {
+        width: 100% !important;
+        margin-left: 0 !important;
+        height: auto !important;
+        padding: 12px 10px !important;
+        font-size: 14px !important;
+    }
+
+    /* Agar kisi button par inline style se width lagi ho to override */
+    #searchBtn, #clearBtn {
+        width: 100% !important;
+        min-width: unset !important;
+    }
+}

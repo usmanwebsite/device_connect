@@ -1810,112 +1810,129 @@ private function callJavaVendorApi($staffNo)
         }
     }
 
-    private function getCheckoutsTodayModalData($paginate = false, $perPage = 10)
-    {
-        try {
-            Log::info('=== Starting getCheckoutsTodayModalData (Updated Logic) ===');
-            
-            // $today = now()->format('Y-m-d');
-            $today = Carbon::now('Asia/Kuala_Lumpur')->format('Y-m-d');
-            $checkoutRecords = [];
+private function getCheckoutsTodayModalData($paginate = false, $perPage = 10)
+{
+    try {
+        $timezone = 'Asia/Kuala_Lumpur';
+        $today = Carbon::now($timezone)->toDateString();
 
-            // Sabhi logs le lo jisme access granted hai
-            $todayCheckoutLogs = DeviceAccessLog::whereDate('created_at', $today)
-                ->where('access_granted', 1)
-                ->orderBy('created_at', 'desc')
-                ->get();
-            
-            Log::info('Total today checkout logs found: ' . $todayCheckoutLogs->count());
-            
-            foreach ($todayCheckoutLogs as $checkoutLog) {
-                try {
-                    // Step 1: Get location details from vendor_locations
-                    $vendorLocation = VendorLocation::where('name', $checkoutLog->location_name)->first();
-                    
-                    if (!$vendorLocation) {
-                        Log::info("Vendor location not found for: " . $checkoutLog->location_name);
-                        continue;
-                    }
-                    
-                    $locationId = $vendorLocation->id;
-                    
-                    // Step 2: Get device connection details
-                    $deviceConnection = DeviceConnection::where('device_id', $checkoutLog->device_id)->first();
-                    
-                    if (!$deviceConnection) {
-                        Log::info("Device connection not found for device_id: " . $checkoutLog->device_id);
-                        continue;
-                    }
-                    
-                    $deviceConnectionId = $deviceConnection->id;
-                    
-                    // Step 3: Check device_location_assigns
-                    $deviceLocationAssign = DeviceLocationAssign::where('device_id', $deviceConnectionId)
-                        ->where('location_id', $locationId)
-                        ->first();
-                    
-                    $displayLocation = $checkoutLog->location_name; // Default
-                    
-                    if ($deviceLocationAssign) {
-                        // Step 4: Check is_type and update display location
-                        if ($deviceLocationAssign->is_type === 'check_in') {
-                            $displayLocation = 'Turnstile';
-                        } elseif ($deviceLocationAssign->is_type === 'check_out') {
-                            $displayLocation = 'Out';
-                        }
-                    }
-                    
-                    // Sirf check_out type wale hi show karein
-                    if ($displayLocation !== 'Out') {
-                        continue;
-                    }
-                    
-                    // Visitor details get karein
-                    $visitorDetails = $this->getVisitorDetailsForCheckout($checkoutLog);
-                    
-                    // Check-in log find karein (same staff_no ke liye)
-                    $checkInLog = $this->getCheckinLogForStaffNo($checkoutLog->staff_no, $today);
-                    
-                    // Duration calculate karein
-                    $duration = $this->calculateCheckoutDuration($checkInLog, $checkoutLog);
-                    
-                    $checkoutRecords[] = [
-                        'visitor_name' => $visitorDetails['fullName'] ?? 'N/A',
-                        'host' => $visitorDetails['personVisited'] ?? 'N/A',
-                        // 'check_in_time' => $checkInLog ? $checkInLog->created_at->format('h:i A') : 'N/A',
-                        // 'check_out_time' => $checkoutLog->created_at->format('h:i A'),
-                        'check_in_time' => $checkInLog ? Carbon::parse($checkInLog->created_at)->setTimezone('Asia/Kuala_Lumpur')->format('h:i A') : 'N/A',
-                        'check_out_time' => Carbon::parse($checkoutLog->created_at)->setTimezone('Asia/Kuala_Lumpur')->format('h:i A'),
-                        'duration' => $duration,
-                        'staff_no' => $checkoutLog->staff_no,
-                        'location' => $displayLocation,
-                        'original_location' => $checkoutLog->location_name,
-                        'device_id' => $checkoutLog->device_id,
-                    ];
-                    
-                    Log::info("Processed checkout for staff_no: {$checkoutLog->staff_no}, Display Location: {$displayLocation}");
-                    
-                } catch (\Exception $e) {
-                    Log::error('Error processing checkout record: ' . $e->getMessage());
-                    continue;
-                }
-            }
-            
-            Log::info('Total filtered checkout records (only "Out" type): ' . count($checkoutRecords));
+        $checkoutRecords = [];
 
-            if ($paginate) {
-                $checkoutRecords = collect($checkoutRecords);
-                return $checkoutRecords->forPage(request()->get('checkouts_page', 1), $perPage)->values()->toArray();
-            }
+        // ✅ Step 1: Get TODAY TURNSTILE checkouts only
+        $turnstileCheckouts = DeviceAccessLog::whereDate('created_at', $today)
+            ->where('access_granted', 1)
+            ->where('location_name', '13.TURNSTILE')
+            ->orderBy('created_at', 'desc')
+            ->get();
 
-            return $checkoutRecords;
-            
-        } catch (\Exception $e) {
-            Log::error('Error in getCheckoutsTodayModalData: ' . $e->getMessage());
-            Log::error('Stack trace: ' . $e->getTraceAsString());
+        if ($turnstileCheckouts->isEmpty()) {
             return [];
         }
+
+        // ✅ Step 2: Loop unique staff
+        $processedStaff = [];
+
+        foreach ($turnstileCheckouts as $log) {
+
+            $staffNo = $log->staff_no;
+            if (!$staffNo || in_array($staffNo, $processedStaff)) {
+                continue;
+            }
+
+            // ✅ Step 3: Confirm this TURNSTILE is actually CHECK_OUT
+            $vendorLocation = VendorLocation::where('name', $log->location_name)->first();
+            if (!$vendorLocation) continue;
+
+            $deviceConnection = DeviceConnection::where('device_id', $log->device_id)->first();
+            if (!$deviceConnection) continue;
+
+            $deviceLocationAssign = DeviceLocationAssign::where('device_id', $deviceConnection->id)
+                ->where('location_id', $vendorLocation->id)
+                ->first();
+
+            if (!$deviceLocationAssign || $deviceLocationAssign->is_type !== 'check_out') {
+                continue;
+            }
+
+            // ✅ Step 4: Get LATEST LOG (ALL TIME)
+            $latestLog = DeviceAccessLog::where('staff_no', $staffNo)
+                ->where('access_granted', 1)
+                ->latest()
+                ->first();
+
+            if (!$latestLog) continue;
+
+            // ✅ Step 5: Check latest log is still CHECK_OUT (important fix)
+            $latestVendorLocation = VendorLocation::where('name', $latestLog->location_name)->first();
+            if (!$latestVendorLocation) continue;
+
+            $latestDeviceConnection = DeviceConnection::where('device_id', $latestLog->device_id)->first();
+            if (!$latestDeviceConnection) continue;
+
+            $latestAssign = DeviceLocationAssign::where('device_id', $latestDeviceConnection->id)
+                ->where('location_id', $latestVendorLocation->id)
+                ->first();
+
+            if (!$latestAssign || $latestAssign->is_type !== 'check_out') {
+                // ❌ Means user came back IN → skip
+                continue;
+            }
+
+            // ✅ Step 6: Find last check-in before this checkout
+            $checkInLog = DeviceAccessLog::where('staff_no', $staffNo)
+                ->where('access_granted', 1)
+                ->where('created_at', '<', $log->created_at)
+                ->orderBy('created_at', 'desc')
+                ->get()
+                ->first(function ($l) {
+                    $vendorLocation = VendorLocation::where('name', $l->location_name)->first();
+                    if (!$vendorLocation) return false;
+
+                    $deviceConnection = DeviceConnection::where('device_id', $l->device_id)->first();
+                    if (!$deviceConnection) return false;
+
+                    $assign = DeviceLocationAssign::where('device_id', $deviceConnection->id)
+                        ->where('location_id', $vendorLocation->id)
+                        ->first();
+
+                    return $assign && $assign->is_type === 'check_in';
+                });
+
+            // ✅ Visitor Details
+            $visitorDetails = $this->getVisitorDetailsForCheckout((object)['staff_no' => $staffNo]);
+
+            // ✅ Duration
+            $duration = $this->calculateCheckoutDuration($checkInLog, $log);
+
+            $checkoutRecords[] = [
+                'visitor_name'      => $visitorDetails['fullName'] ?? 'N/A',
+                'host'              => $visitorDetails['personVisited'] ?? 'N/A',
+                'check_in_time'     => $checkInLog ? Carbon::parse($checkInLog->created_at)->setTimezone($timezone)->format('h:i A') : 'N/A',
+                'check_out_time'    => Carbon::parse($log->created_at)->setTimezone($timezone)->format('h:i A'),
+                'duration'          => $duration,
+                'staff_no'          => $staffNo,
+                'location'          => 'Out',
+                'original_location' => $log->location_name,
+                'device_id'         => $log->device_id,
+            ];
+
+            $processedStaff[] = $staffNo;
+        }
+
+        if ($paginate) {
+            return collect($checkoutRecords)
+                ->forPage(request()->get('checkouts_page', 1), $perPage)
+                ->values()
+                ->toArray();
+        }
+
+        return $checkoutRecords;
+
+    } catch (\Exception $e) {
+        Log::error('Checkout Modal Error: ' . $e->getMessage());
+        return [];
     }
+}
 
 
 

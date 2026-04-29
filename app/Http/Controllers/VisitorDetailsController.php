@@ -631,6 +631,9 @@ private function getVisitSessions($staffNo)
 //     }
 // }
 
+/**
+ * Get visitor chronology with timestamps in Malaysia timezone
+ */
 public function getVisitorChronology(Request $request)
 {
     $request->validate([
@@ -640,6 +643,7 @@ public function getVisitorChronology(Request $request)
     try {
         $icNo = $request->input('ic_no');
         
+        // 1. Fetch all access logs for this visitor
         $accessLogs = DB::table('device_access_logs')
             ->where('staff_no', $icNo)
             ->orderBy('created_at', 'asc')
@@ -654,20 +658,25 @@ public function getVisitorChronology(Request $request)
 
         Log::info("LOCATION TYPE DEBUG: Total logs found: " . $accessLogs->count());
         
-        // ✅ NEW: Detect location type for ALL locations (not just Turnstile)
+        // 2. Convert ALL timestamps to Malaysia timezone (Asia/Kuala_Lumpur)
+        foreach ($accessLogs as $log) {
+            $log->created_at = Carbon::parse($log->created_at)
+                ->setTimezone(self::MALAYSIA_TIMEZONE)
+                ->toDateTimeString();  // format: "2026-04-28 20:21:25"
+        }
+        
+        // 3. Detect location type (IN/OUT) for each log based on device_location_assigns
         $locationTypes = [];
         foreach ($accessLogs as $log) {
             $locationType = null; // null = unknown, true = check_in, false = check_out
             
-            // Get location type from device_location_assigns
+            // Get location type from device_location_assigns via device_connections
             if ($log->device_id) {
-                // First get device_connections record by matching device_id
                 $deviceConnection = DB::table('device_connections')
                     ->where('device_id', $log->device_id)
                     ->first();
                 
                 if ($deviceConnection) {
-                    // Now find device_location_assigns
                     $deviceLocationAssign = DB::table('device_location_assigns')
                         ->where('device_id', $deviceConnection->id)
                         ->first();
@@ -679,7 +688,7 @@ public function getVisitorChronology(Request $request)
                 }
             }
             
-            // Fallback: Try by location name if device_id method failed
+            // Fallback: try by location name if device_id method failed
             if ($locationType === null && $log->location_name) {
                 $location = DB::table('vendor_locations')
                     ->where('name', $log->location_name)
@@ -703,43 +712,39 @@ public function getVisitorChronology(Request $request)
         
         Log::info("LOCATION TYPE DEBUG: Final locationTypes: " . json_encode($locationTypes));
         
-        // Timeline banao
+        // 4. Build location timeline (movement between consecutive logs)
         $locationTimeline = [];
         
         for ($i = 1; $i < count($accessLogs); $i++) {
             $currentLog = $accessLogs[$i];
             $previousLog = $accessLogs[$i - 1];
             
+            // Calculate time spent between the two logs
             $timeSpent = strtotime($currentLog->created_at) - strtotime($previousLog->created_at);
             
-            // FROM location check - for ALL locations
+            // Determine IN/OUT for FROM and TO locations
             $fromIsCheckIn = $locationTypes[$previousLog->id] ?? null;
-            
-            // TO location check - for ALL locations
-            $toIsCheckIn = $locationTypes[$currentLog->id] ?? null;
+            $toIsCheckIn   = $locationTypes[$currentLog->id] ?? null;
             
             $locationTimeline[] = [
-                'from_location' => $previousLog->location_name ?? 'Unknown',
-                'to_location' => $currentLog->location_name ?? 'Unknown',
-                // 'entry_time' => $previousLog->created_at,
-                // 'exit_time' => $currentLog->created_at,
-                'entry_time' => Carbon::parse($previousLog->created_at)->setTimezone(self::MALAYSIA_TIMEZONE)->toDateTimeString(),
-                'exit_time' => Carbon::parse($currentLog->created_at)->setTimezone(self::MALAYSIA_TIMEZONE)->toDateTimeString(),
-                'time_spent' => $this->formatTime($timeSpent),
-                'access_granted' => $currentLog->access_granted ?? 1,
-                'from_is_check_in' => $fromIsCheckIn,
-                'to_is_check_in' => $toIsCheckIn
+                'from_location'      => $previousLog->location_name ?? 'Unknown',
+                'to_location'        => $currentLog->location_name ?? 'Unknown',
+                'entry_time'         => $previousLog->created_at,  // already Malaysia time
+                'exit_time'          => $currentLog->created_at,    // already Malaysia time
+                'time_spent'         => $this->formatTime($timeSpent),
+                'access_granted'     => $currentLog->access_granted ?? 1,
+                'from_is_check_in'   => $fromIsCheckIn,
+                'to_is_check_in'     => $toIsCheckIn
             ];
         }
         
-        // Date-wise grouping
+        // 5. Group logs and timeline by date (using Malaysia date from converted timestamps)
         $visitDates = [];
         $logsByDate = [];
         $timelineByDate = [];
         
         foreach ($accessLogs as $log) {
-            $malaysiaTime = Carbon::parse($log->created_at)->setTimezone(self::MALAYSIA_TIMEZONE);
-            $dateKey = $malaysiaTime->format('d-M-Y');
+            $dateKey = Carbon::parse($log->created_at)->format('d-M-Y');
             if (!in_array($dateKey, $visitDates)) {
                 $visitDates[] = $dateKey;
             }
@@ -747,29 +752,31 @@ public function getVisitorChronology(Request $request)
         }
         
         foreach ($locationTimeline as $item) {
-            $dateKey = date('d-M-Y', strtotime($item['entry_time']));
+            $dateKey = Carbon::parse($item['entry_time'])->format('d-M-Y');
             $timelineByDate[$dateKey][] = $item;
         }
         
+        // Latest date first
         usort($visitDates, function($a, $b) {
             return strtotime($b) - strtotime($a);
         });
         
-        $currentStatus = $this->getCurrentStatus($icNo);
-        $totalTimeSpent = $this->calculateTotalTimeSpent($accessLogs);
-        $summary = $this->generateSummary($icNo, $accessLogs);
+        // 6. Additional summary data
+        $currentStatus   = $this->getCurrentStatus($icNo);
+        $totalTimeSpent  = $this->calculateTotalTimeSpent($accessLogs);
+        $summary         = $this->generateSummary($icNo, $accessLogs);
         
         return response()->json([
             'success' => true,
             'data' => [
-                'dates' => $visitDates,
-                'logs_by_date' => $logsByDate,
-                'timeline_by_date' => $timelineByDate,
-                'current_status' => $currentStatus,  
-                'total_time_spent' => $totalTimeSpent, 
-                'summary' => $summary, 
-                'all_access_logs' => $accessLogs,
-                'all_location_timeline' => $locationTimeline
+                'dates'                => $visitDates,
+                'logs_by_date'         => $logsByDate,
+                'timeline_by_date'     => $timelineByDate,
+                'current_status'       => $currentStatus,
+                'total_time_spent'     => $totalTimeSpent,
+                'summary'              => $summary,
+                'all_access_logs'      => $accessLogs,
+                'all_location_timeline'=> $locationTimeline
             ]
         ]);
         
@@ -1053,35 +1060,33 @@ private function generateCompleteTimeline($allLogs)
     return $timeline;
 }
 
-   private function getCurrentStatus($icNo)
+private function getCurrentStatus($icNo)
 {
-    // Check last access log
     $lastLog = DB::table('device_access_logs')
         ->where('staff_no', $icNo)
         ->orderBy('created_at', 'desc')
         ->first();
-    
+
     if (!$lastLog) {
         return [
             'status' => 'never_visited',
             'message' => 'Never visited the building'
         ];
     }
-    
-    $lastLocation = strtolower($lastLog->location_name ?? '');
-    $isInBuilding = ($lastLocation === '13.TURNSTILE') ? false : true;
-    
-    if ($isInBuilding) {
-        return [
-            'status' => 'in_building',
-            'message' => 'Currently in building (last seen at: ' . $lastLog->location_name . ')'
-        ];
-    } else {
+
+    // Check if the last location is the exit turnstile (case‑insensitive)
+    if (stripos($lastLog->location_name, '13.TURNSTILE') !== false) {
         return [
             'status' => 'out_of_building',
             'message' => 'Currently out of building'
         ];
     }
+
+    // Any other location means the visitor is still inside
+    return [
+        'status' => 'in_building',
+        'message' => 'Currently in building (last seen at: ' . $lastLog->location_name . ')'
+    ];
 }
 
 private function calculateTotalTimeSpent($logs)
@@ -1119,12 +1124,105 @@ private function calculateTotalTimeSpent($logs)
 }
 
 
+// private function getVisitTimings($identifier)
+// {
+//     try {
+//         Log::info("Fetching visit timings for identifier: $identifier");
+        
+//         // ✅ CHANGE 1: Get ALL access logs for first/last access
+//         $allAccessLogs = DB::table('device_access_logs')
+//             ->where('staff_no', $identifier)
+//             ->where('access_granted', 1)
+//             ->orderBy('created_at', 'asc')
+//             ->get(['id', 'created_at', 'location_name', 'device_id']);
+        
+//         Log::info("Total access logs found: " . $allAccessLogs->count());
+        
+//         if ($allAccessLogs->isEmpty()) {
+//             return [
+//                 'visitFrom' => null,
+//                 'visitTo' => null,
+//                 'duration' => 'No visits found',
+//                 'isCurrentlyInBuilding' => false,
+//                 'visitSessions' => []
+//             ];
+//         }
+        
+//         $firstLog = $allAccessLogs->first();
+//         $lastLog = $allAccessLogs->last();
+        
+//         // $visitFrom = $firstLog->created_at;
+//         // $visitTo = $lastLog->created_at;
+        
+//         // Convert UTC to Malaysia timezone
+//         $visitFrom = Carbon::parse($firstLog->created_at)->setTimezone(self::MALAYSIA_TIMEZONE);
+//         $visitTo = Carbon::parse($lastLog->created_at)->setTimezone(self::MALAYSIA_TIMEZONE);
+
+//         // Calculate duration
+//         $durationSeconds = strtotime($visitTo) - strtotime($visitFrom);
+//         $durationFormatted = $this->formatDuration($durationSeconds);
+        
+//         $turnstileLogs = DB::table('device_access_logs')
+//             ->where('staff_no', $identifier)
+//             ->where('location_name', 'like', '%13.TURNSTILE%')
+//             ->where('access_granted', 1)
+//             ->orderBy('created_at', 'desc')
+//             ->get(['id', 'created_at', 'location_name', 'device_id']);
+        
+//         $isCurrentlyInBuilding = false;
+        
+//         if ($turnstileLogs->isNotEmpty()) {
+//             $lastTurnstileLog = $turnstileLogs->first();
+//             $isCheckIn = $this->isTurnstileCheckIn(
+//                 $lastTurnstileLog->location_name, 
+//                 $lastTurnstileLog->created_at, 
+//                 $identifier
+//             );
+            
+//             // If last turnstile was check-in, visitor is still in building
+//             $isCurrentlyInBuilding = $isCheckIn;
+            
+//             Log::info("Last turnstile log: " . $lastTurnstileLog->created_at . 
+//                      ", isCheckIn: " . ($isCheckIn ? 'YES' : 'NO') . 
+//                      ", Currently in building: " . ($isCurrentlyInBuilding ? 'YES' : 'NO'));
+//         } else {
+//             // No turnstile logs found
+//             Log::info("No turnstile logs found for $identifier");
+//         }
+        
+//         $result = [
+//             'visitFrom' => $visitFrom,
+//             'visitTo' => $visitTo,
+//             'duration' => $durationFormatted,
+//             'isCurrentlyInBuilding' => $isCurrentlyInBuilding,
+//             'firstLocation' => $firstLog->location_name,
+//             'lastLocation' => $lastLog->location_name,
+//             'totalLogs' => $allAccessLogs->count(),
+//             'firstLogTime' => $visitFrom,
+//             'lastLogTime' => $visitTo
+//         ];
+        
+//         Log::info("Visit timings result: ", $result);
+//         return $result;
+        
+//     } catch (\Exception $e) {
+//         Log::error('Error in getVisitTimings: ' . $e->getMessage());
+//         return [
+//             'visitFrom' => null,
+//             'visitTo' => null,
+//             'duration' => 'Error fetching data',
+//             'isCurrentlyInBuilding' => false,
+//             'visitSessions' => []
+//         ];
+//     }
+// }
+
 private function getVisitTimings($identifier)
 {
     try {
         Log::info("Fetching visit timings for identifier: $identifier");
         
-        // ✅ CHANGE 1: Get ALL access logs for first/last access
+        // Get ALL access logs (successful + failed? Only successful for timing)
         $allAccessLogs = DB::table('device_access_logs')
             ->where('staff_no', $identifier)
             ->where('access_granted', 1)
@@ -1146,46 +1244,24 @@ private function getVisitTimings($identifier)
         $firstLog = $allAccessLogs->first();
         $lastLog = $allAccessLogs->last();
         
-        // $visitFrom = $firstLog->created_at;
-        // $visitTo = $lastLog->created_at;
-        
-        // Convert UTC to Malaysia timezone
+        // Convert to Malaysia timezone
         $visitFrom = Carbon::parse($firstLog->created_at)->setTimezone(self::MALAYSIA_TIMEZONE);
-        $visitTo = Carbon::parse($lastLog->created_at)->setTimezone(self::MALAYSIA_TIMEZONE);
-
-        // Calculate duration
+        $visitTo   = Carbon::parse($lastLog->created_at)->setTimezone(self::MALAYSIA_TIMEZONE);
+        
+        // Duration = first scan to last scan
         $durationSeconds = strtotime($visitTo) - strtotime($visitFrom);
         $durationFormatted = $this->formatDuration($durationSeconds);
         
-        $turnstileLogs = DB::table('device_access_logs')
-            ->where('staff_no', $identifier)
-            ->where('location_name', 'like', '%13.TURNSTILE%')
-            ->where('access_granted', 1)
-            ->orderBy('created_at', 'desc')
-            ->get(['id', 'created_at', 'location_name', 'device_id']);
-        
-        $isCurrentlyInBuilding = false;
-        
-        if ($turnstileLogs->isNotEmpty()) {
-            $lastTurnstileLog = $turnstileLogs->first();
-            $isCheckIn = $this->isTurnstileCheckIn(
-                $lastTurnstileLog->location_name, 
-                $lastTurnstileLog->created_at, 
-                $identifier
-            );
-            
-            // If last turnstile was check-in, visitor is still in building
-            $isCurrentlyInBuilding = $isCheckIn;
-            
-            Log::info("Last turnstile log: " . $lastTurnstileLog->created_at . 
-                     ", isCheckIn: " . ($isCheckIn ? 'YES' : 'NO') . 
-                     ", Currently in building: " . ($isCurrentlyInBuilding ? 'YES' : 'NO'));
-        } else {
-            // No turnstile logs found
-            Log::info("No turnstile logs found for $identifier");
+        // ✅ FIX: Determine if visitor is still inside using the SAME rule as getCurrentStatus()
+        // If the last location is "13.TURNSTILE" (exit turnstile) → OUT, otherwise IN.
+        $isCurrentlyInBuilding = true;
+        if (stripos($lastLog->location_name, '13.TURNSTILE') !== false) {
+            $isCurrentlyInBuilding = false;
         }
         
-        $result = [
+        Log::info("Visit timings result: lastLocation={$lastLog->location_name}, isCurrentlyInBuilding=" . ($isCurrentlyInBuilding ? 'YES' : 'NO'));
+        
+        return [
             'visitFrom' => $visitFrom,
             'visitTo' => $visitTo,
             'duration' => $durationFormatted,
@@ -1196,9 +1272,6 @@ private function getVisitTimings($identifier)
             'firstLogTime' => $visitFrom,
             'lastLogTime' => $visitTo
         ];
-        
-        Log::info("Visit timings result: ", $result);
-        return $result;
         
     } catch (\Exception $e) {
         Log::error('Error in getVisitTimings: ' . $e->getMessage());
@@ -1211,6 +1284,7 @@ private function getVisitTimings($identifier)
         ];
     }
 }
+
 
 private function formatDuration($seconds)
 {

@@ -47,19 +47,21 @@
                             <div class="col-md-9">
                                 <div class="form-group">
                                     <label for="searchInput">Search Term</label>
-                                    <div class="input-group">
-                                        <input type="text" id="searchInput" class="form-control form-control-lg" 
-                                               placeholder="Enter Staff No or IC Number" 
-                                               aria-label="Search Visitor">
-                                        <div class="input-group-append">
-                                            <button class="btn btn-primary btn-lg" type="button" id="searchBtn" style="width: 140px !important; height: 55px; margin-left: 5px !important">
-                                                <i class="fas fa-search"></i> Search
-                                            </button>
-                                            <button class="btn btn-secondary btn-lg" type="button" id="clearBtn" style="width: 140px !important; height: 55px">
-                                                <i class="fas fa-times"></i> Clear
-                                            </button>
-                                        </div>
+
+                                <div class="input-group flex-column flex-sm-row">
+                                    <input type="text" id="searchInput" class="form-control form-control-lg mb-2 mb-sm-0" 
+                                        placeholder="Enter Staff No or IC Number" 
+                                        aria-label="Search Visitor">
+                                    <div class="input-group-append d-flex flex-sm-row gap-2">
+                                        <button class="btn btn-primary btn-lg w-100 w-sm-auto" type="button" id="searchBtn">
+                                            <i class="fas fa-search"></i> Search
+                                        </button>
+                                        <button class="btn btn-secondary btn-lg w-100 w-sm-auto" type="button" id="clearBtn">
+                                            <i class="fas fa-times"></i> Clear
+                                        </button>
                                     </div>
+                                </div>
+
                                     <small class="text-muted">
                                         <i class="fas fa-info-circle"></i> 
                                         <span id="searchHint">Enter staff number or IC number</span>
@@ -1193,121 +1195,142 @@ function displayAccessLogsForDate(accessLogs) {
     $('#accessLogsTable').html(logsHtml);
 }
 
-function displayTimelineForDate(timeline) {
-    console.log("Displaying timeline with", timeline.length, "items");
-    console.log("Full timeline data:", JSON.stringify(timeline, null, 2));
+// function displayTimelineForDate(timeline) {
+//     console.log("Displaying timeline with", timeline.length, "items");
+//     console.log("Full timeline data:", JSON.stringify(timeline, null, 2));
     
-    let timelineHtml = '';
+//     let timelineHtml = '';
     
-    if (timeline && timeline.length > 0) {
-        timelineHtml = timeline.map((item, index) => {
-            // Calculate timeSpentText
-            let timeSpentText = '-';
-            if (item.time_spent) {
-                const hours = item.time_spent.hours || 0;
-                const minutes = item.time_spent.minutes || 0;
-                const seconds = item.time_spent.seconds || 0;
+//     if (timeline && timeline.length > 0) {
+//         timelineHtml = timeline.map((item, index) => {
+//             // Calculate timeSpentText
+//             let timeSpentText = '-';
+//             if (item.time_spent) {
+//                 const hours = item.time_spent.hours || 0;
+//                 const minutes = item.time_spent.minutes || 0;
+//                 const seconds = item.time_spent.seconds || 0;
                 
-                if (hours > 0) {
-                    timeSpentText = `${hours}h ${minutes}m ${seconds}s`;
-                } else if (minutes > 0) {
-                    timeSpentText = `${minutes}m ${seconds}s`;
-                } else {
-                    timeSpentText = `${seconds}s`;
-                }
-            }
+//                 if (hours > 0) {
+//                     timeSpentText = `${hours}h ${minutes}m ${seconds}s`;
+//                 } else if (minutes > 0) {
+//                     timeSpentText = `${minutes}m ${seconds}s`;
+//                 } else {
+//                     timeSpentText = `${seconds}s`;
+//                 }
+//             }
             
-            const accessBadge = item.access_granted == 1 
-                ? '<span class="badge badge-success">GRANTED</span>' 
-                : '<span class="badge badge-danger">DENIED</span>';
+//             const accessBadge = item.access_granted == 1 
+//                 ? '<span class="badge badge-success">GRANTED</span>' 
+//                 : '<span class="badge badge-danger">DENIED</span>';
             
-            let fromLocationRaw = item.from_location || 'Unknown';
-            let toLocationRaw = item.to_location || 'Unknown';
+//             let fromLocationRaw = item.from_location || 'Unknown';
+//             let toLocationRaw = item.to_location || 'Unknown';
             
-            // ✅ UPDATED: Show (IN)/(OUT) for ALL locations
-            let fromDisplay = fromLocationRaw;
-            if (item.from_is_check_in === true) {
-                fromDisplay = `${fromLocationRaw} (IN)`;
-            } else if (item.from_is_check_in === false) {
-                fromDisplay = `${fromLocationRaw} (OUT)`;
-            }
+//             // ✅ UPDATED: Show (IN)/(OUT) for ALL locations
+//             let fromDisplay = fromLocationRaw;
+//             if (item.from_is_check_in === true) {
+//                 fromDisplay = `${fromLocationRaw} (IN)`;
+//             } else if (item.from_is_check_in === false) {
+//                 fromDisplay = `${fromLocationRaw} (OUT)`;
+//             }
             
-            let toDisplay = toLocationRaw;
-            if (item.to_is_check_in === true) {
-                toDisplay = `${toLocationRaw} (IN)`;
-            } else if (item.to_is_check_in === false) {
-                toDisplay = `${toLocationRaw} (OUT)`;
-            }
+//             let toDisplay = toLocationRaw;
+//             if (item.to_is_check_in === true) {
+//                 toDisplay = `${toLocationRaw} (IN)`;
+//             } else if (item.to_is_check_in === false) {
+//                 toDisplay = `${toLocationRaw} (OUT)`;
+//             }
             
-            // Debug log
-            console.log(`Item ${index}: from="${fromLocationRaw}", from_check_in=${item.from_is_check_in}, display="${fromDisplay}"`);
-            console.log(`Item ${index}: to="${toLocationRaw}", to_check_in=${item.to_is_check_in}, display="${toDisplay}"`);
+//             // Debug log
+//             console.log(`Item ${index}: from="${fromLocationRaw}", from_check_in=${item.from_is_check_in}, display="${fromDisplay}"`);
+//             console.log(`Item ${index}: to="${toLocationRaw}", to_check_in=${item.to_is_check_in}, display="${toDisplay}"`);
             
-            return `
-                <div class="timeline-item mb-3">
-                    <div class="timeline-header d-flex justify-content-between align-items-center">
-                        <span class="font-weight-bold">
-                            <i class="fas fa-route mr-1"></i>
-                            Movement ${index + 1}
-                        </span>
-                        <small class="text-muted">${formatDateTime(item.entry_time)}</small>
+//             return `
+//                 <div class="timeline-item mb-3">
+//                     <div class="timeline-header d-flex justify-content-between align-items-center">
+//                         <span class="font-weight-bold">
+//                             <i class="fas fa-route mr-1"></i>
+//                             Movement ${index + 1}
+//                         </span>
+//                         <small class="text-muted">${formatDateTime(item.entry_time)}</small>
+//                     </div>
+//                     <div class="timeline-body p-3 border rounded bg-light">
+//                         <div class="row">
+//                             <div class="col-md-3 mb-2">
+//                                 <strong>From:</strong><br>
+//                                 <div class="mt-1 p-2 bg-white rounded border">
+//                                     ${fromDisplay}
+//                                 </div>
+//                             </div>
+//                             <div class="col-md-3 mb-2">
+//                                 <strong>To:</strong><br>
+//                                 <div class="mt-1 p-2 bg-white rounded border">
+//                                     ${toDisplay}
+//                                 </div>
+//                             </div>
+//                             <div class="col-md-3 mb-2">
+//                                 <strong>Time Spent:</strong><br>
+//                                 <div class="mt-1 p-2 bg-white rounded border">
+//                                     <i class="fas fa-clock mr-1"></i>${timeSpentText}
+//                                 </div>
+//                             </div>
+//                             <div class="col-md-3 mb-2">
+//                                 <strong>Access Status:</strong><br>
+//                                 <div class="mt-1 p-2 bg-white rounded border">
+//                                     ${accessBadge}
+//                                 </div>
+//                             </div>
+//                         </div>
+//                         <div class="row mt-2">
+//                             <div class="col-md-6">
+//                                 <small class="text-muted">
+//                                     <i class="fas fa-sign-in-alt mr-1"></i>
+//                                     <strong>Entry:</strong> ${formatDateTime(item.entry_time)}
+//                                 </small>
+//                             </div>
+//                             <div class="col-md-6">
+//                                 <small class="text-muted">
+//                                     <i class="fas fa-sign-out-alt mr-1"></i>
+//                                     <strong>Exit:</strong> ${formatDateTime(item.exit_time)}
+//                                 </small>
+//                             </div>
+//                         </div>
+//                     </div>
+//                 </div>
+//             `;
+//         }).join('');
+//     } else {
+//         timelineHtml = `
+//             <div class="alert alert-info">
+//                 <i class="fas fa-info-circle mr-1"></i>
+//                 No movement data available for the selected date.
+//             </div>
+//         `;
+//     }
+    
+//     $('#locationTimeline').html(timelineHtml);
+// }
+
+function displayTimelineForDate(timeline) {
+    let timelineHtml = '';
+    timeline.forEach((item, index) => {
+        timelineHtml += `
+            <div class="timeline-item mb-3">
+                ...
+                <div class="row">
+                    <div class="col-md-6">
+                        <i class="fas fa-sign-in-alt"></i> <strong>Entry:</strong> ${formatTimeMalaysia(item.entry_time)}
                     </div>
-                    <div class="timeline-body p-3 border rounded bg-light">
-                        <div class="row">
-                            <div class="col-md-3 mb-2">
-                                <strong>From:</strong><br>
-                                <div class="mt-1 p-2 bg-white rounded border">
-                                    ${fromDisplay}
-                                </div>
-                            </div>
-                            <div class="col-md-3 mb-2">
-                                <strong>To:</strong><br>
-                                <div class="mt-1 p-2 bg-white rounded border">
-                                    ${toDisplay}
-                                </div>
-                            </div>
-                            <div class="col-md-3 mb-2">
-                                <strong>Time Spent:</strong><br>
-                                <div class="mt-1 p-2 bg-white rounded border">
-                                    <i class="fas fa-clock mr-1"></i>${timeSpentText}
-                                </div>
-                            </div>
-                            <div class="col-md-3 mb-2">
-                                <strong>Access Status:</strong><br>
-                                <div class="mt-1 p-2 bg-white rounded border">
-                                    ${accessBadge}
-                                </div>
-                            </div>
-                        </div>
-                        <div class="row mt-2">
-                            <div class="col-md-6">
-                                <small class="text-muted">
-                                    <i class="fas fa-sign-in-alt mr-1"></i>
-                                    <strong>Entry:</strong> ${formatDateTime(item.entry_time)}
-                                </small>
-                            </div>
-                            <div class="col-md-6">
-                                <small class="text-muted">
-                                    <i class="fas fa-sign-out-alt mr-1"></i>
-                                    <strong>Exit:</strong> ${formatDateTime(item.exit_time)}
-                                </small>
-                            </div>
-                        </div>
+                    <div class="col-md-6">
+                        <i class="fas fa-sign-out-alt"></i> <strong>Exit:</strong> ${formatTimeMalaysia(item.exit_time)}
                     </div>
                 </div>
-            `;
-        }).join('');
-    } else {
-        timelineHtml = `
-            <div class="alert alert-info">
-                <i class="fas fa-info-circle mr-1"></i>
-                No movement data available for the selected date.
             </div>
         `;
-    }
-    
+    });
     $('#locationTimeline').html(timelineHtml);
 }
+
 
     function displayAccessLogsForDate(accessLogs) {
     let logsHtml = '<tr><td colspan="7" class="text-center">No access logs found for this date</td></tr>';
