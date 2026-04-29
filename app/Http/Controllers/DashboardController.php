@@ -721,110 +721,204 @@ private function processTurnstileLocationForOverstay($alert)
     }
 }
 
+// private function getUnacknowledgedOverstayAlerts($allDeviceUsers = null)
+// {
+//     try {
+// // dd('345678');
+//     $allDeviceUsers = DB::table('device_access_logs as v')
+//         ->join(
+//             DB::raw('(
+//                 SELECT staff_no, MAX(created_at) AS last_access
+//                 FROM device_access_logs
+//                 WHERE created_at >= NOW() - INTERVAL 2 DAY AND access_granted=1
+//                 GROUP BY staff_no
+//             ) last'),
+//             function ($join) {
+//                 $join->on('v.staff_no', '=', 'last.staff_no')
+//                      ->on('v.created_at', '=', 'last.last_access');
+//             }
+//         )
+
+//         ->join('device_connections as dc', 'dc.device_id', '=', 'v.device_id')
+
+//         ->join('device_location_assigns as dal', 'dal.device_id', '=', 'dc.id')
+
+//         ->where('v.location_name', '!=', '13. TURNSTILE')
+//         ->whereIn('dal.is_type', ['check_out'])
+//         ->limit(12)
+
+//         ->select([
+//             'v.*'
+//         ])
+//         ->get();
+//         // dd($allDeviceUsers);
+        
+//         // $currentTime = now();
+//         $currentTime = Carbon::now('Asia/Kuala_Lumpur');
+//         $overstayAlerts = [];
+        
+//         foreach ($allDeviceUsers as $user) {
+//             // dd($user);
+//             try {
+//                 if (empty($user->location_name)) {
+//                     continue;
+//                 }
+                
+//                 // Skip if already acknowledged
+//                 if ($user->overstay_acknowledge == 1 || $user->overstay_acknowledge === true) {
+//                     continue;
+//                 }
+                
+//                 // Get API data
+//                 $javaApiResponse = $this->callJavaVendorApi($user->staff_no);
+                
+//                 if ($javaApiResponse && isset($javaApiResponse['data'])) {
+//                     $visitorData = $javaApiResponse['data'];
+                    
+//                     if (isset($visitorData['dateOfVisitTo'])) {
+//                         // $dateOfVisitTo = Carbon::parse($visitorData['dateOfVisitTo']);
+//                         $dateOfVisitTo = Carbon::parse($visitorData['dateOfVisitTo'])->setTimezone('Asia/Kuala_Lumpur');
+                        
+//                         if ($currentTime->greaterThan($dateOfVisitTo)) {
+//                             $dateOfVisitFrom = isset($visitorData['dateOfVisitFrom']) 
+//                                 ? Carbon::parse($visitorData['dateOfVisitFrom']) 
+//                                 : null;
+                            
+//                             $overstayMinutes = $currentTime->diffInMinutes($dateOfVisitTo);
+//                             $overstayHours = floor($overstayMinutes / 60);
+//                             $remainingMinutes = $overstayMinutes % 60;
+                            
+//                             // ✅ Process Turnstile location
+//                             $processedLocation = $this->processTurnstileLocationForAlert($user);
+                            
+//                             $overstayAlerts[] = [
+//                                 'visitor_name' => $visitorData['fullName'] ?? 'N/A',
+//                                 'staff_no' => $user->staff_no,
+//                                 'card_no' => $user->card_no ?? null,
+//                                 'expected_end_time' => $dateOfVisitTo->format('d M Y h:i A'),
+//                                 'current_time' => $currentTime->format('d M Y h:i A'),
+//                                 'check_in_time' => Carbon::parse($user->created_at)->format('d M Y h:i A'),
+//                                 'location' => $processedLocation,
+//                                 'original_location' => $user->location_name ?? 'Unknown Location',
+//                                 'overstay_minutes' => $overstayMinutes,
+//                                 'overstay_duration' => $overstayHours . ' hours ' . $remainingMinutes . ' minutes',
+//                                 'host' => $visitorData['personVisited'] ?? 'N/A',
+//                                 'contact_no' => $visitorData['contactNo'] ?? 'N/A',
+//                                 'ic_no' => $visitorData['icNo'] ?? 'N/A',
+//                                 'device_id' => $user->device_id,
+//                                 'date_of_visit_from' => $dateOfVisitFrom ? $dateOfVisitFrom->format('Y-m-d H:i:s') : null,
+//                                 'date_of_visit_to' => $dateOfVisitTo->format('Y-m-d H:i:s'),
+//                                 'log_id' => $user->id
+//                             ];
+//                         }
+//                     }
+//                 }
+//             } catch (\Exception $e) {
+//                 // dd($e->getMessage());
+//                 Log::error('Error checking overstay for staff_no ' . $user->staff_no . ': ' . $e->getMessage());
+//                 continue;
+
+//             }
+//         }
+        
+//         return $overstayAlerts;
+        
+//     } catch (\Exception $e) {
+//         // dd($e->getMessage());
+//         Log::error('Error getting unacknowledged overstay alerts: ' . $e->getMessage());
+//         return [];
+//     }
+// }
+
 private function getUnacknowledgedOverstayAlerts($allDeviceUsers = null)
 {
     try {
-// dd('345678');
-    $allDeviceUsers = DB::table('device_access_logs as v')
-        ->join(
-            DB::raw('(
-                SELECT staff_no, MAX(created_at) AS last_access
-                FROM device_access_logs
-                WHERE created_at >= NOW() - INTERVAL 2 DAY AND access_granted=1
-                GROUP BY staff_no
-            ) last'),
-            function ($join) {
-                $join->on('v.staff_no', '=', 'last.staff_no')
-                     ->on('v.created_at', '=', 'last.last_access');
-            }
-        )
+        $allDeviceUsers = DB::table('device_access_logs as v')
+            ->join(
+                DB::raw('(
+                    SELECT staff_no, MAX(created_at) AS last_access
+                    FROM device_access_logs
+                    WHERE created_at >= NOW() - INTERVAL 2 DAY AND access_granted=1
+                    GROUP BY staff_no
+                ) last'),
+                function ($join) {
+                    $join->on('v.staff_no', '=', 'last.staff_no')
+                         ->on('v.created_at', '=', 'last.last_access');
+                }
+            )
+            ->join('device_connections as dc', 'dc.device_id', '=', 'v.device_id')
+            ->join('device_location_assigns as dal', 'dal.device_id', '=', 'dc.id')
+            ->where('v.location_name', '!=', '13. TURNSTILE')
+            ->whereIn('dal.is_type', ['check_out'])
+            ->limit(12)
+            ->select(['v.*'])
+            ->get();
 
-        ->join('device_connections as dc', 'dc.device_id', '=', 'v.device_id')
-
-        ->join('device_location_assigns as dal', 'dal.device_id', '=', 'dc.id')
-
-        ->where('v.location_name', '!=', '13. TURNSTILE')
-        ->whereIn('dal.is_type', ['check_out'])
-        ->limit(12)
-
-        ->select([
-            'v.*'
-        ])
-        ->get();
-        // dd($allDeviceUsers);
-        
-        // $currentTime = now();
         $currentTime = Carbon::now('Asia/Kuala_Lumpur');
         $overstayAlerts = [];
-        
+
         foreach ($allDeviceUsers as $user) {
-            // dd($user);
             try {
-                if (empty($user->location_name)) {
-                    continue;
-                }
-                
-                // Skip if already acknowledged
-                if ($user->overstay_acknowledge == 1 || $user->overstay_acknowledge === true) {
-                    continue;
-                }
-                
-                // Get API data
-                $javaApiResponse = $this->callJavaVendorApi($user->staff_no);
-                
+                if (empty($user->location_name)) continue;
+                if ($user->overstay_acknowledge == 1 || $user->overstay_acknowledge === true) continue;
+
+                $javaApiResponse = $this->callJavaVendorApi('P6');
                 if ($javaApiResponse && isset($javaApiResponse['data'])) {
                     $visitorData = $javaApiResponse['data'];
-                    
+
                     if (isset($visitorData['dateOfVisitTo'])) {
-                        // $dateOfVisitTo = Carbon::parse($visitorData['dateOfVisitTo']);
-                        $dateOfVisitTo = Carbon::parse($visitorData['dateOfVisitTo'])->setTimezone('Asia/Kuala_Lumpur');
-                        
+
+                        //We subtract the 8 hours of dateOfVisitTo because it ccome incorect
+                    $dateOfVisitTo = Carbon::parse($visitorData['dateOfVisitTo'])->setTimezone('Asia/Kuala_Lumpur')->subHours(8);
+
+                        // dd($dateOfVisitTo);
                         if ($currentTime->greaterThan($dateOfVisitTo)) {
-                            $dateOfVisitFrom = isset($visitorData['dateOfVisitFrom']) 
-                                ? Carbon::parse($visitorData['dateOfVisitFrom']) 
+                            $dateOfVisitFrom = isset($visitorData['dateOfVisitFrom'])
+                                ? Carbon::parse($visitorData['dateOfVisitFrom'], 'Asia/Kuala_Lumpur')
                                 : null;
-                            
+
                             $overstayMinutes = $currentTime->diffInMinutes($dateOfVisitTo);
                             $overstayHours = floor($overstayMinutes / 60);
                             $remainingMinutes = $overstayMinutes % 60;
-                            
-                            // ✅ Process Turnstile location
+
                             $processedLocation = $this->processTurnstileLocationForAlert($user);
-                            
+
+                            // ✅ Database timestamps are UTC – convert to Malaysia time for display
+                            $checkInTimeDisplay = Carbon::parse($user->created_at)
+                                ->setTimezone('Asia/Kuala_Lumpur')
+                                ->format('d M Y h:i A');
+
                             $overstayAlerts[] = [
-                                'visitor_name' => $visitorData['fullName'] ?? 'N/A',
-                                'staff_no' => $user->staff_no,
-                                'card_no' => $user->card_no ?? null,
+                                'visitor_name'      => $visitorData['fullName'] ?? 'N/A',
+                                'staff_no'          => $user->staff_no,
+                                'card_no'           => $user->card_no ?? null,
                                 'expected_end_time' => $dateOfVisitTo->format('d M Y h:i A'),
-                                'current_time' => $currentTime->format('d M Y h:i A'),
-                                'check_in_time' => Carbon::parse($user->created_at)->format('d M Y h:i A'),
-                                'location' => $processedLocation,
+                                'current_time'      => $currentTime->format('d M Y h:i A'),
+                                'check_in_time'     => $checkInTimeDisplay,
+                                'location'          => $processedLocation,
                                 'original_location' => $user->location_name ?? 'Unknown Location',
-                                'overstay_minutes' => $overstayMinutes,
+                                'overstay_minutes'  => $overstayMinutes,
                                 'overstay_duration' => $overstayHours . ' hours ' . $remainingMinutes . ' minutes',
-                                'host' => $visitorData['personVisited'] ?? 'N/A',
-                                'contact_no' => $visitorData['contactNo'] ?? 'N/A',
-                                'ic_no' => $visitorData['icNo'] ?? 'N/A',
-                                'device_id' => $user->device_id,
-                                'date_of_visit_from' => $dateOfVisitFrom ? $dateOfVisitFrom->format('Y-m-d H:i:s') : null,
-                                'date_of_visit_to' => $dateOfVisitTo->format('Y-m-d H:i:s'),
-                                'log_id' => $user->id
+                                'host'              => $visitorData['personVisited'] ?? 'N/A',
+                                'contact_no'        => $visitorData['contactNo'] ?? 'N/A',
+                                'ic_no'             => $visitorData['icNo'] ?? 'N/A',
+                                'device_id'         => $user->device_id,
+                                'date_of_visit_from'=> $dateOfVisitFrom ? $dateOfVisitFrom->format('Y-m-d H:i:s') : null,
+                                'date_of_visit_to'  => $dateOfVisitTo->format('Y-m-d H:i:s'),
+                                'log_id'            => $user->id,
                             ];
                         }
                     }
                 }
             } catch (\Exception $e) {
-                // dd($e->getMessage());
                 Log::error('Error checking overstay for staff_no ' . $user->staff_no . ': ' . $e->getMessage());
                 continue;
-
             }
         }
-        
+
         return $overstayAlerts;
-        
+
     } catch (\Exception $e) {
-        // dd($e->getMessage());
         Log::error('Error getting unacknowledged overstay alerts: ' . $e->getMessage());
         return [];
     }
@@ -1034,6 +1128,166 @@ private function getUnacknowledgedOverstayAlerts($allDeviceUsers = null)
     }
     }
 
+// public function acknowledgeAlert(Request $request)
+// {
+//     try {
+//         $alertId = $request->input('alert_id');
+//         $alertType = $request->input('alert_type', 'access_denied');
+        
+//         Log::info('Acknowledging alert:', [
+//             'alert_id' => $alertId,
+//             'alert_type' => $alertType,
+//             'all_request_data' => $request->all()
+//         ]);
+        
+//         $currentUserId = session()->get('java_user_id');
+        
+//         if (!$currentUserId) {
+//             $token = session()->get('java_backend_token') ?? session()->get('java_auth_token');
+//             if ($token) {
+//                 $menuService = new MenuService();
+//                 $userAccessData = $menuService->fetchUserAccessFromJavaBackendWithToken($token);
+//                 $currentUserId = $userAccessData['user_id'] ?? null;
+                
+//                 if ($currentUserId) {
+//                     session()->put('java_user_id', $currentUserId);
+//                 }
+//             }
+//         }
+
+//         if ($alertType == 'access_denied') {
+//             // Handle Access Denied alert
+//             $alert = DeviceAccessLog::find($alertId);
+            
+//             if (!$alert) {
+//                 return response()->json([
+//                     'success' => false,
+//                     'message' => 'Alert not found'
+//                 ], 404);
+//             }
+
+//             // ✅ UPDATED: Match by alert_id OR card_no (whichever is available)
+//             $updateQuery = DeviceAccessLog::query();
+            
+//             // First, try to update by alert_id (most accurate)
+//             $updateQuery->where('id', $alertId);
+            
+//             // If card_no is available, use it as additional filter
+//             if (!empty($alert->card_no)) {
+//                 // Also update other logs with same card_no at same location
+//                 $updateQuery->orWhere(function($query) use ($alert) {
+//                     $query->where('card_no', $alert->card_no)
+//                           ->where('location_name', $alert->location_name ?? '')
+//                           ->where('access_granted', 0)
+//                           ->where('acknowledge', 0);
+//                 });
+//             }
+            
+//             // If staff_no is available (but might be empty), use it too
+//             if (!empty($alert->staff_no)) {
+//                 $updateQuery->orWhere(function($query) use ($alert) {
+//                     $query->where('staff_no', $alert->staff_no)
+//                           ->where('location_name', $alert->location_name ?? '')
+//                           ->where('access_granted', 0)
+//                           ->where('acknowledge', 0);
+//                 });
+//             }
+            
+//             $affectedRows = $updateQuery->update([
+//                 'acknowledge' => true,
+//                 'acknowledge_by' => $currentUserId,
+//                 'updated_at' => now()
+//             ]);
+            
+//             Log::info("Access Denied alert acknowledged: ID {$alertId}, Affected Rows: {$affectedRows}");
+            
+//         } else if ($alertType == 'visitor_overstay') {
+//             Log::info('Processing overstay acknowledgment with specific visit criteria');
+            
+//             $staffNo = $request->input('staff_no');
+//             $cardNo = $request->input('card_no');
+//             $originalLocation = $request->input('original_location');
+//             $dateOfVisitFrom = $request->input('date_of_visit_from');
+            
+//             Log::info('Request data for overstay acknowledgment:', [
+//                 'staff_no' => $staffNo,
+//                 'card_no' => $cardNo,
+//                 'original_location' => $originalLocation,
+//                 'date_of_visit_from' => $dateOfVisitFrom
+//             ]);
+            
+//             // ✅ UPDATED: For overstay, use card_no as primary if staff_no is empty
+//             $query = DeviceAccessLog::query();
+            
+//             if (!empty($staffNo)) {
+//                 $query->where('staff_no', $staffNo);
+//             } elseif (!empty($cardNo)) {
+//                 // If staff_no is empty, use card_no
+//                 $query->where('card_no', $cardNo);
+//             } else {
+//                 return response()->json([
+//                     'success' => false,
+//                     'message' => 'Both staff_no and card_no are empty for overstay acknowledgment'
+//                 ], 400);
+//             }
+            
+//             // Add location filter
+//             if (!empty($originalLocation)) {
+//                 $query->where('location_name', $originalLocation);
+//             }
+            
+//             // Date condition: created_at greater than dateOfVisitFrom
+//             if ($dateOfVisitFrom) {
+//                 try {
+//                     $parsedFrom = Carbon::parse($dateOfVisitFrom);
+//                     $query->where('created_at', '>', $parsedFrom);
+//                     Log::info('Filtering logs with created_at > ' . $parsedFrom->format('Y-m-d H:i:s'));
+//                 } catch (\Exception $e) {
+//                     Log::error('Error parsing dateOfVisitFrom: ' . $e->getMessage());
+//                 }
+//             }
+            
+//             $logs = $query->get();
+            
+//             Log::info('Found logs to update for overstay:', [
+//                 'count' => $logs->count(),
+//                 'log_ids' => $logs->pluck('id')->toArray()
+//             ]);
+            
+//             $updatedCount = 0;
+//             foreach ($logs as $log) {
+//                 $log->overstay_acknowledge = true;
+//                 $log->acknowledge_by = $currentUserId;
+//                 $log->save();
+//                 $updatedCount++;
+                
+//                 Log::info("Updated log ID: {$log->id}, Card No: {$log->card_no}, Overstay Acknowledge: {$log->overstay_acknowledge}");
+//             }
+            
+//             Log::info("Visitor Overstay alert acknowledged. Updated {$updatedCount} records.");
+//         }
+
+//         // Get next alert
+//         $nextAlert = $this->getCriticalSecurityAlertWithPriority();
+        
+//         return response()->json([
+//             'success' => true,
+//             'message' => 'Alert acknowledged successfully',
+//             'next_alert' => $nextAlert,
+//             'has_next' => $nextAlert ? true : false
+//         ]);
+        
+//     } catch (\Exception $e) {
+//         Log::error('Error acknowledging alert: ' . $e->getMessage());
+//         Log::error('Stack trace: ' . $e->getTraceAsString());
+        
+//         return response()->json([
+//             'success' => false,
+//             'message' => 'Error acknowledging alert: ' . $e->getMessage()
+//         ], 500);
+//     }
+// }
+
 public function acknowledgeAlert(Request $request)
 {
     try {
@@ -1062,7 +1316,7 @@ public function acknowledgeAlert(Request $request)
         }
 
         if ($alertType == 'access_denied') {
-            // Handle Access Denied alert
+            // ✅ FIX: Update ONLY the specific log by its ID
             $alert = DeviceAccessLog::find($alertId);
             
             if (!$alert) {
@@ -1071,41 +1325,14 @@ public function acknowledgeAlert(Request $request)
                     'message' => 'Alert not found'
                 ], 404);
             }
-
-            // ✅ UPDATED: Match by alert_id OR card_no (whichever is available)
-            $updateQuery = DeviceAccessLog::query();
             
-            // First, try to update by alert_id (most accurate)
-            $updateQuery->where('id', $alertId);
-            
-            // If card_no is available, use it as additional filter
-            if (!empty($alert->card_no)) {
-                // Also update other logs with same card_no at same location
-                $updateQuery->orWhere(function($query) use ($alert) {
-                    $query->where('card_no', $alert->card_no)
-                          ->where('location_name', $alert->location_name ?? '')
-                          ->where('access_granted', 0)
-                          ->where('acknowledge', 0);
-                });
-            }
-            
-            // If staff_no is available (but might be empty), use it too
-            if (!empty($alert->staff_no)) {
-                $updateQuery->orWhere(function($query) use ($alert) {
-                    $query->where('staff_no', $alert->staff_no)
-                          ->where('location_name', $alert->location_name ?? '')
-                          ->where('access_granted', 0)
-                          ->where('acknowledge', 0);
-                });
-            }
-            
-            $affectedRows = $updateQuery->update([
+            $alert->update([
                 'acknowledge' => true,
                 'acknowledge_by' => $currentUserId,
                 'updated_at' => now()
             ]);
             
-            Log::info("Access Denied alert acknowledged: ID {$alertId}, Affected Rows: {$affectedRows}");
+            Log::info("Access Denied alert acknowledged: ID {$alertId}");
             
         } else if ($alertType == 'visitor_overstay') {
             Log::info('Processing overstay acknowledgment with specific visit criteria');
@@ -1122,13 +1349,13 @@ public function acknowledgeAlert(Request $request)
                 'date_of_visit_from' => $dateOfVisitFrom
             ]);
             
-            // ✅ UPDATED: For overstay, use card_no as primary if staff_no is empty
+            // For overstay, we may need to update multiple logs (e.g., all entries of that visit)
+            // but at least we should limit to the specific staff/card and location.
             $query = DeviceAccessLog::query();
             
             if (!empty($staffNo)) {
                 $query->where('staff_no', $staffNo);
             } elseif (!empty($cardNo)) {
-                // If staff_no is empty, use card_no
                 $query->where('card_no', $cardNo);
             } else {
                 return response()->json([
@@ -1137,7 +1364,6 @@ public function acknowledgeAlert(Request $request)
                 ], 400);
             }
             
-            // Add location filter
             if (!empty($originalLocation)) {
                 $query->where('location_name', $originalLocation);
             }
@@ -1193,6 +1419,7 @@ public function acknowledgeAlert(Request $request)
         ], 500);
     }
 }
+
 
     public function hideCriticalAlert(Request $request)
     {
@@ -1933,7 +2160,6 @@ private function getCheckoutsTodayModalData($paginate = false, $perPage = 10)
         return [];
     }
 }
-
 
 
     private function getPaginatedTodayAppointments($perPage = 10)
