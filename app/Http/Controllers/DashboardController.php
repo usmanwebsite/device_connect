@@ -72,11 +72,13 @@ class DashboardController extends Controller
             $todayAppointments = [];
             
             if ($userAccessData && isset($userAccessData['today_appointment_count'])) {
-                $todayAppointments = collect($userAccessData['today_appointments'] ?? [])
-                    ->unique('staff_no')
-                    ->values()
-                    ->toArray();
-                
+                // $todayAppointments = collect($userAccessData['today_appointments'] ?? [])
+                //     ->unique('staff_no')
+                //     ->values()
+                //     ->toArray();
+
+
+                $todayAppointments = $userAccessData['today_appointments'] ?? [];
                 $todayAppointmentCount = count($todayAppointments);
                 $upcomingAppointments = $userAccessData['upcoming_appointments'] ?? [];
             }
@@ -721,115 +723,6 @@ private function processTurnstileLocationForOverstay($alert)
     }
 }
 
-// private function getUnacknowledgedOverstayAlerts($allDeviceUsers = null)
-// {
-//     try {
-// // dd('345678');
-//     $allDeviceUsers = DB::table('device_access_logs as v')
-//         ->join(
-//             DB::raw('(
-//                 SELECT staff_no, MAX(created_at) AS last_access
-//                 FROM device_access_logs
-//                 WHERE created_at >= NOW() - INTERVAL 2 DAY AND access_granted=1
-//                 GROUP BY staff_no
-//             ) last'),
-//             function ($join) {
-//                 $join->on('v.staff_no', '=', 'last.staff_no')
-//                      ->on('v.created_at', '=', 'last.last_access');
-//             }
-//         )
-
-//         ->join('device_connections as dc', 'dc.device_id', '=', 'v.device_id')
-
-//         ->join('device_location_assigns as dal', 'dal.device_id', '=', 'dc.id')
-
-//         ->where('v.location_name', '!=', '13. TURNSTILE')
-//         ->whereIn('dal.is_type', ['check_out'])
-//         ->limit(12)
-
-//         ->select([
-//             'v.*'
-//         ])
-//         ->get();
-//         // dd($allDeviceUsers);
-        
-//         // $currentTime = now();
-//         $currentTime = Carbon::now('Asia/Kuala_Lumpur');
-//         $overstayAlerts = [];
-        
-//         foreach ($allDeviceUsers as $user) {
-//             // dd($user);
-//             try {
-//                 if (empty($user->location_name)) {
-//                     continue;
-//                 }
-                
-//                 // Skip if already acknowledged
-//                 if ($user->overstay_acknowledge == 1 || $user->overstay_acknowledge === true) {
-//                     continue;
-//                 }
-                
-//                 // Get API data
-//                 $javaApiResponse = $this->callJavaVendorApi($user->staff_no);
-                
-//                 if ($javaApiResponse && isset($javaApiResponse['data'])) {
-//                     $visitorData = $javaApiResponse['data'];
-                    
-//                     if (isset($visitorData['dateOfVisitTo'])) {
-//                         // $dateOfVisitTo = Carbon::parse($visitorData['dateOfVisitTo']);
-//                         $dateOfVisitTo = Carbon::parse($visitorData['dateOfVisitTo'])->setTimezone('Asia/Kuala_Lumpur');
-                        
-//                         if ($currentTime->greaterThan($dateOfVisitTo)) {
-//                             $dateOfVisitFrom = isset($visitorData['dateOfVisitFrom']) 
-//                                 ? Carbon::parse($visitorData['dateOfVisitFrom']) 
-//                                 : null;
-                            
-//                             $overstayMinutes = $currentTime->diffInMinutes($dateOfVisitTo);
-//                             $overstayHours = floor($overstayMinutes / 60);
-//                             $remainingMinutes = $overstayMinutes % 60;
-                            
-//                             // ✅ Process Turnstile location
-//                             $processedLocation = $this->processTurnstileLocationForAlert($user);
-                            
-//                             $overstayAlerts[] = [
-//                                 'visitor_name' => $visitorData['fullName'] ?? 'N/A',
-//                                 'staff_no' => $user->staff_no,
-//                                 'card_no' => $user->card_no ?? null,
-//                                 'expected_end_time' => $dateOfVisitTo->format('d M Y h:i A'),
-//                                 'current_time' => $currentTime->format('d M Y h:i A'),
-//                                 'check_in_time' => Carbon::parse($user->created_at)->format('d M Y h:i A'),
-//                                 'location' => $processedLocation,
-//                                 'original_location' => $user->location_name ?? 'Unknown Location',
-//                                 'overstay_minutes' => $overstayMinutes,
-//                                 'overstay_duration' => $overstayHours . ' hours ' . $remainingMinutes . ' minutes',
-//                                 'host' => $visitorData['personVisited'] ?? 'N/A',
-//                                 'contact_no' => $visitorData['contactNo'] ?? 'N/A',
-//                                 'ic_no' => $visitorData['icNo'] ?? 'N/A',
-//                                 'device_id' => $user->device_id,
-//                                 'date_of_visit_from' => $dateOfVisitFrom ? $dateOfVisitFrom->format('Y-m-d H:i:s') : null,
-//                                 'date_of_visit_to' => $dateOfVisitTo->format('Y-m-d H:i:s'),
-//                                 'log_id' => $user->id
-//                             ];
-//                         }
-//                     }
-//                 }
-//             } catch (\Exception $e) {
-//                 // dd($e->getMessage());
-//                 Log::error('Error checking overstay for staff_no ' . $user->staff_no . ': ' . $e->getMessage());
-//                 continue;
-
-//             }
-//         }
-        
-//         return $overstayAlerts;
-        
-//     } catch (\Exception $e) {
-//         // dd($e->getMessage());
-//         Log::error('Error getting unacknowledged overstay alerts: ' . $e->getMessage());
-//         return [];
-//     }
-// }
-
 private function getUnacknowledgedOverstayAlerts($allDeviceUsers = null)
 {
     try {
@@ -848,7 +741,7 @@ private function getUnacknowledgedOverstayAlerts($allDeviceUsers = null)
             )
             ->join('device_connections as dc', 'dc.device_id', '=', 'v.device_id')
             ->join('device_location_assigns as dal', 'dal.device_id', '=', 'dc.id')
-            ->where('v.location_name', '!=', '13. TURNSTILE')
+            ->where('v.location_name', '!=', '13.TURNSTILE')
             ->whereIn('dal.is_type', ['check_out'])
             ->limit(12)
             ->select(['v.*'])
@@ -924,140 +817,347 @@ private function getUnacknowledgedOverstayAlerts($allDeviceUsers = null)
     }
 }
 
-    private function getCurrentVisitorsOnSite($paginate = false, $perPage = 10)
-    {
-        try {
-            Log::info('=== Starting getCurrentVisitorsOnSite ===');
-            
-            // Step 1: Pehle sabhi check_in logs lein
-            $allAccessLogs = DeviceAccessLog::where('access_granted', 1)
-                ->orderBy('created_at', 'desc')
-                ->get(['id', 'staff_no', 'device_id', 'location_name', 'created_at']);
-            
-            Log::info('All access logs found: ' . $allAccessLogs->count());
-            
-            // Step 2: Device connections
-            $deviceIds = $allAccessLogs->pluck('device_id')->unique();
-            $deviceConnections = DeviceConnection::whereIn('device_id', $deviceIds)
-                ->get(['id', 'device_id']);
-            
-            // Step 3: Vendor locations
-            $locationNames = $allAccessLogs->pluck('location_name')->unique();
-            $vendorLocations = VendorLocation::whereIn('name', $locationNames)
-                ->get(['id', 'name']);
-            
-            // Step 4: Device location assigns
-            $deviceConnectionIds = $deviceConnections->pluck('id');
-            $locationIds = $vendorLocations->pluck('id');
-            
-            $deviceLocationAssigns = DeviceLocationAssign::whereIn('device_id', $deviceConnectionIds)
-                ->whereIn('location_id', $locationIds)
-                ->get(['id', 'device_id', 'location_id', 'is_type']);
-            
-            // Step 5: Track har staff_no ke latest check_in aur check_out
-            $visitorStatus = [];
-            
-            foreach ($allAccessLogs as $log) {
-                $staffNo = $log->staff_no;
-                
-                // Device connection find karein
-                $deviceConnection = $deviceConnections->firstWhere('device_id', $log->device_id);
-                if (!$deviceConnection) continue;
-                
-                // Vendor location find karein
-                $vendorLocation = $vendorLocations->firstWhere('name', $log->location_name);
-                if (!$vendorLocation) continue;
-                
-                // Device location assign find karein
-                $deviceLocationAssign = $deviceLocationAssigns
-                    ->where('device_id', $deviceConnection->id)
-                    ->where('location_id', $vendorLocation->id)
-                    ->first();
-                
-                if (!$deviceLocationAssign) continue;
-                
-                // Check is_type
-                if ($deviceLocationAssign->is_type === 'check_in') {
-                    // Agar latest check_in hai ya pehli baar check_in hai
-                    if (!isset($visitorStatus[$staffNo]) || 
-                        $log->created_at > $visitorStatus[$staffNo]['last_check_in']) {
-                        $visitorStatus[$staffNo] = [
-                            'last_check_in' => $log->created_at,
-                            'last_check_in_log' => $log,
-                            'has_check_out' => false,
-                            'last_check_out' => null
-                        ];
-                    }
-                } elseif ($deviceLocationAssign->is_type === 'check_out') {
-                    // Check_out record update karein
-                    if (!isset($visitorStatus[$staffNo])) {
-                        $visitorStatus[$staffNo] = [
-                            'last_check_in' => null,
-                            'last_check_in_log' => null,
-                            'has_check_out' => true,
-                            'last_check_out' => $log->created_at
-                        ];
-                    } else {
-                        // Agar check_in ke baad check_out aaya hai
-                        if ($log->created_at > $visitorStatus[$staffNo]['last_check_in']) {
-                            $visitorStatus[$staffNo]['has_check_out'] = true;
-                            $visitorStatus[$staffNo]['last_check_out'] = $log->created_at;
-                        }
-                    }
-                }
-            }
-            
-            // Step 6: Currently on-site visitors identify karein
-            $currentVisitors = [];
-            
-            foreach ($visitorStatus as $staffNo => $status) {
-                $isCurrentlyOnSite = false;
-                
-                if ($status['last_check_in_log']) {
-                    if (!$status['has_check_out']) {
-                        $isCurrentlyOnSite = true;
-                    } elseif ($status['last_check_out'] && 
-                            $status['last_check_in'] > $status['last_check_out']) {
-                        $isCurrentlyOnSite = true;
-                    }
-                }
-                
-                if ($isCurrentlyOnSite && $status['last_check_in_log']) {
-                    // Get visitor details
-                    $visitorDetails = $this->getVisitorDetailsForAlert($staffNo);
-                    
-                    $currentVisitors[] = [
-                        'staff_no' => $staffNo,
-                        'full_name' => $visitorDetails['fullName'] ?? 'N/A',
-                        'person_visited' => $visitorDetails['personVisited'] ?? 'N/A',
-                        'location_name' => $status['last_check_in_log']->location_name,
-                        // 'created_at' => $status['last_check_in'],
-                        'created_at' => Carbon::parse($status['last_check_in'])->setTimezone('Asia/Kuala_Lumpur'),  // Converted
-                        'device_id' => $status['last_check_in_log']->device_id,
-                        'log_id' => $status['last_check_in_log']->id
-                    ];
-                    
-                    Log::info("Visitor {$staffNo} is currently on-site at {$status['last_check_in_log']->location_name}");
-                }
-            }
-            
-            Log::info('Total visitors on-site: ' . count($currentVisitors));
-            Log::info('=== End getCurrentVisitorsOnSite ===');
+// private function getUnacknowledgedOverstayAlerts($allDeviceUsers = null)
+// {
+//     try {
 
-                    // Return paginated or all results
-            if ($paginate) {
-                $currentVisitors = collect($currentVisitors);
-                return $currentVisitors->forPage(request()->get('visitors_page', 1), $perPage)->values()->toArray();
-            }
+//         $onSiteVisitors = $this->getCurrentVisitorsOnSite(false); // returns array of on‑site visitors
+//         $onSiteStaffNos = collect($onSiteVisitors)->pluck('staff_no')->toArray();
+
+//         // 2. Original query (unchanged)
+//         $allDeviceUsers = DB::table('device_access_logs as v')
+//             ->join(
+//                 DB::raw('(
+//                     SELECT staff_no, MAX(created_at) AS last_access
+//                     FROM device_access_logs
+//                     WHERE created_at >= NOW() - INTERVAL 2 DAY AND access_granted=1
+//                     GROUP BY staff_no
+//                 ) last'),
+//                 function ($join) {
+//                     $join->on('v.staff_no', '=', 'last.staff_no')
+//                          ->on('v.created_at', '=', 'last.last_access');
+//                 }
+//             )
+//             ->join('device_connections as dc', 'dc.device_id', '=', 'v.device_id')
+//             ->join('device_location_assigns as dal', 'dal.device_id', '=', 'dc.id')
+//             ->where('v.location_name', '!=', '13. TURNSTILE')
+//             ->whereIn('dal.is_type', ['check_out'])
+//             ->limit(12)
+//             ->select(['v.*'])
+//             ->get();
+
+//         $currentTime = Carbon::now('Asia/Kuala_Lumpur');
+//         $overstayAlerts = [];
+
+//         foreach ($allDeviceUsers as $user) {
+//             try {
+//                 // Skip if not on‑site
+//                 if (!in_array($user->staff_no, $onSiteStaffNos)) {
+//                     continue;
+//                 }
+//                 if (empty($user->location_name)) continue;
+//                 if ($user->overstay_acknowledge == 1 || $user->overstay_acknowledge === true) continue;
+
+//                 // ✅ FIX: Use the actual staff_no, not 'P6'
+//                 $javaApiResponse = $this->callJavaVendorApi($user->staff_no);
+//                 if ($javaApiResponse && isset($javaApiResponse['data'])) {
+//                     $visitorData = $javaApiResponse['data'];
+
+//                     if (isset($visitorData['dateOfVisitTo'])) {
+//                         $dateOfVisitTo = Carbon::parse($visitorData['dateOfVisitTo'])
+//                             ->setTimezone('Asia/Kuala_Lumpur')
+//                             ->subHours(8); // workaround for incorrect offset
+
+//                         if ($currentTime->greaterThan($dateOfVisitTo)) {
+//                             $dateOfVisitFrom = isset($visitorData['dateOfVisitFrom'])
+//                                 ? Carbon::parse($visitorData['dateOfVisitFrom'], 'Asia/Kuala_Lumpur')
+//                                 : null;
+
+//                             $overstayMinutes = $currentTime->diffInMinutes($dateOfVisitTo);
+//                             $overstayHours = floor($overstayMinutes / 60);
+//                             $remainingMinutes = $overstayMinutes % 60;
+
+//                             $processedLocation = $this->processTurnstileLocationForAlert($user);
+
+//                             $checkInTimeDisplay = Carbon::parse($user->created_at)
+//                                 ->setTimezone('Asia/Kuala_Lumpur')
+//                                 ->format('d M Y h:i A');
+
+//                             $overstayAlerts[] = [
+//                                 'visitor_name'      => $visitorData['fullName'] ?? 'N/A',
+//                                 'staff_no'          => $user->staff_no,
+//                                 'card_no'           => $user->card_no ?? null,
+//                                 'expected_end_time' => $dateOfVisitTo->format('d M Y h:i A'),
+//                                 'current_time'      => $currentTime->format('d M Y h:i A'),
+//                                 'check_in_time'     => $checkInTimeDisplay,
+//                                 'location'          => $processedLocation,
+//                                 'original_location' => $user->location_name ?? 'Unknown Location',
+//                                 'overstay_minutes'  => $overstayMinutes,
+//                                 'overstay_duration' => $overstayHours . ' hours ' . $remainingMinutes . ' minutes',
+//                                 'host'              => $visitorData['personVisited'] ?? 'N/A',
+//                                 'contact_no'        => $visitorData['contactNo'] ?? 'N/A',
+//                                 'ic_no'             => $visitorData['icNo'] ?? 'N/A',
+//                                 'device_id'         => $user->device_id,
+//                                 'date_of_visit_from'=> $dateOfVisitFrom ? $dateOfVisitFrom->format('Y-m-d H:i:s') : null,
+//                                 'date_of_visit_to'  => $dateOfVisitTo->format('Y-m-d H:i:s'),
+//                                 'log_id'            => $user->id,
+//                             ];
+//                         }
+//                     }
+//                 }
+//             } catch (\Exception $e) {
+//                 Log::error('Error checking overstay for staff_no ' . $user->staff_no . ': ' . $e->getMessage());
+//                 continue;
+//             }
+//         }
+
+//         return $overstayAlerts;
+
+//     } catch (\Exception $e) {
+//         Log::error('Error getting unacknowledged overstay alerts: ' . $e->getMessage());
+//         return [];
+//     }
+// }
+
+
+
+    // private function getCurrentVisitorsOnSite($paginate = false, $perPage = 10)
+    // {
+    //     try {
+    //         Log::info('=== Starting getCurrentVisitorsOnSite ===');
             
-            return $currentVisitors;
+    //         // Step 1: Pehle sabhi check_in logs lein
+    //         $allAccessLogs =DB::table('device_access_logs as v')
+    //         ->join(
+    //             DB::raw('(
+    //                 SELECT staff_no, created_at, id, device_id,location_name
+    //                 FROM device_access_logs
+    //                 WHERE created_at >= NOW() - INTERVAL 2 DAY AND access_granted=1
+    //                 GROUP BY staff_no
+    //             ) last'),
+    //             function ($join) {
+    //                 $join->on('v.staff_no', '=', 'last.staff_no')
+    //                      ->on('v.created_at', '=', 'last.last_access');
+    //             }
+    //         )
+    //         ->join('device_connections as dc', 'dc.device_id', '=', 'v.device_id')
+    //         ->join('device_location_assigns as dal', 'dal.device_id', '=', 'dc.id')
+    //         ->where('v.location_name', '!=', '13.TURNSTILE')
+    //         ->whereIn('dal.is_type', ['check_out'])
+    //         ->limit(12)
+    //         ->select(['v.*'])
+    //         ->get();
             
-        } catch (\Exception $e) {
-            Log::error('Error in getCurrentVisitorsOnSite: ' . $e->getMessage());
-            Log::error('Stack trace: ' . $e->getTraceAsString());
+    //         dd($allAccessLogs);
+            
+            
+    //         // DeviceAccessLog::where('access_granted', 1)
+    //         //     ->orderBy('created_at', 'desc')
+    //         //     ->get(['id', 'staff_no', 'device_id', 'location_name', 'created_at']);
+
+
+
+            
+    //         Log::info('All access logs found: ' . $allAccessLogs->count());
+            
+    //         // Step 2: Device connections
+    //         $deviceIds = $allAccessLogs->pluck('device_id')->unique();
+    //         $deviceConnections = DeviceConnection::whereIn('device_id', $deviceIds)
+    //             ->get(['id', 'device_id']);
+            
+    //         // Step 3: Vendor locations
+    //         $locationNames = $allAccessLogs->pluck('location_name')->unique();
+    //         $vendorLocations = VendorLocation::whereIn('name', $locationNames)
+    //             ->get(['id', 'name']);
+            
+    //         // Step 4: Device location assigns
+    //         $deviceConnectionIds = $deviceConnections->pluck('id');
+    //         $locationIds = $vendorLocations->pluck('id');
+            
+    //         $deviceLocationAssigns = DeviceLocationAssign::whereIn('device_id', $deviceConnectionIds)
+    //             ->whereIn('location_id', $locationIds)
+    //             ->get(['id', 'device_id', 'location_id', 'is_type']);
+            
+    //         // Step 5: Track har staff_no ke latest check_in aur check_out
+    //         $visitorStatus = [];
+            
+    //         foreach ($allAccessLogs as $log) {
+    //             $staffNo = $log->staff_no;
+                
+    //             // Device connection find karein
+    //             $deviceConnection = $deviceConnections->firstWhere('device_id', $log->device_id);
+    //             if (!$deviceConnection) continue;
+                
+    //             // Vendor location find karein
+    //             $vendorLocation = $vendorLocations->firstWhere('name', $log->location_name);
+    //             if (!$vendorLocation) continue;
+                
+    //             // Device location assign find karein
+    //             $deviceLocationAssign = $deviceLocationAssigns
+    //                 ->where('device_id', $deviceConnection->id)
+    //                 ->where('location_id', $vendorLocation->id)
+    //                 ->first();
+                
+    //             if (!$deviceLocationAssign) continue;
+                
+    //             // Check is_type
+    //             if ($deviceLocationAssign->is_type === 'check_in') {
+    //                 // Agar latest check_in hai ya pehli baar check_in hai
+    //                 if (!isset($visitorStatus[$staffNo]) || 
+    //                     $log->created_at > $visitorStatus[$staffNo]['last_check_in']) {
+    //                     $visitorStatus[$staffNo] = [
+    //                         'last_check_in' => $log->created_at,
+    //                         'last_check_in_log' => $log,
+    //                         'has_check_out' => false,
+    //                         'last_check_out' => null
+    //                     ];
+    //                 }
+    //             } elseif ($deviceLocationAssign->is_type === 'check_out') {
+    //                 // Check_out record update karein
+    //                 if (!isset($visitorStatus[$staffNo])) {
+    //                     $visitorStatus[$staffNo] = [
+    //                         'last_check_in' => null,
+    //                         'last_check_in_log' => null,
+    //                         'has_check_out' => true,
+    //                         'last_check_out' => $log->created_at
+    //                     ];
+    //                 } else {
+    //                     // Agar check_in ke baad check_out aaya hai
+    //                     if ($log->created_at > $visitorStatus[$staffNo]['last_check_in']) {
+    //                         $visitorStatus[$staffNo]['has_check_out'] = true;
+    //                         $visitorStatus[$staffNo]['last_check_out'] = $log->created_at;
+    //                     }
+    //                 }
+    //             }
+    //         }
+            
+    //         // Step 6: Currently on-site visitors identify karein
+    //         $currentVisitors = [];
+            
+    //         foreach ($visitorStatus as $staffNo => $status) {
+    //             $isCurrentlyOnSite = false;
+                
+    //             if ($status['last_check_in_log']) {
+    //                 if (!$status['has_check_out']) {
+    //                     $isCurrentlyOnSite = true;
+    //                 } elseif ($status['last_check_out'] && 
+    //                         $status['last_check_in'] > $status['last_check_out']) {
+    //                     $isCurrentlyOnSite = true;
+    //                 }
+    //             }
+                
+    //             if ($isCurrentlyOnSite && $status['last_check_in_log']) {
+    //                 // Get visitor details
+    //                 $visitorDetails = $this->getVisitorDetailsForAlert($staffNo);
+                    
+    //                 $currentVisitors[] = [
+    //                     'staff_no' => $staffNo,
+    //                     'full_name' => $visitorDetails['fullName'] ?? 'N/A',
+    //                     'person_visited' => $visitorDetails['personVisited'] ?? 'N/A',
+    //                     'location_name' => $status['last_check_in_log']->location_name,
+    //                     // 'created_at' => $status['last_check_in'],
+    //                     'created_at' => Carbon::parse($status['last_check_in'])->setTimezone('Asia/Kuala_Lumpur'),  // Converted
+    //                     'device_id' => $status['last_check_in_log']->device_id,
+    //                     'log_id' => $status['last_check_in_log']->id
+    //                 ];
+                    
+    //                 Log::info("Visitor {$staffNo} is currently on-site at {$status['last_check_in_log']->location_name}");
+    //             }
+    //         }
+            
+    //         Log::info('Total visitors on-site: ' . count($currentVisitors));
+    //         Log::info('=== End getCurrentVisitorsOnSite ===');
+
+    //                 // Return paginated or all results
+    //         if ($paginate) {
+    //             $currentVisitors = collect($currentVisitors);
+    //             return $currentVisitors->forPage(request()->get('visitors_page', 1), $perPage)->values()->toArray();
+    //         }
+            
+    //         return $currentVisitors;
+            
+    //     } catch (\Exception $e) {
+    //         Log::error('Error in getCurrentVisitorsOnSite: ' . $e->getMessage());
+    //         Log::error('Stack trace: ' . $e->getTraceAsString());
+    //         return [];
+    //     }
+    // }
+
+    private function getCurrentVisitorsOnSite($paginate = false, $perPage = 10)
+{
+    try {
+        Log::info('=== Starting getCurrentVisitorsOnSite (Raw Query) ===');
+
+        // ✅ Get latest log per staff (last 2 days, access_granted=1)
+        $latestLogs = DB::table('device_access_logs as v')
+            ->join(
+                DB::raw('(
+                    SELECT staff_no, MAX(created_at) as last_time
+                    FROM device_access_logs
+                    WHERE created_at >= NOW() - INTERVAL 2 DAY AND access_granted = 1
+                    GROUP BY staff_no
+                ) last'),
+                function ($join) {
+                    $join->on('v.staff_no', '=', 'last.staff_no')
+                         ->on('v.created_at', '=', 'last.last_time');
+                }
+            )
+            ->where('v.location_name', '!=', '13.TURNSTILE')
+            ->join('device_connections as dc', 'dc.device_id', '=', 'v.device_id')
+            ->join('device_location_assigns as dal', 'dal.device_id', '=', 'dc.id')
+            ->join('vendor_locations as vl', 'vl.id', '=', 'dal.location_id')
+            ->select([
+                'v.staff_no',
+                'v.device_id',
+                'v.location_name',
+                'v.created_at',
+                'v.id as log_id',
+                'dal.is_type'
+            ])
+            ->get();
+
+        if ($latestLogs->isEmpty()) {
             return [];
         }
+
+        // ✅ Filter only those whose last action is 'check_in'
+        $onSiteVisitors = [];
+        foreach ($latestLogs as $log) {
+            // if ($log->is_type === 'check_in') {
+                // Get visitor details (name, host)
+                $visitorDetails = $this->getVisitorDetailsForAlert($log->staff_no);
+                
+                $onSiteVisitors[] = [
+                    'staff_no'       => $log->staff_no,
+                    'full_name'      => $visitorDetails['fullName'] ?? 'N/A',
+                    'person_visited' => $visitorDetails['personVisited'] ?? 'N/A',
+                    'location_name'  => $log->location_name,
+                    'created_at'     => Carbon::parse($log->created_at)->setTimezone('Asia/Kuala_Lumpur'),
+                    'device_id'      => $log->device_id,
+                    'log_id'         => $log->log_id,
+                ];
+            // }
+        }
+
+        Log::info('Total visitors on-site: ' . count($onSiteVisitors));
+        Log::info('=== End getCurrentVisitorsOnSite ===');
+
+        if ($paginate) {
+            return collect($onSiteVisitors)
+                ->forPage(request()->get('visitors_page', 1), $perPage)
+                ->values()
+                ->toArray();
+        }
+
+        return $onSiteVisitors;
+
+    } catch (\Exception $e) {
+        Log::error('Error in getCurrentVisitorsOnSite: ' . $e->getMessage());
+        Log::error('Stack trace: ' . $e->getTraceAsString());
+        return [];
     }
+}
+
 
 
     // Rest of the controller methods remain the same...

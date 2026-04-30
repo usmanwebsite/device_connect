@@ -2313,3 +2313,10 @@ body.modal-open {
         min-width: unset !important;
     }
 }
+
+
+.today-appointments-list {
+    max-height: 640px;
+    overflow-y: auto;
+    display: block;          /* ← flex override */
+}

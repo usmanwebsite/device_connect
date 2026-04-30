@@ -260,7 +260,7 @@
             <div class="content-card">
                 <h5 class="mb-3">Today's Appointments</h5>
 
-                <ul class="list-group list-group-flush dark-list">
+                <ul class="list-group list-group-flush dark-list" style="max-height: 640px; overflow-y: auto; display: block;">
                     @foreach(collect($todayAppointments)->unique('staff_no') as $appointment)
                     <li class="list-group-item">
                         <strong>{{ $appointment['full_name'] }}</strong> – 
