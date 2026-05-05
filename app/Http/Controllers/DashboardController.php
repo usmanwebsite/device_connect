@@ -121,9 +121,11 @@ class DashboardController extends Controller
                 ->whereRaw('created_at >= CURDATE()')
                 ->count();
 
+            // ✅ New (last 24 hours)
+            $twentyFourHoursAgo = Carbon::now('Asia/Kuala_Lumpur')->subHours(24)->setTimezone('UTC');
             $deniedAccessLogs24h = DeviceAccessLog::where('access_granted', 0)
                 ->where('acknowledge', 0)
-                ->whereRaw('created_at >= CURDATE()')
+                ->where('created_at', '>=', $twentyFourHoursAgo)
                 ->orderBy('created_at', 'desc')
                 ->paginate($perPage, ['*'], 'denied_access_page');
             
@@ -483,12 +485,14 @@ public function getAccessDeniedIncidentsAjax(Request $request)
             'url' => $request->fullUrl()
         ]);
         
-        // Get denied access logs for last 24 hours
+        // ✅ New
+        $twentyFourHoursAgo = Carbon::now('Asia/Kuala_Lumpur')->subHours(24)->setTimezone('UTC');
         $deniedAccessLogs24h = DeviceAccessLog::where('access_granted', 0)
             ->where('acknowledge', 0)
-            ->whereRaw('created_at >= CURDATE()')
+            ->where('created_at', '>=', $twentyFourHoursAgo)
             ->orderBy('created_at', 'desc')
             ->paginate($perPage, ['*'], 'page', $page);
+
         
         // Enrich the logs with visitor details
         $enrichedLogs = $this->getEnrichedDeniedAccessLogs($deniedAccessLogs24h);
@@ -726,93 +730,97 @@ private function processTurnstileLocationForOverstay($alert)
 private function getUnacknowledgedOverstayAlerts($allDeviceUsers = null)
 {
     try {
-        $allDeviceUsers = DB::table('device_access_logs as v')
-            ->join(
-                DB::raw('(
-                    SELECT staff_no, MAX(created_at) AS last_access
-                    FROM device_access_logs
-                    WHERE created_at >= NOW() - INTERVAL 2 DAY AND access_granted=1
-                    GROUP BY staff_no
-                ) last'),
-                function ($join) {
-                    $join->on('v.staff_no', '=', 'last.staff_no')
-                         ->on('v.created_at', '=', 'last.last_access');
-                }
-            )
-            ->join('device_connections as dc', 'dc.device_id', '=', 'v.device_id')
-            ->join('device_location_assigns as dal', 'dal.device_id', '=', 'dc.id')
-            ->where('v.location_name', '!=', '13.TURNSTILE')
-            ->whereIn('dal.is_type', ['check_out'])
-            ->limit(12)
-            ->select(['v.*'])
-            ->get();
-
+        // Get all visitors currently on-site
+        $onSiteVisitors = $this->getCurrentVisitorsOnSite(false);
         $currentTime = Carbon::now('Asia/Kuala_Lumpur');
         $overstayAlerts = [];
 
-        foreach ($allDeviceUsers as $user) {
-            try {
-                if (empty($user->location_name)) continue;
-                if ($user->overstay_acknowledge == 1 || $user->overstay_acknowledge === true) continue;
-
-                $javaApiResponse = $this->callJavaVendorApi('P6');
-                if ($javaApiResponse && isset($javaApiResponse['data'])) {
-                    $visitorData = $javaApiResponse['data'];
-
-                    if (isset($visitorData['dateOfVisitTo'])) {
-
-                        //We subtract the 8 hours of dateOfVisitTo because it ccome incorect
-                    $dateOfVisitTo = Carbon::parse($visitorData['dateOfVisitTo'])->setTimezone('Asia/Kuala_Lumpur')->subHours(8);
-
-                        // dd($dateOfVisitTo);
-                        if ($currentTime->greaterThan($dateOfVisitTo)) {
-                            $dateOfVisitFrom = isset($visitorData['dateOfVisitFrom'])
-                                ? Carbon::parse($visitorData['dateOfVisitFrom'], 'Asia/Kuala_Lumpur')
-                                : null;
-
-                            $overstayMinutes = $currentTime->diffInMinutes($dateOfVisitTo);
-                            $overstayHours = floor($overstayMinutes / 60);
-                            $remainingMinutes = $overstayMinutes % 60;
-
-                            $processedLocation = $this->processTurnstileLocationForAlert($user);
-
-                            // ✅ Database timestamps are UTC – convert to Malaysia time for display
-                            $checkInTimeDisplay = Carbon::parse($user->created_at)
-                                ->setTimezone('Asia/Kuala_Lumpur')
-                                ->format('d M Y h:i A');
-
-                            $overstayAlerts[] = [
-                                'visitor_name'      => $visitorData['fullName'] ?? 'N/A',
-                                'staff_no'          => $user->staff_no,
-                                'card_no'           => $user->card_no ?? null,
-                                'expected_end_time' => $dateOfVisitTo->format('d M Y h:i A'),
-                                'current_time'      => $currentTime->format('d M Y h:i A'),
-                                'check_in_time'     => $checkInTimeDisplay,
-                                'location'          => $processedLocation,
-                                'original_location' => $user->location_name ?? 'Unknown Location',
-                                'overstay_minutes'  => $overstayMinutes,
-                                'overstay_duration' => $overstayHours . ' hours ' . $remainingMinutes . ' minutes',
-                                'host'              => $visitorData['personVisited'] ?? 'N/A',
-                                'contact_no'        => $visitorData['contactNo'] ?? 'N/A',
-                                'ic_no'             => $visitorData['icNo'] ?? 'N/A',
-                                'device_id'         => $user->device_id,
-                                'date_of_visit_from'=> $dateOfVisitFrom ? $dateOfVisitFrom->format('Y-m-d H:i:s') : null,
-                                'date_of_visit_to'  => $dateOfVisitTo->format('Y-m-d H:i:s'),
-                                'log_id'            => $user->id,
-                            ];
-                        }
-                    }
-                }
-            } catch (\Exception $e) {
-                Log::error('Error checking overstay for staff_no ' . $user->staff_no . ': ' . $e->getMessage());
+        foreach ($onSiteVisitors as $visitor) {
+            $staffNo = $visitor['staff_no'];
+            if (empty($staffNo)) {
                 continue;
             }
+
+            // ✅ Skip already acknowledged overstays – we need to check from DB
+            // Get the latest log for this visitor to check overstay_acknowledge flag
+            $latestLog = DeviceAccessLog::where('staff_no', $staffNo)
+                ->where('access_granted', 1)
+                ->latest()
+                ->first();
+
+            if ($latestLog && ($latestLog->overstay_acknowledge == 1 || $latestLog->overstay_acknowledge === true)) {
+                continue; // Already acknowledged
+            }
+
+            // ✅ Fetch visitor details from Java API using the actual staff_no
+            $javaApiResponse = $this->callJavaVendorApi($staffNo);
+            if (!$javaApiResponse || !isset($javaApiResponse['data'])) {
+                continue;
+            }
+
+            $visitorData = $javaApiResponse['data'];
+            if (!isset($visitorData['dateOfVisitTo'])) {
+                continue;
+            }
+
+            // ✅ Parse visit end time (apply the 8-hour offset as per original logic)
+            $dateOfVisitTo = Carbon::parse($visitorData['dateOfVisitTo'])
+                ->setTimezone('Asia/Kuala_Lumpur')
+                ->subHours(8); // workaround for incorrect offset
+
+            // ✅ Check if visit has ended
+            if ($currentTime->lessThanOrEqualTo($dateOfVisitTo)) {
+                continue; // Not yet overstayed
+            }
+
+            // ✅ Build overstay alert
+            $dateOfVisitFrom = isset($visitorData['dateOfVisitFrom'])
+                ? Carbon::parse($visitorData['dateOfVisitFrom'], 'Asia/Kuala_Lumpur')
+                : null;
+
+            $overstayMinutes = $currentTime->diffInMinutes($dateOfVisitTo);
+            $overstayHours = floor($overstayMinutes / 60);
+            $remainingMinutes = $overstayMinutes % 60;
+
+            // Use the visitor's latest check-in log to get the actual check-in time
+            $checkInLog = DeviceAccessLog::where('staff_no', $staffNo)
+                ->where('access_granted', 1)
+                ->orderBy('created_at', 'asc')
+                ->first();
+
+            $checkInTimeDisplay = $checkInLog
+                ? Carbon::parse($checkInLog->created_at)->setTimezone('Asia/Kuala_Lumpur')->format('d M Y h:i A')
+                : 'N/A';
+
+            $processedLocation = $this->processTurnstileLocationForAlert($latestLog ?? (object)['location_name' => $visitor['location_name'] ?? 'Unknown']);
+
+            $overstayAlerts[] = [
+                'visitor_name'       => $visitorData['fullName'] ?? 'N/A',
+                'staff_no'           => $staffNo,
+                'card_no'            => $visitor['card_no'] ?? null,
+                'expected_end_time'  => $dateOfVisitTo->format('d M Y h:i A'),
+                'current_time'       => $currentTime->format('d M Y h:i A'),
+                'check_in_time'      => $checkInTimeDisplay,
+                'location'           => $processedLocation,
+                'original_location'  => $visitor['location_name'] ?? 'Unknown Location',
+                'overstay_minutes'   => $overstayMinutes,
+                'overstay_duration'  => $overstayHours . ' hours ' . $remainingMinutes . ' minutes',
+                'host'               => $visitorData['personVisited'] ?? 'N/A',
+                'contact_no'         => $visitorData['contactNo'] ?? 'N/A',
+                'ic_no'              => $visitorData['icNo'] ?? 'N/A',
+                'device_id'          => $visitor['device_id'] ?? null,
+                'date_of_visit_from' => $dateOfVisitFrom ? $dateOfVisitFrom->format('Y-m-d H:i:s') : null,
+                'date_of_visit_to'   => $dateOfVisitTo->format('Y-m-d H:i:s'),
+                'log_id'             => $latestLog ? $latestLog->id : null,
+            ];
         }
 
+        Log::info('Overstay alerts found: ' . count($overstayAlerts));
         return $overstayAlerts;
 
     } catch (\Exception $e) {
         Log::error('Error getting unacknowledged overstay alerts: ' . $e->getMessage());
+        Log::error('Stack trace: ' . $e->getTraceAsString());
         return [];
     }
 }
@@ -820,11 +828,6 @@ private function getUnacknowledgedOverstayAlerts($allDeviceUsers = null)
 // private function getUnacknowledgedOverstayAlerts($allDeviceUsers = null)
 // {
 //     try {
-
-//         $onSiteVisitors = $this->getCurrentVisitorsOnSite(false); // returns array of on‑site visitors
-//         $onSiteStaffNos = collect($onSiteVisitors)->pluck('staff_no')->toArray();
-
-//         // 2. Original query (unchanged)
 //         $allDeviceUsers = DB::table('device_access_logs as v')
 //             ->join(
 //                 DB::raw('(
@@ -840,7 +843,7 @@ private function getUnacknowledgedOverstayAlerts($allDeviceUsers = null)
 //             )
 //             ->join('device_connections as dc', 'dc.device_id', '=', 'v.device_id')
 //             ->join('device_location_assigns as dal', 'dal.device_id', '=', 'dc.id')
-//             ->where('v.location_name', '!=', '13. TURNSTILE')
+//             ->where('v.location_name', '!=', '13.TURNSTILE')
 //             ->whereIn('dal.is_type', ['check_out'])
 //             ->limit(12)
 //             ->select(['v.*'])
@@ -851,23 +854,19 @@ private function getUnacknowledgedOverstayAlerts($allDeviceUsers = null)
 
 //         foreach ($allDeviceUsers as $user) {
 //             try {
-//                 // Skip if not on‑site
-//                 if (!in_array($user->staff_no, $onSiteStaffNos)) {
-//                     continue;
-//                 }
 //                 if (empty($user->location_name)) continue;
 //                 if ($user->overstay_acknowledge == 1 || $user->overstay_acknowledge === true) continue;
 
-//                 // ✅ FIX: Use the actual staff_no, not 'P6'
-//                 $javaApiResponse = $this->callJavaVendorApi($user->staff_no);
+//                 $javaApiResponse = $this->callJavaVendorApi('P6');
 //                 if ($javaApiResponse && isset($javaApiResponse['data'])) {
 //                     $visitorData = $javaApiResponse['data'];
 
 //                     if (isset($visitorData['dateOfVisitTo'])) {
-//                         $dateOfVisitTo = Carbon::parse($visitorData['dateOfVisitTo'])
-//                             ->setTimezone('Asia/Kuala_Lumpur')
-//                             ->subHours(8); // workaround for incorrect offset
 
+//                         //We subtract the 8 hours of dateOfVisitTo because it ccome incorect
+//                     $dateOfVisitTo = Carbon::parse($visitorData['dateOfVisitTo'])->setTimezone('Asia/Kuala_Lumpur')->subHours(8);
+
+//                         // dd($dateOfVisitTo);
 //                         if ($currentTime->greaterThan($dateOfVisitTo)) {
 //                             $dateOfVisitFrom = isset($visitorData['dateOfVisitFrom'])
 //                                 ? Carbon::parse($visitorData['dateOfVisitFrom'], 'Asia/Kuala_Lumpur')
@@ -879,6 +878,7 @@ private function getUnacknowledgedOverstayAlerts($allDeviceUsers = null)
 
 //                             $processedLocation = $this->processTurnstileLocationForAlert($user);
 
+//                             // ✅ Database timestamps are UTC – convert to Malaysia time for display
 //                             $checkInTimeDisplay = Carbon::parse($user->created_at)
 //                                 ->setTimezone('Asia/Kuala_Lumpur')
 //                                 ->format('d M Y h:i A');
@@ -918,6 +918,8 @@ private function getUnacknowledgedOverstayAlerts($allDeviceUsers = null)
 //         return [];
 //     }
 // }
+
+
 
 
 
