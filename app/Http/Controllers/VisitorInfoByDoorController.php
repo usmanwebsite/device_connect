@@ -320,10 +320,10 @@ class VisitorInfoByDoorController extends Controller
                         'ic_no' => $visitorData['icNo'] ?? 'N/A',
                         'sex' => $visitorData['sex'] ?? 'N/A',
                         'date_of_visit_from' => isset($visitorData['dateOfVisitFrom']) 
-                            ? Carbon::parse($visitorData['dateOfVisitFrom'])->setTimezone(self::MALAYSIA_TIMEZONE)->format('d M Y h:i A') 
+                            ? Carbon::parse($visitorData['dateOfVisitFrom'])->setTimezone(self::MALAYSIA_TIMEZONE)->subHour(8)->format('d M Y h:i A') 
                             : 'N/A',
                         'date_of_visit_to' => isset($visitorData['dateOfVisitTo']) 
-                            ? Carbon::parse($visitorData['dateOfVisitTo'])->setTimezone(self::MALAYSIA_TIMEZONE)->format('d M Y h:i A') 
+                            ? Carbon::parse($visitorData['dateOfVisitTo'])->setTimezone(self::MALAYSIA_TIMEZONE)->subHour(8)->format('d M Y h:i A') 
                             : 'N/A',
                         'email' => $visitorData['email'] ?? 'N/A',
                         'company_name' => $visitorData['companyName'] ?? 'N/A',
@@ -398,10 +398,10 @@ class VisitorInfoByDoorController extends Controller
                         'Contact No' => $visitorData['contactNo'] ?? 'N/A',
                         'IC No' => $visitorData['icNo'] ?? 'N/A',
                         'Visit Date From' => isset($visitorData['dateOfVisitFrom']) 
-                            ? Carbon::parse($visitorData['dateOfVisitFrom'])->format('d M Y h:i A') 
-                            : 'N/A',
+                                ? Carbon::parse($visitorData['dateOfVisitFrom'])->setTimezone(self::MALAYSIA_TIMEZONE)->subHour(8)->format('d M Y h:i A') 
+                                : 'N/A',
                         'Visit Date To' => isset($visitorData['dateOfVisitTo']) 
-                            ? Carbon::parse($visitorData['dateOfVisitTo'])->format('d M Y h:i A') 
+                            ? Carbon::parse($visitorData['dateOfVisitTo'])->setTimezone(self::MALAYSIA_TIMEZONE)->subHour(8)->format('d M Y h:i A') 
                             : 'N/A',
                         'Location' => $log->location_name ?? 'N/A',
                         'Device ID' => $log->device_id ?? 'N/A',
