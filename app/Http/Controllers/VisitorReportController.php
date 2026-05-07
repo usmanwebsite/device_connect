@@ -306,9 +306,18 @@ private function getVisitorsFromDeviceLogs()
                     $vendorLocation = VendorLocation::where('name', $log->location_name)->first();
                     if (!$vendorLocation) continue;
                     
-                    $deviceAssign = DeviceLocationAssign::where('location_id', $vendorLocation->id)
-                        ->where('is_type', 'check_in')
-                        ->first();
+                    // $deviceAssign = DeviceLocationAssign::where('location_id', $vendorLocation->id)
+                    //     ->where('is_type', 'check_in')
+                    //     ->first();
+
+                    $deviceId = $this->getInternalDeviceId($log->device_id);
+                    $query = DeviceLocationAssign::where('location_id', $vendorLocation->id)
+                        ->where('is_type', 'check_in');
+                    if ($deviceId) {
+                        $query->where('device_id', $deviceId);
+                    }
+                    $deviceAssign = $query->first();
+
                     
                     if ($deviceAssign) {
                         $timeIn = Carbon::parse($log->created_at)
@@ -324,14 +333,26 @@ private function getVisitorsFromDeviceLogs()
 
                 $timeOut = null;
                 foreach ($logs as $log) {
+                    if ($log->staff_no == '991122016263') {
+                        Log::info('log 123456',['log' => $log]);
+                    }
                     if (!$log->location_name) continue;
                     
                     $vendorLocation = VendorLocation::where('name', $log->location_name)->first();
                     if (!$vendorLocation) continue;
                     
-                    $deviceAssign = DeviceLocationAssign::where('location_id', $vendorLocation->id)
-                        ->where('is_type', 'check_out')
-                        ->first();
+                    // $deviceAssign = DeviceLocationAssign::where('location_id', $vendorLocation->id)
+                    //     ->where('is_type', 'check_out')
+                    //     ->first();
+
+                    $deviceId = $this->getInternalDeviceId($log->device_id);
+                    $query = DeviceLocationAssign::where('location_id', $vendorLocation->id)
+                        ->where('is_type', 'check_out');
+                    if ($deviceId) {
+                        $query->where('device_id', $deviceId);
+                    }
+                    $deviceAssign = $query->first();
+
                     
                     if ($deviceAssign) {
                         $timeOut = Carbon::parse($log->created_at)
@@ -341,7 +362,8 @@ private function getVisitorsFromDeviceLogs()
                     }
                 }
 
-                $currentLocation = $this->getCurrentLocationBasedOnLatestScan($logs, $timeOut);
+                // $currentLocation = $this->getCurrentLocationBasedOnLatestScan($logs, $timeOut);
+                $currentLocation = $this->getCurrentLocationBasedOnLatestScan($logs);
                 $accessedLocations = $logs->pluck('location_name')->unique()->filter()->implode(', ');
                 $purpose = $this->extractPurposeFromApi($visitorData ?? []);
                 $status = $this->determineVisitorStatus(
@@ -382,36 +404,74 @@ private function getVisitorsFromDeviceLogs()
     }
 }
 
+// private function getCurrentLocationBasedOnLatestScan($logs, $timeOut = null)
+// {
+//     if ($logs->isEmpty()) {
+//         return 'N/A';
+//     }
+    
+//     $latestLog = $logs->first();
+//     $locationName = $latestLog->location_name ?? '';
+    
+//     if (!$locationName) {
+//         return 'N/A';
+//     }
+    
+//     $isGate = stripos($locationName, '13.TURNSTILE') !== false;
+//     if ($latestLog->staff_no == '760809017563') {
+//     Log::info('current location 1234567890',['isGate' => $isGate]);
+//     Log::info('location ka naam 123456789',['locationName' => $locationName]);
+//     Log::info('TimeOut  123456789',['timeOut' => $timeOut]);
+//     // Agar Turnstile nahi hai, toh location name return karo
 
 
-private function getCurrentLocationBasedOnLatestScan($logs, $timeOut = null)
+//     Log::info('TimeOut 123456789', [
+//         'timeOut' => $timeOut
+//     ]);
+// }
+
+//     if (!$isGate) {
+//         return $locationName;
+//     }
+    
+//     // Agar Turnstile hai, toh check karo kya visitor ne check_out kiya hai?
+//     if ($timeOut && $timeOut != 'N/A') {
+//         return 'Out';
+//     }
+    
+//     // Agar check_out nahi hai, toh Entry hai
+//     return 'Turnstile (Entry)';
+// }
+
+private function getCurrentLocationBasedOnLatestScan($logs)
 {
-    if ($logs->isEmpty()) {
-        return 'N/A';
-    }
+    if ($logs->isEmpty()) return 'N/A';
     
     $latestLog = $logs->first();
     $locationName = $latestLog->location_name ?? '';
+    $serialNumber = $latestLog->device_id ?? '';
     
-    if (!$locationName) {
-        return 'N/A';
+    if (!$locationName) return 'N/A';
+    
+    $vendorLocation = VendorLocation::where('name', $locationName)->first();
+    if (!$vendorLocation) return $locationName;
+    
+    // ✅ device_id match karo
+    $deviceId = $this->getInternalDeviceId($serialNumber);
+    $query = DeviceLocationAssign::where('location_id', $vendorLocation->id);
+    if ($deviceId) {
+        $query->where('device_id', $deviceId);
     }
+    $deviceAssign = $query->first();
     
-    $isGate = stripos($locationName, 'turnstile') !== false;
-    
-    // Agar Turnstile nahi hai, toh location name return karo
-    if (!$isGate) {
-        return $locationName;
-    }
-    
-    // Agar Turnstile hai, toh check karo kya visitor ne check_out kiya hai?
-    if ($timeOut && $timeOut != 'N/A') {
+    if ($deviceAssign && $deviceAssign->is_type === 'check_out') {
         return 'Out';
     }
     
-    // Agar check_out nahi hai, toh Entry hai
-    return 'Turnstile (Entry)';
+    return $locationName;  // check_in ya undefined -> location name
 }
+
+
 
     // ✅ UPDATED: Main function with optimized current location logic
     private function getVisitorsFromDeviceLogsOptimized()
@@ -509,7 +569,7 @@ private function getCurrentLocationBasedOnLatestScan($logs, $timeOut = null)
     // }
 
 
-    private function getTimeForType($logs, $checkType)
+private function getTimeForType($logs, $checkType)
 {
     foreach ($logs as $log) {
         if (!$log->location_name) continue;
@@ -517,18 +577,20 @@ private function getCurrentLocationBasedOnLatestScan($logs, $timeOut = null)
         $vendorLocation = VendorLocation::where('name', $log->location_name)->first();
         if (!$vendorLocation) continue;
         
-        $deviceAssign = DeviceLocationAssign::where('location_id', $vendorLocation->id)
-            ->where('is_type', $checkType)
-            ->first();
+        $deviceId = $this->getInternalDeviceId($log->device_id);
+        $query = DeviceLocationAssign::where('location_id', $vendorLocation->id)
+            ->where('is_type', $checkType);
+        if ($deviceId) {
+            $query->where('device_id', $deviceId);
+        }
+        $deviceAssign = $query->first();
         
         if ($deviceAssign) {
-            // ✅ FIX: Convert UTC to Malaysia timezone
             return Carbon::parse($log->created_at)
                 ->setTimezone(self::MALAYSIA_TIMEZONE)
                 ->format('H:i:s');
         }
     }
-    
     return null;
 }
 
@@ -728,6 +790,13 @@ private function calculateDuration($timeIn, $timeOut)
                 'status' => 'Active'
             ]
         ];
+    }
+
+    private function getInternalDeviceId($serialNumber)
+    {
+        if (!$serialNumber) return null;
+        $device = DeviceConnection::where('device_id', $serialNumber)->first();
+        return $device ? $device->id : null;
     }
 }
 

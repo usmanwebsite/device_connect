@@ -1060,6 +1060,35 @@ private function generateCompleteTimeline($allLogs)
     return $timeline;
 }
 
+// private function getCurrentStatus($icNo)
+// {
+//     $lastLog = DB::table('device_access_logs')
+//         ->where('staff_no', $icNo)
+//         ->orderBy('created_at', 'desc')
+//         ->first();
+
+//     if (!$lastLog) {
+//         return [
+//             'status' => 'never_visited',
+//             'message' => 'Never visited the building'
+//         ];
+//     }
+
+//     // Check if the last location is the exit turnstile (case‑insensitive)
+//     if (stripos($lastLog->location_name, '13.TURNSTILE') !== false) {
+//         return [
+//             'status' => 'out_of_building',
+//             'message' => 'Currently out of building'
+//         ];
+//     }
+
+//     // Any other location means the visitor is still inside
+//     return [
+//         'status' => 'in_building',
+//         'message' => 'Currently in building (last seen at: ' . $lastLog->location_name . ')'
+//     ];
+// }
+
 private function getCurrentStatus($icNo)
 {
     $lastLog = DB::table('device_access_logs')
@@ -1074,20 +1103,45 @@ private function getCurrentStatus($icNo)
         ];
     }
 
-    // Check if the last location is the exit turnstile (case‑insensitive)
-    if (stripos($lastLog->location_name, '13.TURNSTILE') !== false) {
+    // Agar last location turnstile nahi hai, to visitor andar hai
+    if (stripos($lastLog->location_name, '13.TURNSTILE') === false) {
         return [
-            'status' => 'out_of_building',
-            'message' => 'Currently out of building'
+            'status' => 'in_building',
+            'message' => 'Currently in building (last seen at: ' . $lastLog->location_name . ')'
         ];
     }
 
-    // Any other location means the visitor is still inside
+    // Last location turnstile hai – ab check karo check_in hai ya check_out
+    $deviceConnection = DB::table('device_connections')
+        ->where('device_id', $lastLog->device_id)
+        ->first();
+
+    if (!$deviceConnection) {
+        // Agar device connection nahi mila, to fallback: location name se
+        return [
+            'status' => 'out_of_building',
+            'message' => 'Currently out of building (last seen at turnstile)'
+        ];
+    }
+
+    $deviceLocationAssign = DB::table('device_location_assigns')
+        ->where('device_id', $deviceConnection->id)
+        ->first();
+
+    if ($deviceLocationAssign && $deviceLocationAssign->is_type === 'check_in') {
+        return [
+            'status' => 'in_building',
+            'message' => 'Currently in building (entered via turnstile)'
+        ];
+    }
+
+    // Default: check_out ya unknown -> out of building
     return [
-        'status' => 'in_building',
-        'message' => 'Currently in building (last seen at: ' . $lastLog->location_name . ')'
+        'status' => 'out_of_building',
+        'message' => 'Currently out of building'
     ];
 }
+
 
 private function calculateTotalTimeSpent($logs)
 {
@@ -1217,12 +1271,80 @@ private function calculateTotalTimeSpent($logs)
 //     }
 // }
 
+// private function getVisitTimings($identifier)
+// {
+//     try {
+//         Log::info("Fetching visit timings for identifier: $identifier");
+        
+//         // Get ALL access logs (successful + failed? Only successful for timing)
+//         $allAccessLogs = DB::table('device_access_logs')
+//             ->where('staff_no', $identifier)
+//             ->where('access_granted', 1)
+//             ->orderBy('created_at', 'asc')
+//             ->get(['id', 'created_at', 'location_name', 'device_id']);
+        
+//         Log::info("Total access logs found: " . $allAccessLogs->count());
+        
+//         if ($allAccessLogs->isEmpty()) {
+//             return [
+//                 'visitFrom' => null,
+//                 'visitTo' => null,
+//                 'duration' => 'No visits found',
+//                 'isCurrentlyInBuilding' => false,
+//                 'visitSessions' => []
+//             ];
+//         }
+        
+//         $firstLog = $allAccessLogs->first();
+//         $lastLog = $allAccessLogs->last();
+        
+//         // Convert to Malaysia timezone
+//         $visitFrom = Carbon::parse($firstLog->created_at)->setTimezone(self::MALAYSIA_TIMEZONE);
+//         $visitTo   = Carbon::parse($lastLog->created_at)->setTimezone(self::MALAYSIA_TIMEZONE);
+        
+//         // Duration = first scan to last scan
+//         $durationSeconds = strtotime($visitTo) - strtotime($visitFrom);
+//         $durationFormatted = $this->formatDuration($durationSeconds);
+        
+//         // ✅ FIX: Determine if visitor is still inside using the SAME rule as getCurrentStatus()
+//         // If the last location is "13.TURNSTILE" (exit turnstile) → OUT, otherwise IN.
+//         $isCurrentlyInBuilding = true;
+//         if (stripos($lastLog->location_name, '13.TURNSTILE') !== false) {
+//             $isCurrentlyInBuilding = false;
+//         }
+        
+//         Log::info("Visit timings result: lastLocation={$lastLog->location_name}, isCurrentlyInBuilding=" . ($isCurrentlyInBuilding ? 'YES' : 'NO'));
+        
+//         return [
+//             'visitFrom' => $visitFrom,
+//             'visitTo' => $visitTo,
+//             'duration' => $durationFormatted,
+//             'isCurrentlyInBuilding' => $isCurrentlyInBuilding,
+//             'firstLocation' => $firstLog->location_name,
+//             'lastLocation' => $lastLog->location_name,
+//             'totalLogs' => $allAccessLogs->count(),
+//             'firstLogTime' => $visitFrom,
+//             'lastLogTime' => $visitTo
+//         ];
+        
+//     } catch (\Exception $e) {
+//         Log::error('Error in getVisitTimings: ' . $e->getMessage());
+//         return [
+//             'visitFrom' => null,
+//             'visitTo' => null,
+//             'duration' => 'Error fetching data',
+//             'isCurrentlyInBuilding' => false,
+//             'visitSessions' => []
+//         ];
+//     }
+// }
+
 private function getVisitTimings($identifier)
 {
     try {
         Log::info("Fetching visit timings for identifier: $identifier");
         
-        // Get ALL access logs (successful + failed? Only successful for timing)
+        // Get ALL access logs (successful only)
         $allAccessLogs = DB::table('device_access_logs')
             ->where('staff_no', $identifier)
             ->where('access_granted', 1)
@@ -1252,11 +1374,34 @@ private function getVisitTimings($identifier)
         $durationSeconds = strtotime($visitTo) - strtotime($visitFrom);
         $durationFormatted = $this->formatDuration($durationSeconds);
         
-        // ✅ FIX: Determine if visitor is still inside using the SAME rule as getCurrentStatus()
-        // If the last location is "13.TURNSTILE" (exit turnstile) → OUT, otherwise IN.
-        $isCurrentlyInBuilding = true;
-        if (stripos($lastLog->location_name, '13.TURNSTILE') !== false) {
-            $isCurrentlyInBuilding = false;
+        // ✅ FIX: Determine if visitor is still inside using device assignment (same as getCurrentStatus)
+        $isCurrentlyInBuilding = false;
+        
+        // If last location is NOT a turnstile → definitely inside
+        if (stripos($lastLog->location_name, '13.TURNSTILE') === false) {
+            $isCurrentlyInBuilding = true;
+            Log::info("Last location not turnstile, so IN BUILDING");
+        } else {
+            // Last location is turnstile → check if it was check_in or check_out
+            $deviceConnection = DB::table('device_connections')
+                ->where('device_id', $lastLog->device_id)
+                ->first();
+            
+            if ($deviceConnection) {
+                $deviceLocationAssign = DB::table('device_location_assigns')
+                    ->where('device_id', $deviceConnection->id)
+                    ->first();
+                
+                if ($deviceLocationAssign && $deviceLocationAssign->is_type === 'check_in') {
+                    $isCurrentlyInBuilding = true;
+                    Log::info("Last turnstile was CHECK_IN → IN BUILDING");
+                } else {
+                    Log::info("Last turnstile was CHECK_OUT or unknown → OUT OF BUILDING");
+                }
+            } else {
+                // Fallback: if device connection not found, assume out
+                Log::warning("Device connection not found for device_id: " . $lastLog->device_id);
+            }
         }
         
         Log::info("Visit timings result: lastLocation={$lastLog->location_name}, isCurrentlyInBuilding=" . ($isCurrentlyInBuilding ? 'YES' : 'NO'));
@@ -1284,7 +1429,6 @@ private function getVisitTimings($identifier)
         ];
     }
 }
-
 
 private function formatDuration($seconds)
 {
