@@ -5,7 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\DeviceConnection;
 use App\Models\DeviceLocationAssign;
 use App\Models\VendorLocation;
-use App\Models\IpRange; // نیا model بنائیں
+use App\Models\IpRange; 
 use Illuminate\Http\Request;
 use App\Services\MenuService;
 use Illuminate\Support\Carbon;
@@ -122,14 +122,14 @@ class DeviceLocationAssignController extends Controller
         ]);
     }
 
-    // ✅ CREATE - Status condition removed
     public function create()
     {
+        $angularMenu = $this->menuService->getFilteredAngularMenu(); // ✅ Add this
         $devices = DeviceConnection::all();
         $locations = VendorLocation::orderBy('name')->get();
         $types = DeviceLocationAssign::getTypes();
         
-        return view('device_assignments.create', compact('devices', 'locations', 'types'));
+        return view('device_assignments.create', compact('devices', 'locations', 'types', 'angularMenu'));
     }
 
     // ✅ STORE
@@ -166,12 +166,13 @@ class DeviceLocationAssignController extends Controller
     // ✅ EDIT - Status condition removed
     public function edit($id)
     {
+        $angularMenu = $this->menuService->getFilteredAngularMenu(); // ✅ Add this
         $assignment = DeviceLocationAssign::findOrFail($id);
         $devices = DeviceConnection::all();
         $locations = VendorLocation::orderBy('name')->get();
         $types = DeviceLocationAssign::getTypes();
 
-        return view('device_assignments.edit', compact('assignment', 'devices', 'locations', 'types'));
+        return view('device_assignments.edit', compact('assignment', 'devices', 'locations', 'types', 'angularMenu'));
     }
 
     // ✅ UPDATE

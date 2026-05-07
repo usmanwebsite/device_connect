@@ -27,8 +27,9 @@ class VisitorTypeController extends Controller
 
     public function create()
     {
+        $angularMenu = $this->menuService->getFilteredAngularMenu(); // ✅ Add this
         $paths = Path::orderBy('name')->get();
-        return view('visitorTypes.create', compact('paths'));
+        return view('visitorTypes.create', compact('paths', 'angularMenu'));
     }
 
     public function store(Request $request)
@@ -46,10 +47,11 @@ class VisitorTypeController extends Controller
 
     public function edit($id)
     {
+        $angularMenu = $this->menuService->getFilteredAngularMenu(); // ✅ Add this
         $visitorType = VisitorType::findOrFail($id);
         $paths = Path::orderBy('name')->get();
 
-        return view('visitorTypes.edit', compact('visitorType', 'paths'));
+        return view('visitorTypes.edit', compact('visitorType', 'paths', 'angularMenu'));
     }
 
     public function update(Request $request, $id)
