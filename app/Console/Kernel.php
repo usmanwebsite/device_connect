@@ -18,6 +18,11 @@ class Kernel extends ConsoleKernel
             ->withoutOverlapping()
             ->runInBackground();
         // $schedule->command('inspire')->hourly();
+
+        $schedule->command('sync:realtime')
+            ->everyTwoMinutes()
+            ->withoutOverlapping()
+            ->runInBackground();
     }
 
     /**
