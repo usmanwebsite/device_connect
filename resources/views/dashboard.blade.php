@@ -183,7 +183,7 @@
                                 <td>{{ $visitor['full_name'] ?? 'N/A' }}</td>
                                 <td>{{ $visitor['person_visited'] ?? 'N/A' }}</td>
                                 <td>
-                                    {{ \Carbon\Carbon::parse($visitor['created_at'])->setTimezone('Asia/Kuala_Lumpur')->format('h:i A') }}
+                                    {{ \Carbon\Carbon::parse($visitor['created_at'])->setTimezone('Asia/Kuala_Lumpur')->subHours(8)->format('h:i A') }}
                                 </td>
                                 <td>
                                     {{ $visitor['location_name'] ?? 'N/A' }}
@@ -261,10 +261,10 @@
                 <h5 class="mb-3">Today's Appointments</h5>
 
                 <ul class="list-group list-group-flush dark-list" style="max-height: 640px; overflow-y: auto; display: block;">
-                    @foreach(collect($todayAppointments)->unique('staff_no') as $appointment)
+                    @foreach($todayAppointments as $appointment)
                     <li class="list-group-item">
                         <strong>{{ $appointment['full_name'] }}</strong> – 
-                        {{ \Carbon\Carbon::parse($appointment['date_from'])->setTimezone('Asia/Kuala_Lumpur')->format('h:i A') }}
+                        {{ \Carbon\Carbon::parse($appointment['date_from'])->setTimezone('Asia/Kuala_Lumpur')->subHours(8)->format('h:i A') }}
                         <br>
                         <small>Host: {{ $appointment['name_of_person_visited'] ?? 'N/A' }}</small>
                     </li>
@@ -309,7 +309,7 @@
                                 <td>{{ $loop->index + 1 }}</td>
                                 <td>{{ $visitor['full_name'] ?? 'N/A' }}</td>
                                 <td>{{ $visitor['person_visited'] ?? 'N/A' }}</td>
-                                <td>{{ \Carbon\Carbon::parse($visitor['created_at'])->setTimezone('Asia/Kuala_Lumpur')->format('h:i A') }}</td>
+                                <td>{{ \Carbon\Carbon::parse($visitor['created_at'])->setTimezone('Asia/Kuala_Lumpur')->subHours(8)->format('h:i A') }}</td>
                                 <td>{{ $visitor['location_name'] ?? 'N/A' }}</td>
                                 <td>{{ $visitor['staff_no'] ?? 'N/A' }}</td>
                             </tr>
@@ -358,7 +358,7 @@
                                 <td>{{ $loop->index + 1 }}</td>
                                 <td>{{ $appointment['full_name'] ?? 'N/A' }}</td>
                                 <td>{{ $appointment['name_of_person_visited'] ?? 'N/A' }}</td>
-                                <td>{{ \Carbon\Carbon::parse($appointment['date_from'])->setTimezone('Asia/Kuala_Lumpur')->format('h:i A') }}</td>
+                                <td>{{ \Carbon\Carbon::parse($appointment['date_from'])->setTimezone('Asia/Kuala_Lumpur')->subHours(8)->format('h:i A') }}</td>
                                 <td>{{ $appointment['contact_no'] ?? 'N/A' }}</td>
                                 <td>{{ $appointment['ic_no'] ?? 'N/A' }}</td>
                             </tr>
