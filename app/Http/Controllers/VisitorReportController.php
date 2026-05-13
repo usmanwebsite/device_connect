@@ -661,37 +661,19 @@ private function calculateDuration($timeIn, $timeOut)
     }
 }
 
-    // private function determineVisitorStatus($dateFrom, $dateTo, $logs)
-    // {
-    //     if ($dateFrom && $dateTo) {
-    //         try {
-    //             $now = now();
-    //             $from = Carbon::parse($dateFrom);
-    //             $to = Carbon::parse($dateTo);
-
-    //             if ($now->gt($to)) {
-    //                 return 'Completed';
-    //             } elseif ($now->between($from, $to)) {
-    //                 return 'Active';
-    //             } else {
-    //                 return 'Scheduled';
-    //             }
-    //         } catch (\Exception $e) {
-    //             // Fallback
-    //         }
-    //     }
-
-    //     return 'Active';
-    // }
 
     private function determineVisitorStatus($dateFrom, $dateTo, $logs)
     {
         if ($dateFrom && $dateTo) {
             try {
-                // ✅ FIX: Use Malaysia timezone
+                // Malaysia timezone
                 $now = Carbon::now(self::MALAYSIA_TIMEZONE);
-                $from = Carbon::parse($dateFrom, self::MALAYSIA_TIMEZONE);
-                $to = Carbon::parse($dateTo, self::MALAYSIA_TIMEZONE);
+
+                $from = Carbon::parse($dateFrom, self::MALAYSIA_TIMEZONE)
+                    ->subHours(8);
+
+                $to = Carbon::parse($dateTo, self::MALAYSIA_TIMEZONE)
+                    ->subHours(8);
 
                 if ($now->gt($to)) {
                     return 'Completed';
@@ -701,7 +683,7 @@ private function calculateDuration($timeIn, $timeOut)
                     return 'Scheduled';
                 }
             } catch (\Exception $e) {
-                // Fallback
+                // fallback
             }
         }
 

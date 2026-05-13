@@ -89,3 +89,4 @@ class VisitorTypeController extends Controller
         ]);
     }
 }
+
