@@ -1,0 +1,1481 @@
+<?php
+
+namespace App\Services;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Session;
+
+class MenuService
+{
+    protected $javaBaseUrl;
+    protected $APP_URL;
+
+    public function __construct()
+    {
+       $domain = request()->getHost();
+        $this->APP_URL  = env('APP_URL','http://localhost');
+        $this->javaBaseUrl = env('JAVA_BACKEND_URL', 'http://localhost:8080');
+        // $this->javaBaseUrl = 'http://' . $domain . ':8080';
+    }
+
+
+public function getFilteredAngularMenu()
+{
+    // $domain = request()->getHost();
+    // dd($domain);
+    Log::info('=== getFilteredAngularMenu Called ===');
+
+    $token = $this->getJavaAuthToken();
+    
+    // ✅ First try session
+    $userPermissions = Session::get('user_business_functions', []);
+    
+    if (empty($userPermissions)) {
+        Log::info('No permissions in session, fetching with hardcoded token...');
+        
+        $userAccessData = $this->fetchUserAccessFromJavaBackendWithToken($token);
+        $userPermissions = $userAccessData['business_functions'] ?? [];
+        
+        // ✅ Save to session for next time
+        if (!empty($userPermissions)) {
+            Session::put('user_business_functions', $userPermissions);
+            Session::save();
+            Log::info('Permissions saved to session:', ['count' => count($userPermissions)]);
+        }
+    } else {
+        Log::info('Using permissions from session:', ['count' => count($userPermissions)]);
+    }
+    
+    $fullMenu = $this->getAngularMenu();
+    Log::info('Full menu items count: ' . count($fullMenu));
+    
+    $filteredMenu = $this->filterMenuByPermissions($fullMenu, $userPermissions);
+    
+    Log::info('Final filtered menu items: ' . count($filteredMenu));
+    // Log.info('=== getFilteredAngularMenu End ===');
+    
+    return $filteredMenu;
+}
+
+        public function fetchUserAccessFromJavaBackendWithToken($token)
+    {
+        try {
+            Log::info('Fetching user access with token:', ['token_start' => substr($token, 0, 30) . '...']);
+            
+            $response = Http::withHeaders([
+                'x-auth-token' => $token,
+                'Accept' => 'application/json',
+            ])->timeout(30)
+              ->get($this->javaBaseUrl . '/api/admin/user_access');
+
+            if ($response->successful()) {
+                $data = $response->json();
+                
+                Log::info('Java API Response Status:', ['status' => $data['status'] ?? 'none']);
+                
+                if (isset($data['status']) && $data['status'] === 'success') {
+                    // ✅ NEW: Save the new token from response to session
+                    if (isset($data['token'])) {
+                        $this->saveJavaTokenToSession($data['token']);
+                        Log::info('New Java token saved to session');
+                    }
+
+
+                    if (isset($data['user_id'])) {
+                        Session::put('java_user_id', $data['user_id']);
+                        Session::save();
+                        Log::info('User ID saved to session:', ['user_id' => $data['user_id']]);
+                    }
+                    
+                    return [
+                        'user_id' => $data['user_id'] ?? null,
+                        'roles' => $data['roles'] ?? [],
+                        'business_functions' => $data['business_functions'] ?? []
+                    ];
+                } else {
+                    Log::error('Java API Error: ' . ($data['message'] ?? 'Unknown error'));
+                    return $this->getDefaultAccessData();
+                }
+            } else {
+                Log::error('Java API HTTP Error: ' . $response->status() . ' - ' . $response->body());
+                
+                if ($response->status() === 401) {
+                    $this->clearJavaTokenFromSession();
+                    $this->clearUserPermissionsFromSession();
+                    Session::forget('java_user_id');
+                    Log::info('Cleared expired token and permissions from session');
+                }
+                
+                return $this->getDefaultAccessData();
+            }
+            
+        } catch (\Exception $e) {
+            Log::error('Java API Exception: ' . $e->getMessage());
+            return $this->getDefaultAccessData();
+        }
+    }
+
+    public function getCurrentUserIdFromSession()
+    {
+        return Session::get('java_user_id');
+    }
+
+    // ✅ NEW: Save User ID to Session (separate function)
+    public function saveUserIdToSession($userId)
+    {
+        Session::put('java_user_id', $userId);
+        Session::save();
+        Log::info('User ID saved to session via function:', ['user_id' => $userId]);
+    }
+
+    public function saveUserPermissionsToSession($permissions)
+    {
+        Session::put('user_business_functions', $permissions);
+        Session::save();
+        Log::info('User permissions session mein save kiye: ' . count($permissions) . ' permissions');
+    }
+
+    public function clearUserPermissionsFromSession()
+    {
+        Session::forget('user_business_functions');
+        Session::save();
+        Log::info('User permissions session se clear kiye');
+    }
+
+    // private function getJavaAuthToken()
+    // {
+    //     // ✅ FIRST: Try to get token from session
+    //     $sessionToken = Session::get('java_backend_token');
+    //     if ($sessionToken) {
+    //         Log::info('Using token from session - java_backend_token');
+    //         return $sessionToken;
+    //     }        
+    //     // ✅ SECOND: Check for java_auth_token (set by callback)
+    //     $authToken = Session::get('java_auth_token');
+    //     if ($authToken) {
+    //         Log::info('Using token from session - java_auth_token');
+    //         // Also save it as java_backend_token for consistency
+    //         Session::put('java_backend_token', $authToken);
+    //         Session::save();
+    //         return $authToken;
+    //     }
+        
+    //     // ✅ THIRD: If no session token, use hardcoded token and save to session
+
+    //     $hardcodedToken = 'eyJhbGciOiJIUzUxMiJ9.eyJzdWIiOiJzdXBlcmFkbWluIiwiYXV0aEtleSI6IlFhYWZnZk84IiwiY29tcGFueUlkIjoic3VwZXJhZG1pbiIsImFjY2VzcyI6WyJQUEFIVENEIiwiUFBBSFRDRSIsIlZQUmVxTCIsIlJUeXBlIiwiQnJyQ29uZiIsIlZQQ2xvTERlbCIsIlBQQUwiLCJDcG5JbmYiLCJSUEJSRXgiLCJWaXNpdG9ySW5mb0J5RG9vciIsIkNQQ0xWQSIsIlBQQUhUQ00iLCJWUFBMIiwiUFBSTCIsIkNUQ29uZiIsIkJDUkwiLCJCTmFtZSIsIldITENvbmYiLCJQUEdJRXgiLCJSQ1AiLCJSUFBNRyIsIkJJQ0xSZWwiLCJQUENMIiwiQkNDTFJlbCIsIlZQQUwiLCJjVkEiLCJQUEVUQ00iLCJQUFUiLCJQUEVUQ0UiLCJQUEVUQ0QiLCJWUFJMIiwiQ2l0eUluZiIsIk1HSU8iLCJDUFJMRSIsInNWUCIsIlZQUmVqTERlbCIsIkJDQ0wiLCJQUFNMIiwiQ0luZiIsIk1hc3RlclBhdGgiLCJWaXNpdG9yRCZDIiwiVlBDTCIsIlJQUE0iLCJteVBQIiwiQ05DVlBSTCIsIkxDSW5mIiwiTUxPR0lOIiwiQ1BSTGVnIiwiQ05DVlBBTCIsIlJvbGUiLCJWUiIsIkNQUkxEQSIsIlBQR0kiLCJDcG5QIiwiTlNDUiIsIkJSQ29uZiIsIkNQUkxEUiIsIkNQUkxEVSIsIkRJbmYiLCJCSVJMIiwiUlBQUyIsIkNOQ1ZQQ0wiLCJCSUNMIiwiUFBJTCIsIlBQT1dJRXgiLCJDUEFMREEiLCJSUkNvbmYiLCJWUEludkwiLCJMQ2xhc3MiLCJWUFJlakwiLCJCSVJMQXBwciIsIlJQQlIiLCJQUFN1c0wiLCJDUFJEQXBwIiwiQ1BBTERVIiwiQ05DVlBSZWpMRGVsIiwiQ1BBTERSIiwiQVBQQ29uZiIsIkNQQUwiLCJteVZQIiwiQlR5cGUiLCJDaENvbSIsIlZpblR5cGUiLCJkYXNoMSIsIkRFU0luZiIsIkNQUlNPIiwiQ1BSTCIsIkNQUkgiLCJDTkNWUENsb0xEZWwiLCJSVlNTIiwiU0xDSW5mIiwiQ1BDTCIsIm15Q05DVlAiLCJTUFAiLCJDUFJMRURSIiwiTFZDSW5mIiwiQ1BSTEVEVSIsIlBQUmVqTCIsIkNhdGVJbmYiLCJDTkNWUFJlakwiLCJtVlJQIiwiVXNlciIsIkJDUkxBcHByIiwiTVZUIiwiU1BQRFQiLCJMSW5mIiwiQ1BSTEVEQSIsIlBQUEwiLCJTdGF0ZUluZiIsIlBQQUhUQyIsIlBQT1dJIiwiUkNQMiIsIlBQRVRDIiwiQ1RQIl0sInJvbGUiOlsiU1VQRVIgQURNSU4iXSwiY3JlYXRlZCI6MTc2NTg3MDQwMDQ3NywiZGlzcGxheU5hbWUiOiJTdXBlciBBZG1pbiIsImV4cCI6MTc2NTk1NjgwMH0.oQc6QUYF-1V9w75fIl61jn26NKwN98GHMD_Bhh0cDKiWC8BNW4f-2zCT7HNtCZg1lgbGWN9XafPI1v_Hxc6fNg';
+        
+    //     $this->saveJavaTokenToSession($hardcodedToken);
+    //     Log::info('Hardcoded token saved to session');
+        
+    //     return $hardcodedToken;
+    // }
+    private function getJavaAuthToken()
+{
+    // 1️⃣ Try java_backend_token
+    if (Session::has('java_backend_token')) {
+        Log::info('Using java_backend_token from session');
+        return Session::get('java_backend_token');
+    }
+
+    // 2️⃣ Try java_auth_token (callback token)
+    if (Session::has('java_auth_token')) {
+        $token = Session::get('java_auth_token');
+        Session::put('java_backend_token', $token);
+        Session::save();
+
+        Log::info('Using java_auth_token and saved as backend token');
+        return $token;
+    }
+
+    // 3️⃣ No token available
+    Log::error('Java auth token NOT found in session');
+    return null; // ❗ very important
+}
+
+    public function saveJavaTokenToSession($token)
+    {
+        Session::put('java_backend_token', $token);
+        Session::save(); 
+    }
+
+    private function clearJavaTokenFromSession()
+    {
+        Session::forget('java_backend_token');
+        Session::save();
+    }
+
+    public function getJavaTokenFromSession()
+    {
+        return Session::get('java_backend_token');
+    }
+
+    // ✅ NEW: Check if token exists in session
+    public function hasJavaTokenInSession()
+    {
+        return Session::has('java_backend_token');
+    }
+
+
+    private function getDefaultAccessData()
+    {
+        return [
+            'user_id' => Auth::id(),
+            'roles' => [],
+            'business_functions' => [] // Empty array - koi permission nahi
+        ];
+    }
+
+    private function filterMenuByPermissions($menu, $userPermissions)
+    {
+        $filteredMenu = [];
+        Log::info('Total user permissions for filtering:', ['count' => count($userPermissions)]);
+
+        foreach ($menu as $item) {
+            // Check main item permission
+            $hasMainPermission = $this->checkPermission($item['isAuth'] ?? '', $userPermissions);
+            
+            Log::info('Menu Item: ' . $item['label'] . 
+                     ' | Required: ' . $item['isAuth'] . 
+                     ' | Has Permission: ' . ($hasMainPermission ? 'YES' : 'NO'));
+
+            if ($hasMainPermission) {
+                $filteredItem = $item;
+                $hasValidSubItems = false;
+                
+                // Filter subItems
+                if (isset($item['subItems']) && is_array($item['subItems'])) {
+                    $filteredSubItems = [];
+                    
+                    foreach ($item['subItems'] as $subItem) {
+                        $hasSubPermission = $this->checkPermission($subItem['isAuth'] ?? '', $userPermissions);
+                        
+                        Log::info('  Sub Item: ' . $subItem['label'] . 
+                                 ' | Required: ' . ($subItem['isAuth'] ?? '') . 
+                                 ' | Has Permission: ' . ($hasSubPermission ? 'YES' : 'NO'));
+
+                        if ($hasSubPermission) {
+                            // Filter nested subItems
+                            if (isset($subItem['subItems']) && is_array($subItem['subItems'])) {
+                                $filteredNestedItems = [];
+                                
+                                foreach ($subItem['subItems'] as $nestedItem) {
+                                    $hasNestedPermission = $this->checkPermission($nestedItem['isAuth'] ?? '', $userPermissions);
+                                    
+                                    Log::info('    Nested Item: ' . $nestedItem['label'] . 
+                                             ' | Required: ' . ($nestedItem['isAuth'] ?? '') . 
+                                             ' | Has Permission: ' . ($hasNestedPermission ? 'YES' : 'NO'));
+
+                                    if ($hasNestedPermission) {
+                                        $filteredNestedItems[] = $nestedItem;
+                                    }
+                                }
+                                
+                                $subItem['subItems'] = $filteredNestedItems;
+                            }
+                            
+                            $filteredSubItems[] = $subItem;
+                            $hasValidSubItems = true;
+                        }
+                    }
+                    
+                    $filteredItem['subItems'] = $filteredSubItems;
+                }
+                
+                // Add item if it has subItems OR if it's a direct link without subItems
+                if ($hasValidSubItems || !isset($item['subItems']) || empty($item['subItems'])) {
+                    $filteredMenu[] = $filteredItem;
+                    Log::info('✓ Added to filtered menu: ' . $item['label']);
+                } else {
+                    Log::info('✗ Skipped (no valid subItems): ' . $item['label']);
+                }
+            } else {
+                Log::info('✗ Skipped (no main permission): ' . $item['label']);
+            }
+        }
+
+        Log::info('Final filtered menu count: ' . count($filteredMenu));
+        return $filteredMenu;
+    }
+
+    private function checkPermission($requiredPermissions, $userPermissions)
+    {
+        // If no permission required, always show
+        if (empty($requiredPermissions)) {
+            return true;
+        }
+        
+        // Convert to array
+        $requiredArray = explode(',', $requiredPermissions);
+        $requiredArray = array_map('trim', $requiredArray);
+        
+        // Debug logging
+        if (count($requiredArray) > 0) {
+            Log::info('Checking permissions - Required: ' . implode(', ', $requiredArray));
+            Log::info('User has ' . count($userPermissions) . ' total permissions');
+        }
+        
+        // Check if user has at least one required permission
+        foreach ($requiredArray as $permission) {
+            if (in_array($permission, $userPermissions)) {
+                Log::info('✓ Permission matched: ' . $permission);
+                return true;
+            }
+        }
+        
+        Log::info('✗ No permission match found');
+        return false;
+    }
+
+    public function getUserAccessData()
+    {
+        try {
+            $token = $this->getJavaAuthToken();
+            
+            if (!$token) {
+                Log::error('Java auth token not available for user access data');
+                return null;
+            }
+
+            $response = Http::withHeaders([
+                'x-auth-token' => $token,
+                'Accept' => 'application/json',
+            ])->timeout(30)
+            ->get($this->javaBaseUrl . '/api/admin/user_access');
+
+            if ($response->successful()) {
+                $data = $response->json();
+                
+                Log::info('User Access Data from Java API: ', $data);
+                
+                if (isset($data['status']) && $data['status'] === 'success') {
+                    return $data;
+                } else {
+                    Log::error('Java API Error in user access: ' . ($data['message'] ?? 'Unknown error'));
+                    return null;
+                }
+            } else {
+                Log::error('Java API HTTP Error in user access: ' . $response->status() . ' - ' . $response->body());
+                return null;
+            }
+            
+        } catch (\Exception $e) {
+            Log::error('Java API Exception in user access: ' . $e->getMessage());
+            return null;
+        }
+    }
+
+
+    public function getFilteredAngularMenuWithToken($token)
+    {
+        Log::info('=== getFilteredAngularMenuWithToken Called ===');
+        Log::info('Token received:', ['length' => strlen($token), 'first_30' => substr($token, 0, 30) . '...']);
+        
+        // ✅ Token को session में भी save करें
+        if (!session()->has('java_backend_token')) {
+            session()->put('java_backend_token', $token);
+            session()->save();
+            Log::info('Token saved to session from parameter');
+        }
+        
+        // ✅ Permission fetch करें
+        $userAccessData = $this->fetchUserAccessFromJavaBackendWithToken($token);
+        $userPermissions = $userAccessData['business_functions'] ?? [];
+        
+        Log::info('Permissions fetched:', ['count' => count($userPermissions)]);
+        
+        // ✅ Session में save करें
+        if (!empty($userPermissions)) {
+            session()->put('user_business_functions', $userPermissions);
+            session()->save();
+            Log::info('Permissions saved to session');
+        }
+        
+        $fullMenu = $this->getAngularMenu();
+        $filteredMenu = $this->filterMenuByPermissions($fullMenu, $userPermissions);
+        
+        Log::info('Menu filtered successfully');
+        return $filteredMenu;
+    }
+
+
+
+    public function getAngularMenu()
+    {
+        return [
+            [
+                'id' => 1.0,
+                'label' => "DASHBOARD",
+                'icon' => "bx-home-circle",
+                'isAuth' => 'VPDASH,STADASH,EMGDASH,VEHDASH,GAMDASH,PPDASH,STDDASH',
+                'subItems' => [
+                    [
+                        'id' => 1.1,
+                        'label' => "VISITOR",
+                        'link' => "dashboard/dashboard",
+                        'isAuth' => 'VPDASH',
+                        'parentId' => 1.0,
+                    ],
+                    [
+                        'id' => 1.3,
+                        'label' => "EMERGENCY",
+                        'link' => "dashboard/dashboard-emergency",
+                        'isAuth' => 'EMGDASH',
+                        'parentId' => 1.0,
+                    ],
+                    [
+                        'id' => 1.4,
+                        'label' => "VEHICLE",
+                        'link' => "dashboard/dashboard-vehicle",
+                        'isAuth' => 'VEHDASH',
+                        'parentId' => 1.0,
+                    ],
+                    [
+                        'id' => 1.5,
+                        'label' => "GATE MONITORING",
+                        'link' => "dashboard/dashboard-truck-monitoring",
+                        'isAuth' => 'GAMDASH',
+                        'parentId' => 1.0,
+                    ],
+                    [
+                        'id' => 1.6,
+                        'label' => "VENDOR PASS",
+                        'link' => "dashboard/dashboard-port-pass",
+                        'isAuth' => 'PPDASH',
+                        'parentId' => 1.0,
+                    ],
+                    [
+                        'id' => 1.8,
+                        'label' => "STUDENT",
+                        'link' => "dashboard/dashboard-student",
+                        'isAuth' => 'STDDASH',
+                        'parentId' => 1.0,
+                    ]
+                ]
+            ],
+
+            [
+                'id' => 2.0,
+                'label' => "PASS",
+                'icon' => "bx-id-card",
+                'isAuth' => 'myPP,myVPP,VPInvL,VPReqL,VPPL,PPRL,PPRejL,PPAL,PPU,PPSusL,PPPL,PPIL,PPCL,SPP,PPGI,PPTI,PPETC,ChCom,PPSFL,PPSTL',
+                'subItems' => [
+                    [
+                        'id' => 2.1,
+                        'label' => "MY PASS",
+                        'link' => "port-pass/my-port-pass",
+                        'isAuth' => 'myPP',
+                        'parentId' => 2.0,
+                    ],
+                    [
+                        'id' => 2.2,
+                        'label' => "STAFF",
+                        'link' => "port-pass/staff",
+                        'isAuth' => 'PPSFL',
+                        'parentId' => 2.0,
+                    ],
+                    [
+                        'id' => 2.3,
+                        'label' => "STUDENT",
+                        'link' => "port-pass/student",
+                        'isAuth' => 'PPSTL',
+                        'parentId' => 2.0,
+                    ],
+                    [
+                        'id' => 2.4,
+                        'label' => "VISITOR",
+                        'parentId' => 2.0,
+                        'isAuth' => 'VPInvL,VPReqL,VPPL',
+                        'subItems' => [
+                            [
+                                'id' => 2.5,
+                                'label' => "INVITATION",
+                                'link' => "port-pass/visitor-invitation",
+                                'isAuth' => 'VPInvL',
+                                'parentId' => 2.2,
+                            ],
+                            [
+                                'id' => 2.6,
+                                'label' => "REQUEST LIST",
+                                'link' => "port-pass/visitor-request-list",
+                                'isAuth' => 'VPReqL',
+                                'parentId' => 2.2,
+                            ],
+                            [
+                                'id' => 2.7,
+                                'label' => "PASS LIST",
+                                'link' => "port-pass/visitor-pass-list",
+                                'isAuth' => 'VPPL',
+                                'parentId' => 2.2,
+                            ],
+                        ],
+                    ],
+                    [
+                        'id' => 2.8,
+                        'label' => "REQUEST LIST",
+                        'link' => "port-pass/port-pass-request-list",
+                        'isAuth' => 'PPRL',
+                        'parentId' => 2.0,
+                    ],
+                    [
+                        'id' => 2.9,
+                        'label' => "REJECT LIST",
+                        'link' => "port-pass/port-pass-reject-list",
+                        'isAuth' => 'PPRejL',
+                        'parentId' => 2.0,
+                    ],
+                    [
+                        'id' => 2.10,
+                        'label' => "APPROVED LIST",
+                        'link' => "port-pass/port-pass-approved-list",
+                        'isAuth' => 'PPAL',
+                        'parentId' => 2.0,
+                    ],
+                    [
+                        'id' => 2.11,
+                        'label' => "URINE TEST",
+                        'link' => "port-pass/urine-test",
+                        'isAuth' => 'PPU',
+                        'parentId' => 2.0,
+                    ],
+                    [
+                        'id' => 2.12,
+                        'label' => "SUSPEND LIST",
+                        'link' => "port-pass/suspend-list",
+                        'isAuth' => 'PPSusL',
+                        'parentId' => 2.0,
+                    ],
+                    [
+                        'id' => 2.13,
+                        'label' => "PROCESS LIST",
+                        'link' => "port-pass/process-list",
+                        'isAuth' => 'PPPL',
+                        'parentId' => 2.0,
+                    ],
+                    [
+                        'id' => 2.14,
+                        'label' => "ISSUANCE LIST",
+                        'link' => "port-pass/issuance-list",
+                        'isAuth' => 'PPIL',
+                        'parentId' => 2.0,
+                    ],
+                    [
+                        'id' => 2.15,
+                        'label' => "CLOSED LIST",
+                        'link' => "port-pass/closed-list",
+                        'isAuth' => 'PPCL',
+                        'parentId' => 2.0,
+                    ],
+                    [
+                        'id' => 2.16,
+                        'label' => "SEARCH",
+                        'link' => "port-pass/search",
+                        'isAuth' => 'SPP',
+                        'parentId' => 2.0,
+                    ],
+                    [
+                        'id' => 2.17,
+                        'label' => "TRAINING CALENDAR",
+                        'isAuth' => 'PPETC',
+                        'parentId' => 2.0,
+                        'subItems' => [
+                            [
+                                'id' => 2.18,
+                                'label' => "HSE & SECURITY",
+                                'link' => "port-pass/hse-and-security",
+                                'isAuth' => 'PPETC',
+                                'parentId' => 2.17,
+                            ],
+                        ],
+                    ],
+                    [
+                        'id' => 2.40,
+                        'label' => "ONLINE TRAINING",
+                        'isAuth' => 'PPOT',
+                        'parentId' => 2.0,
+                        'subItems' => [
+                            [
+                                'id' => 2.41,
+                                'label' => "REQUEST LIST",
+                                'link' => "onlinetraining/online-training-list",
+                                'isAuth' => 'PPOT',
+                                'parentId' => 2.40,
+                            ],
+                            [
+                                'id' => 2.42,
+                                'label' => "CLOSED LIST",
+                                'link' => "onlinetraining/online-training-closed-list",
+                                'isAuth' => 'PPOT',
+                                'parentId' => 2.40,
+                            ],
+                        ],
+                    ],
+                    [
+                        'id' => 2.20,
+                        'label' => "CHANGE COMPANY",
+                        'link' => "port-pass/change-company",
+                        'isAuth' => 'ChCom',
+                        'parentId' => 2.0,
+                    ],
+                ],
+            ],
+
+            [
+                'id' => 8.0,
+                'label' => "BLACKLIST",
+                'icon' => "bx-user-x",
+                'isAuth' => 'BIRL,BICL,BCRL,BCCL,BVCL',
+                'subItems' => [
+                    [
+                        'id' => 8.1,
+                        'label' => "INDIVIDUAL",
+                        'isAuth' => 'BIRL,BICL',
+                        'parentId' => 8.0,
+                        'subItems' => [
+                            [
+                                'id' => 8.2,
+                                'label' => "REQUEST LIST",
+                                'link' => "blacklist/individual-request-list",
+                                'isAuth' => 'BIRL',
+                                'parentId' => 8.1,
+                            ],
+                            [
+                                'id' => 8.3,
+                                'label' => "CLOSED LIST",
+                                'link' => "blacklist/individual-closed-list",
+                                'isAuth' => 'BICL',
+                                'parentId' => 8.1,
+                            ],
+                        ]
+                    ],
+                    [
+                        'id' => 8.4,
+                        'label' => "COMPANY",
+                        'isAuth' => 'BCRL,BCCL',
+                        'parentId' => 8.0,
+                        'subItems' => [
+                            [
+                                'id' => 8.5,
+                                'label' => "REQUEST LIST",
+                                'link' => "blacklist/company-request-list",
+                                'isAuth' => 'BCRL',
+                                'parentId' => 8.4,
+                            ],
+                            [
+                                'id' => 8.6,
+                                'label' => "CLOSED LIST",
+                                'link' => "blacklist/company-closed-list",
+                                'isAuth' => 'BCCL',
+                                'parentId' => 8.4,
+                            ],
+                        ]
+                    ],
+                ]
+            ],
+
+            // [
+            //     'id' => 3.0,
+            //     'label' => "VEHICLE MANAGEMENT",
+            //     'icon' => "bxs-truck",
+            //     'isAuth' => '',
+            //     'subItems' => [
+            //         [
+            //             'id' => 3.1,
+            //             'label' => "VEP",
+            //             'link' => "vehicle-management/new-vehicle-entry-pass",
+            //             'isAuth' => '',
+            //             'parentId' => 3.0,
+            //         ],
+            //         [
+            //             'id' => 3.2,
+            //             'label' => "VEHICLE REQUEST LIST",
+            //             'link' => "vehicle-management/new-vehicle-request-pass",
+            //             'isAuth' => '',
+            //             'parentId' => 3.0,
+            //         ],
+            //         [
+            //             'id' => 3.3,
+            //             'label' => "VEHICLE REJECT LIST",
+            //             'link' => "vehicle-management/new-vehicle-reject-pass",
+            //             'isAuth' => '',
+            //             'parentId' => 3.0,
+            //         ],
+            //         [
+            //             'id' => 3.4,
+            //             'label' => "VEHICLE APPROVED LIST",
+            //             'link' => "vehicle-management/approve-list",
+            //             'isAuth' => '',
+            //             'parentId' => 3.0,
+            //         ],
+            //     ],
+            // ],
+
+            // [
+            //     'id' => 4.0,
+            //     'label' => "WEIGHBRIDGE",
+            //     'icon' => "bx-carousel",
+            //     'isAuth' => '',
+            //     'subItems' => [
+            //         [
+            //             'id' => 4.1,
+            //             'label' => "VESSEL SCHEDULE",
+            //             'link' => "weigh-bridge/vessel-schedule-new",
+            //             'isAuth' => '',
+            //             'parentId' => 4.0,
+            //         ],
+            //         [
+            //             'id' => 4.2,
+            //             'label' => "CARGO INFORMATION",
+            //             'link' => "weigh-bridge/cargo-information",
+            //             'isAuth' => '',
+            //             'parentId' => 4.0,
+            //         ],
+            //         [
+            //             'id' => 4.3,
+            //             'label' => "WB MONITOR",
+            //             'link' => "weigh-bridge/wb-monitor",
+            //             'isAuth' => '',
+            //             'parentId' => 4.0,
+            //         ],
+            //     ],
+            // ],
+
+            [
+                'id' => 5.0,
+                'label' => "REPORTING",
+                'icon' => "bxs-report",
+                'isAuth' => 'REPO',
+                'subItems' => [
+                    [
+                        'id' => 5.1,
+                        'label' => "WB REPORT",
+                        'link' => "report/wb-report",
+                        'isAuth' => 'VPDASH',
+                        'parentId' => 5.0,
+                    ],
+                    [
+                        'id' => 5.2,
+                        'label' => "CARGO REPORT",
+                        'link' => "report/cargo-report",
+                        'isAuth' => '',
+                        'parentId' => 5.0,
+                    ],
+                    [
+                        'id' => 5.3,
+                        'label' => "VEHICLE REPORT",
+                        'link' => "report/vehicle-report",
+                        'isAuth' => '',
+                        'parentId' => 5.0,
+                    ],
+                ],
+            ],
+
+            [
+                'id' => 9.0,
+                'label' => "REPORT",
+                'icon' => "bxs-report",
+                'isAuth' => 'RPVIEW,RSDf,ATTENDANCE_REPORT',
+                'subItems' => [
+                    [
+                        'id' => 9.1,
+                        'label' => "ATTENDANCE REPORT",
+                        'link' => "report/report",
+                        'isAuth' => 'ATTENDANCE_REPORT',
+                        'parentId' => 9.0,
+                    ],
+                    [
+                        'id' => 9.2,
+                        'label' => "VISITOR",
+                        'link' => "report/visitorReport",
+                        'isAuth' => 'RPVIEW',
+                        'parentId' => 9.0,
+                    ],
+                    [
+                        'id' => 9.3,
+                        'label' => "VISITOR IN PREMISE",
+                        'link' => "report/visitorInPremise",
+                        'isAuth' => 'RPVIEW',
+                        'parentId' => 9.0,
+                    ],
+                    [
+                        'id' => 9.4,
+                        'label' => "VISITOR OUT OF WINDOW",
+                        'link' => "report/visitorOutofWindow",
+                        'isAuth' => 'RPVIEW',
+                        'parentId' => 9.0,
+                    ],
+                ]
+            ],
+
+            [
+                'id' => 10.0,
+                'label' => "MONITORING",
+                'icon' => "bx-desktop",
+                'isAuth' => 'MGIO,ORMGIO,MT',
+                'subItems' => [
+                    [
+                        'id' => 10.1,
+                        'label' => "BOOKING",
+                        'link' => "monitoring/booking-list",
+                        'isAuth' => 'MGIO',
+                        'parentId' => 10.0,
+                    ],
+                    [
+                        'id' => 10.2,
+                        'label' => "ON HOLD / REJECT",
+                        'link' => "monitoring/onhold-reject-booking-list",
+                        'isAuth' => 'ORMGIO',
+                        'parentId' => 10.0,
+                    ],
+                    [
+                        'id' => 10.3,
+                        'label' => "MONITORING",
+                        'link' => "monitoring/transaction-list",
+                        'isAuth' => 'MT',
+                        'parentId' => 10.0,
+                    ],
+                    [
+                        'id' => 10.4,
+                        'label' => "2D MONITORING",
+                        'link' => "monitoring/working-monitoring",
+                        'isAuth' => 'MT',
+                        'parentId' => 10.0,
+                    ],
+                    [
+                        'id' => 10.5,
+                        'label' => "DASHBOARD",
+                        'link' => "monitoring/worker-dashboard",
+                        'isAuth' => 'MT',
+                        'parentId' => 10.0,
+                    ]
+                ]
+            ],
+
+            [
+                'id' => 15.0,
+                'label' => "VEHICLE",
+                'icon' => "bx-car",
+                'isAuth' => 'myVP,NSCR,sVP,VPRejL,VPRL,VPAL,VPCL',
+                'subItems' => [
+                    [
+                        'id' => 15.1,
+                        'label' => "MY VEHICLE PASS",
+                        'link' => "vehicle/pass-list",
+                        'isAuth' => 'myVP',
+                        'parentId' => 15.0,
+                    ],
+                    [
+                        'id' => 15.2,
+                        'label' => "NEW STAFF REQUEST",
+                        'link' => "vehicle/pass-request-staff",
+                        'isAuth' => 'NSCR',
+                        'parentId' => 15.0,
+                    ],
+                    [
+                        'id' => 15.3,
+                        'label' => "STAFF VEHICLE PASS",
+                        'link' => "vehicle/staff-pass-list",
+                        'isAuth' => 'sVP',
+                        'parentId' => 15.0,
+                    ],
+                    [
+                        'id' => 15.4,
+                        'label' => "REJECT LIST",
+                        'link' => "vehicle/reject-list",
+                        'isAuth' => 'VPRejL',
+                        'parentId' => 15.0,
+                    ],
+                    [
+                        'id' => 15.5,
+                        'label' => "REQUEST LIST",
+                        'link' => "vehicle/request-list",
+                        'isAuth' => 'VPRL',
+                        'parentId' => 15.0,
+                    ],
+                    [
+                        'id' => 15.6,
+                        'label' => "APPROVED LIST",
+                        'link' => "vehicle/accept-list",
+                        'isAuth' => 'VPAL',
+                        'parentId' => 15.0,
+                    ],
+                    [
+                        'id' => 15.7,
+                        'label' => "CLOSED LIST",
+                        'link' => "vehicle/closed-list",
+                        'isAuth' => 'VPCL',
+                        'parentId' => 15.0,
+                    ],
+                ]
+            ],
+
+            [
+                'id' => 16.0,
+                'label' => "ATTENDANCE",
+                'icon' => "bx-user",
+                'isAuth' => 'STAFFLIST,VENDORLIST,STUDENTLIST',
+                'subItems' => [
+                    [
+                        'id' => 16.1,
+                        'label' => "STAFF LIST",
+                        'link' => "workers/workers-list",
+                        'isAuth' => 'STAFFLIST',
+                        'parentId' => 16.0,
+                    ],
+                    [
+                        'id' => 16.2,
+                        'label' => "VENDOR LIST",
+                        'link' => "student/vendor-list",
+                        'isAuth' => 'VENDORLIST',
+                        'parentId' => 16.0,
+                    ],
+                    [
+                        'id' => 16.3,
+                        'label' => "STUDENT LIST",
+                        'link' => "student/student-list",
+                        'isAuth' => 'STUDENTLIST',
+                        'parentId' => 16.0,
+                    ]
+                ]
+            ],
+
+            [
+                'id' => 17.0,
+                'label' => "STAFF KPI",
+                'icon' => "bx-line-chart",
+                'isAuth' => 'WKR,WKRR,WKRC,ZONE,PROJECT,WKRPROJECT',
+                'subItems' => [
+                    [
+                        'id' => 17.1,
+                        'label' => "WORKER REGISTRATION",
+                        'link' => "worker-kpi/worker-registration-list",
+                        'isAuth' => 'WKR',
+                        'parentId' => 17.0,
+                    ],
+                    [
+                        'id' => 17.2,
+                        'label' => "REQUEST LIST",
+                        'link' => "worker-kpi/worker-request-list",
+                        'isAuth' => 'WKRR',
+                        'parentId' => 17.0,
+                    ],
+                    [
+                        'id' => 17.3,
+                        'label' => "CLOSED LIST",
+                        'link' => "worker-kpi/worker-closed-list",
+                        'isAuth' => 'WKRC',
+                        'parentId' => 17.0,
+                    ],
+                    [
+                        'id' => 17.4,
+                        'label' => "BUILDING",
+                        'link' => "worker-kpi/building",
+                        'isAuth' => 'ZONE',
+                        'parentId' => 17.0,
+                    ],
+                    [
+                        'id' => 17.5,
+                        'label' => "LOCATION",
+                        'link' => "worker-kpi/location",
+                        'isAuth' => 'ZONE',
+                        'parentId' => 17.0,
+                    ],
+                    [
+                        'id' => 17.6,
+                        'label' => "ZONE",
+                        'link' => "worker-kpi/zone",
+                        'isAuth' => 'ZONE',
+                        'parentId' => 17.0,
+                    ],
+                    [
+                        'id' => 17.7,
+                        'label' => "PROJECT",
+                        'link' => "worker-kpi/project",
+                        'isAuth' => 'PROJECT',
+                        'parentId' => 17.0,
+                    ],
+                    [
+                        'id' => 17.8,
+                        'label' => "STAFF PROJECT",
+                        'link' => "worker-kpi/worker-project",
+                        'isAuth' => 'WKRPROJECT',
+                        'parentId' => 17.0,
+                    ]
+                ]
+            ],
+
+            [
+                'id' => 6.0,
+                'label' => "CONFIG",
+                'icon' => "bx-cog",
+                'isAuth' => 'Role,User,CpnInf,CInf,StateInf,CityInf,DInf,DESInf,LCInf,LInf,RType,BType,RRConf,VinType,LClass,BName,CTEB,LVCInf,ANNInf,DUInf,BRConf,CTConf,WHLConf,APPConf,VCConf,BrrConf,MeSesC,ITempConf,MCConf,OHConf,AWPConf,EVConf,WGConf,GSConf,WAConf,VQR,VIDEO_QUESTION,MasterPath,MVT,device-assign,SecurityAlertPriority',
+                'subItems' => [
+                    [
+                        'id' => 6.1,
+                        'label' => "APP CONFIG",
+                        'link' => "config/app-self-config",
+                        'isAuth' => 'APPConf',
+                        'parentId' => 6.0,
+                    ],
+                    [
+                        'id' => 6.2,
+                        'label' => "DASHBOARD UPLOAD",
+                        'link' => "config/dashboard-upload",
+                        'isAuth' => 'DUInf',
+                        'parentId' => 6.0,
+                    ],
+                    [
+                        'id' => 6.3,
+                        'label' => "ROLE",
+                        'link' => "config/role",
+                        'isAuth' => 'Role',
+                        'parentId' => 6.0,
+                    ],
+                    [
+                        'id' => 6.4,
+                        'label' => "MEETING SESSION",
+                        'link' => "config/meeting-session",
+                        'isAuth' => 'MeSesC',
+                        'parentId' => 6.0,
+                    ],
+                    [
+                        'id' => 6.5,
+                        'label' => "USER",
+                        'link' => "config/user-info",
+                        'isAuth' => 'User',
+                        'parentId' => 6.0,
+                    ],
+                    [
+                        'id' => 6.6,
+                        'label' => "COMPANY",
+                        'link' => "config/company-info",
+                        'isAuth' => 'CpnInf',
+                        'parentId' => 6.0,
+                    ],
+                    [
+                        'id' => 6.7,
+                        'label' => "COUNTRY",
+                        'link' => "config/country-info",
+                        'isAuth' => 'CInf',
+                        'parentId' => 6.0,
+                    ],
+                    [
+                        'id' => 6.8,
+                        'label' => "STATE",
+                        'link' => "config/state-info",
+                        'isAuth' => 'StateInf',
+                        'parentId' => 6.0,
+                    ],
+                    [
+                        'id' => 6.9,
+                        'label' => "CITY",
+                        'link' => "config/city-info",
+                        'isAuth' => 'CityInf',
+                        'parentId' => 6.0,
+                    ],
+                    [
+                        'id' => 6.10,
+                        'label' => "DEPARTMENT",
+                        'link' => "config/department-info",
+                        'isAuth' => 'DInf',
+                        'parentId' => 6.0,
+                    ],
+                    [
+                        'id' => 6.11,
+                        'label' => "DESIGNATION",
+                        'link' => "config/designation-info",
+                        'isAuth' => 'DESInf',
+                        'parentId' => 6.0,
+                    ],
+                    [
+                        'id' => 6.12,
+                        'label' => "LOCATION ACCESS",
+                        'link' => "config/location-info",
+                        'isAuth' => 'LCInf',
+                        'parentId' => 6.0,
+                    ],
+                    [
+                        'id' => 6.13,
+                        'label' => "SUB LOCATION ACCESS",
+                        'link' => "config/sub-location-info",
+                        'isAuth' => 'SLCInf',
+                        'parentId' => 6.0,
+                    ],
+                    [
+                        'id' => 6.14,
+                        'label' => "LANE",
+                        'link' => "config/lane-info",
+                        'isAuth' => 'LInf',
+                        'parentId' => 6.0,
+                    ],
+                    [
+                        'id' => 6.15,
+                        'label' => "REGISTRATION TYPE",
+                        'link' => "config/registration-type",
+                        'isAuth' => 'RType',
+                        'parentId' => 6.0,
+                    ],
+                    [
+                        'id' => 6.16,
+                        'label' => "BUSINESS TYPE",
+                        'link' => "config/business-type",
+                        'isAuth' => 'BType',
+                        'parentId' => 6.0,
+                    ],
+                    [
+                        'id' => 6.17,
+                        'label' => "REJECT REASON",
+                        'link' => "config/reject-reason",
+                        'isAuth' => 'RRConf',
+                        'parentId' => 6.0,
+                    ],
+                    [
+                        'id' => 6.18,
+                        'label' => "VEHICLE TYPE",
+                        'link' => "config/vin-type",
+                        'isAuth' => 'VinType',
+                        'parentId' => 6.0,
+                    ],
+                    [
+                        'id' => 6.19,
+                        'label' => "LICENSE CLASS",
+                        'link' => "config/license-class",
+                        'isAuth' => 'LClass',
+                        'parentId' => 6.0,
+                    ],
+                    [
+                        'id' => 6.20,
+                        'label' => "BANK NAME",
+                        'link' => "config/bank-name",
+                        'isAuth' => 'BName',
+                        'parentId' => 6.0,
+                    ],
+                    [
+                        'id' => 6.21,
+                        'label' => "SUB BUSINESS TYPE",
+                        'link' => "config/sub-categories-info",
+                        'isAuth' => 'CateInf',
+                        'parentId' => 6.0,
+                    ],
+                    [
+                        'id' => 6.22,
+                        'label' => "CARD TEMPLATE",
+                        'isAuth' => 'CTP',
+                        'parentId' => 6.0,
+                        'icon' => "bx-cog",
+                        'subItems' => [
+                            [
+                                'id' => 6.23,
+                                'label' => "CARD TEMPLATE",
+                                'link' => "config/card-template-preprint",
+                                'isAuth' => 'CTP',
+                                'parentId' => 6.22,
+                            ]
+                        ]
+                    ],
+                    [
+                        'id' => 6.24,
+                        'label' => "LOCATION VISITED",
+                        'link' => "config/location-visited-info",
+                        'isAuth' => 'LVCInf',
+                        'parentId' => 6.0,
+                    ],
+                    [
+                        'id' => 6.25,
+                        'label' => "BLACKLIST REASON",
+                        'link' => "config/blacklist-reason",
+                        'isAuth' => 'BRConf',
+                        'parentId' => 6.0,
+                    ],
+                    [
+                        'id' => 6.26,
+                        'label' => "RELEASE REASON",
+                        'link' => "config/release-reason",
+                        'isAuth' => 'BrrConf',
+                        'parentId' => 6.0,
+                    ],
+                    [
+                        'id' => 6.27,
+                        'label' => "CARGO TYPE",
+                        'link' => "config/cargo-type",
+                        'isAuth' => 'CTConf',
+                        'parentId' => 6.0,
+                    ],
+                    [
+                        'id' => 6.28,
+                        'label' => "WAREHOUSE LOCATION",
+                        'link' => "config/warehouse-loc",
+                        'isAuth' => 'WHLConf',
+                        'parentId' => 6.0,
+                    ],
+                    [
+                        'id' => 6.29,
+                        'label' => "VISITOR CARD",
+                        'link' => "config/visitor-card",
+                        'isAuth' => 'VCConf',
+                        'parentId' => 6.0,
+                    ],
+                    [
+                        'id' => 6.30,
+                        'label' => "MODULE CONFIG",
+                        'link' => "config/module-config",
+                        'isAuth' => 'MCConf',
+                        'parentId' => 6.0,
+                    ],
+                    [
+                        'id' => 6.31,
+                        'label' => "OPERATING HOURS",
+                        'link' => "config/operating-hours",
+                        'isAuth' => 'OHConf',
+                        'parentId' => 6.0,
+                    ],
+                    [
+                        'id' => 6.32,
+                        'label' => "INSPECTION TEMPLATE",
+                        'link' => "config/inspection-template",
+                        'isAuth' => 'ITempConf',
+                        'parentId' => 6.0,
+                    ],
+                    [
+                        'id' => 6.33,
+                        'label' => "SUMMON OFFENCE RATE",
+                        'link' => "config/offence-rate",
+                        'isAuth' => 'OfRConf',
+                        'parentId' => 6.0,
+                    ],
+                    [
+                        'id' => 6.34,
+                        'label' => "SHIFT",
+                        'link' => "config/shift-info",
+                        'isAuth' => 'ShftConf',
+                        'parentId' => 6.0,
+                    ],
+                    [
+                        'id' => 6.35,
+                        'label' => "ADDITIONAL PERMIT TYPE",
+                        'link' => "config/add-permit-type",
+                        'isAuth' => 'AWPConf',
+                        'parentId' => 6.0,
+                    ],
+                    [
+                        'id' => 6.36,
+                        'label' => "EVACUATION",
+                        'link' => "config/evacuation-config",
+                        'isAuth' => 'EVConf',
+                        'parentId' => 6.0,
+                    ],
+                    [
+                        'id' => 6.37,
+                        'label' => "STAFF GROUPS",
+                        'link' => "config/worker-groups-config",
+                        'isAuth' => 'WGConf',
+                        'parentId' => 6.0,
+                    ],
+                    [
+                        'id' => 6.43,
+                        'label' => "PUBLIC HOLIDAYS",
+                        'link' => "config/public-holiday",
+                        'isAuth' => 'PUBLIC_HOLIDAY',
+                        'parentId' => 6.0,
+                    ],
+                    [
+                        'id' => 6.38,
+                        'label' => "GROUPS SHIFT",
+                        'link' => "config/groups-shift-config",
+                        'isAuth' => 'GSConf',
+                        'parentId' => 6.0,
+                    ],
+                    [
+                        'id' => 6.39,
+                        'label' => "STAFF AVAILABILITY",
+                        'link' => "config/worker-availability-config",
+                        'isAuth' => 'WAConf',
+                        'parentId' => 6.0,
+                    ],
+                    [
+                        'id' => 6.42,
+                        'label' => "BRANCH OFFICE",
+                        'link' => "config/branch-office",
+                        'isAuth' => 'BRANCH_OFFICE',
+                        'parentId' => 6.0,
+                    ],
+                    [
+                        'id' => 6.40,
+                        'label' => "VIDEO & QUESTIONNAIRE",
+                        'link' => "config/training-vid-conf",
+                        'isAuth' => 'VIDEO_QUESTION',
+                        'parentId' => 6.0,
+                    ],
+                    [
+                        'id' => 6.41,
+                        'label' => "EVACUATION FEATURE",
+                        'link' => "config/evacuation-feature-conf",
+                        'isAuth' => 'MCConf',
+                        'parentId' => 6.0,
+                    ],
+                    [
+                        'id' => 6.42,
+                        'label' => "DOOR INFO",
+                        'link' => "config/door-info",
+                        'isAuth' => 'WGConf',
+                        'parentId' => 6.0,
+                    ],
+                    [
+                        'id' => 6.43,
+                        'label' => "VISIT REASON",
+                        'link' => "config/visit-reason",
+                        'isAuth' => 'WGConf',
+                        'parentId' => 6.0,
+                    ],
+                    [
+                        'id' => 6.44,
+                        'label' => "VISITOR QR CODE",
+                        'link' => "config/visitor-qr-code",
+                        'isAuth' => 'VQR',
+                        'parentId' => 6.0,
+                    ],
+                    [
+                        'id' => 6.45, 
+                        'label' => "PATHWAY", 
+                        'link' => "/paths", 
+                        'isAuth' => 'MasterPath', 
+                        'parentId' => 6.0,
+                        'isLaravelRoute' => true
+                    ],
+                    [
+                        'id' => 6.46, 
+                        'label' => "VISITOR TYPE", 
+                        'link' => "/visitor-types",
+                        'isAuth' => 'MVT',
+                        'parentId' => 6.0, 
+                        'isLaravelRoute' => true
+                    ],                      
+                    [
+                        'id' => 6.47, 
+                        'label' => "DEVICE ASSIGNMENT", 
+                        'link' => "/device-assignments",
+                         'isAuth' => 'device-assign',
+                        'parentId' => 6.0, 
+                        'isLaravelRoute' => true
+                    ],
+                    [
+                        'id' => 6.48, 
+                        'label' => "ALERT PRIORITY", 
+                        'link' => "/security-alert-priority",
+                        'isAuth' => 'SecurityAlertPriority',
+                        'parentId' => 6.0, 
+                        'isLaravelRoute' => true
+                    ],
+
+                ],
+            ],
+            // Reports
+
+            [
+                'id' => 7.0,
+                'label' => "REPORT",
+                'icon' => "bx-cog",
+                'isAuth' => 'mVRP',
+                'subItems' => [
+                    [
+                        'id' => 7.1,
+                        'label' => "ACCESS REPORT",
+                        'link' => "/reports/access-logs", 
+                        'isAuth' => 'mVRP',
+                        'parentId' => 7.0,
+                        'isLaravelRoute' => true 
+                    ],
+                    [
+                        'id' => 7.2,
+                        'label' => "VISITOR REPORT",
+                        'link' => "/visitor-report", 
+                        'isAuth' => 'VR',
+                        'parentId' => 7.0,
+                        'isLaravelRoute' => true 
+                    ],
+                    [
+                        'id' => 7.3,
+                        'label' => "VISITOR CHRONOLOGY",
+                        'link' => "/visitor-details", 
+                        'isAuth' => 'VisitorD&C',
+                        'parentId' => 7.0,
+                        'isLaravelRoute' => true 
+                    ],
+                    [
+                        'id' => 7.4,
+                        'label' => "VISITOR INFO BY DOOR",
+                        'link' => "/visitor-info-door", 
+                        'isAuth' => 'VisitorInfoByDoor',
+                        'parentId' => 7.0,
+                        'isLaravelRoute' => true 
+                    ],
+
+                ],
+            ],
+
+            // Master
+
+            // [
+            //     'id' => 8.0,
+            //     'label' => "MASTER",
+            //     'icon' => "bx-cog",
+            //     'isAuth' => 'MasterPath,MVT,device-assign',
+            //     'subItems' => [
+            //         [
+            //             'id' => 8.1,
+            //             'label' => "PATHWAY",
+            //             'link' => "/paths", 
+            //             'isAuth' => 'MasterPath',
+            //             'parentId' => 8.0,
+            //             'isLaravelRoute' => true 
+            //         ],
+            //         [
+            //             'id' => 8.2,
+            //             'label' => "VISITOR-TYPE",
+            //             'link' => "/visitor-types", 
+            //             'isAuth' => 'MVT',
+            //             'parentId' => 8.0,
+            //             'isLaravelRoute' => true 
+            //         ],
+            //         [
+            //             'id' => 8.3,
+            //             'label' => "DEVICES",
+            //             'link' => "/device-assignments", 
+            //             'isAuth' => 'device-assign',
+            //             'parentId' => 8.0,
+            //             'isLaravelRoute' => true 
+            //         ],
+
+            //     ],
+            // ],
+
+            [
+                'id' => 9.0,
+                'label' => "DASHBOARD",
+                'icon' => "bx-cog",
+                'isAuth' => 'VisitorDashboard,SecurityDashboard',
+                'subItems' => [
+                    [
+                        'id' => 9.1,
+                        'label' => "VISITOR DASHBAORD",
+                        'link' => "/dashboard", 
+                        'isAuth' => 'VisitorDashboard',
+                        'parentId' => 9.0,
+                        'isLaravelRoute' => true 
+                    ],
+                    [
+                        'id' => 9.1,
+                        'label' => "SECURITY DASHBAORD",
+                        'link' => "/security-alerts", 
+                        'isAuth' => 'SecurityDashboard',
+                        'parentId' => 9.0,
+                        'isLaravelRoute' => true 
+                    ],
+                ],
+            ],
+
+
+        ];
+    }
+}
+
