@@ -183,7 +183,7 @@
                                 <td>{{ $visitor['full_name'] ?? 'N/A' }}</td>
                                 <td>{{ $visitor['person_visited'] ?? 'N/A' }}</td>
                                 <td>
-                                    {{ \Carbon\Carbon::parse($visitor['created_at'])->setTimezone('Asia/Kuala_Lumpur')->subHours(8)->format('h:i A') }}
+                                    {{ \Carbon\Carbon::parse($visitor['created_at'])->setTimezone('Asia/Kuala_Lumpur')->format('h:i A') }}
                                 </td>
                                 <td>
                                     {{ $visitor['location_name'] ?? 'N/A' }}
