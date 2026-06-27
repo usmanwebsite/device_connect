@@ -1,0 +1,956 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Http;
+use App\Services\MenuService;
+use App\Models\DeviceAccessLog;
+use App\Models\DeviceConnection;
+use App\Models\DeviceLocationAssign;
+use App\Models\VendorLocation;
+use Carbon\Carbon;
+use Maatwebsite\Excel\Facades\Excel;
+use App\Exports\VisitorReportExport;
+
+class VisitorReportController extends Controller
+{
+    protected $menuService;
+    const MALAYSIA_TIMEZONE = 'Asia/Kuala_Lumpur';
+
+    public function __construct(MenuService $menuService)
+    {
+        $this->menuService = $menuService;
+        // date_default_timezone_set(self::MALAYSIA_TIMEZONE);
+    }
+
+    // public function index()
+    // {
+    //     $angularMenu = $this->menuService->getFilteredAngularMenu();
+        
+    //     $visitors = $this->getVisitorsFromDeviceLogs();
+
+    //     $filterData = $this->getFilterData($visitors);
+        
+    //     return view('reports.visitor_report', compact('visitors', 'angularMenu','filterData'));
+    // }
+
+    public function index(Request $request)
+    {
+        $angularMenu = $this->menuService->getFilteredAngularMenu();
+        
+        // Get filtered visitors based on request
+        $visitors = $this->getFilteredVisitors($request);
+        
+        // Get unique values for filter dropdowns
+        $filterData = $this->getFilterData($visitors);
+        
+        return view('reports.visitor_report', compact('visitors', 'angularMenu', 'filterData'));
+    }
+
+    private function getFilteredVisitors(Request $request)
+    {
+        $allVisitors = $this->getVisitorsFromDeviceLogs();
+        
+        // Apply filters
+        if ($request->filled('ic_passport')) {
+            $allVisitors = array_filter($allVisitors, function($visitor) use ($request) {
+                return stripos($visitor['ic_passport'], $request->ic_passport) !== false;
+            });
+        }
+        
+        if ($request->filled('name')) {
+            $allVisitors = array_filter($allVisitors, function($visitor) use ($request) {
+                return stripos($visitor['name'], $request->name) !== false;
+            });
+        }
+        
+        if ($request->filled('contact_no')) {
+            $allVisitors = array_filter($allVisitors, function($visitor) use ($request) {
+                return stripos($visitor['contact_no'], $request->contact_no) !== false;
+            });
+        }
+        
+        if ($request->filled('purpose')) {
+            $allVisitors = array_filter($allVisitors, function($visitor) use ($request) {
+                return stripos($visitor['purpose'], $request->purpose) !== false;
+            });
+        }
+
+        // Status filter - Commented for client confirmation
+        if ($request->filled('status')) {
+            $allVisitors = array_filter($allVisitors, function($visitor) use ($request) {
+                return $visitor['status'] === $request->status;
+            });
+        }
+        
+        // DateTime From filter - Compare with both date and time
+        if ($request->filled('datetime_from')) {
+            try {
+                $datetimeFrom = Carbon::parse($request->datetime_from);
+
+                $allVisitors = array_filter($allVisitors, function($visitor) use ($datetimeFrom) {
+                    // Combine date_of_visit and time_in to create full datetime
+$timeIn = $visitor['time_in'] ?? '00:00:00';
+if ($timeIn === 'N/A' || empty($timeIn)) {
+$timeIn = '00:00:00';
+}
+  $visitDateTime = Carbon::parse($visitor['date_of_visit'] . ' ' . $timeIn);
+
+          //          $visitDateTime = Carbon::parse($visitor['date_of_visit'] . ' ' . ($visitor['time_in'] ?? '00:00:00'));
+                    return $visitDateTime >= $datetimeFrom;
+                });
+            } catch (\Exception $e) {
+                Log::error('Error parsing datetime_from: ' . $e->getMessage());
+            }
+        }
+
+        // DateTime To filter
+        if ($request->filled('datetime_to')) {
+            try {
+                $datetimeTo = Carbon::parse($request->datetime_to);
+                $allVisitors = array_filter($allVisitors, function($visitor) use ($datetimeTo) {
+$timeIn = $visitor['time_in'] ?? '00:00:00'; 
+if ($timeIn === 'N/A' || empty($timeIn)) { 
+$timeIn = '00:00:00';
+}                  
+  $visitDateTime = Carbon::parse($visitor['date_of_visit'] . ' ' . $timeIn);
+// $visitDateTime = Carbon::parse($visitor['date_of_visit'] . ' ' . ($visitor['time_in'] ?? '00:00:00'));
+                    return $visitDateTime <= $datetimeTo;
+                });
+            } catch (\Exception $e) {
+//dd($e->getMessage());
+                Log::error('Error parsing datetime_to: ' . $e->getMessage());
+            }
+        }
+       
+        return array_values($allVisitors);
+    }
+
+    private function getFilterData($visitors)
+    {
+        $purposes = array_unique(array_column($visitors, 'purpose'));
+        $companies = array_unique(array_column($visitors, 'company_name'));
+        $statuses = ['Active', 'Completed', 'Scheduled'];
+        
+        return [
+            'purposes' => array_values(array_filter($purposes)),
+            'companies' => array_values(array_filter($companies)),
+            'statuses' => $statuses
+        ];
+    }
+   
+    
+    // public function export(Request $request)
+    // {
+    //     $type = $request->get('type', 'excel');
+    //     $visitors = $this->getVisitorsFromDeviceLogs();
+        
+    //     if ($type === 'excel') {
+    //         return Excel::download(new VisitorReportExport($visitors), 'visitor-report-' . date('Y-m-d') . '.xlsx');
+    //     }
+        
+    //     return back()->with('success', 'Export completed successfully');
+    // }
+    public function export(Request $request)
+{
+    $type = $request->get('type', 'excel');
+    
+    // Get filtered visitors for export
+    $visitors = $this->getFilteredVisitors($request);
+    
+    if ($type === 'excel') {
+        return Excel::download(new VisitorReportExport($visitors), 'visitor-report-' . date('Y-m-d') . '.xlsx');
+    }
+    
+    return back()->with('success', 'Export completed successfully');
+}
+
+// private function getVisitorsFromDeviceLogs()
+// {
+//     try {
+//         $deviceLogs = DeviceAccessLog::where('access_granted', 1)
+//             ->orderBy('created_at', 'desc')
+//             ->get();
+
+//         $groupedLogs = $deviceLogs->groupBy('staff_no');
+
+//         $visitors = [];
+//         $serialNo = 1;
+
+//         foreach ($groupedLogs as $staffNo => $logs) {
+//             try {
+//                 $javaApiResponse = $this->callJavaVendorApi($staffNo);
+//                 $visitorData = $javaApiResponse['data'] ?? null;
+
+//                 // ✅ FIX: Use database staff_no as IC number fallback
+//                 $icNumber = $staffNo; // Default to database staff_no
+                
+//                 if ($visitorData && isset($visitorData['icNo']) && !empty($visitorData['icNo'])) {
+//                     $icNumber = $visitorData['icNo'];
+//                 } else {
+//                     Log::warning('Using database staff_no as IC number for: ' . $staffNo);
+//                 }
+
+//                 $latestLog = $logs->first();  
+//                 $earliestLog = $logs->last(); 
+
+//                 $timeIn = null;
+//                 foreach ($logs->reverse() as $log) { 
+//                     if (!$log->location_name) continue;
+                    
+//                     $vendorLocation = VendorLocation::where('name', $log->location_name)->first();
+//                     if (!$vendorLocation) continue;
+                    
+//                     // $deviceAssign = DeviceLocationAssign::where('location_id', $vendorLocation->id)
+//                     //     ->where('is_type', 'check_in')
+//                     //     ->first();
+
+//                     $deviceId = $this->getInternalDeviceId($log->device_id);
+//                     $query = DeviceLocationAssign::where('location_id', $vendorLocation->id)
+//                         ->where('is_type', 'check_in');
+//                     if ($deviceId) {
+//                         $query->where('device_id', $deviceId);
+//                     }
+//                     $deviceAssign = $query->first();
+
+                    
+//                     if ($deviceAssign) {
+//                         $timeIn = Carbon::parse($log->created_at)
+//                             ->setTimezone(self::MALAYSIA_TIMEZONE)
+//                             ->format('H:i:s');
+//                         break;
+//                     }
+//                 }
+
+//                 $dateOfVisit = $earliestLog ? Carbon::parse($earliestLog->created_at)
+//                     ->setTimezone(self::MALAYSIA_TIMEZONE)
+//                     ->format('Y-m-d') : 'N/A';
+
+//                 $timeOut = null;
+//                 foreach ($logs as $log) {
+//                     if ($log->staff_no == '991122016263') {
+//                         Log::info('log 123456',['log' => $log]);
+//                     }
+//                     if (!$log->location_name) continue;
+                    
+//                     $vendorLocation = VendorLocation::where('name', $log->location_name)->first();
+//                     if (!$vendorLocation) continue;
+                    
+//                     // $deviceAssign = DeviceLocationAssign::where('location_id', $vendorLocation->id)
+//                     //     ->where('is_type', 'check_out')
+//                     //     ->first();
+
+//                     $deviceId = $this->getInternalDeviceId($log->device_id);
+//                     $query = DeviceLocationAssign::where('location_id', $vendorLocation->id)
+//                         ->where('is_type', 'check_out');
+//                     if ($deviceId) {
+//                         $query->where('device_id', $deviceId);
+//                     }
+//                     $deviceAssign = $query->first();
+
+                    
+//                     if ($deviceAssign) {
+//                         $timeOut = Carbon::parse($log->created_at)
+//                             ->setTimezone(self::MALAYSIA_TIMEZONE)
+//                             ->format('H:i:s');
+//                         break;
+//                     }
+//                 }
+
+//                 // $currentLocation = $this->getCurrentLocationBasedOnLatestScan($logs, $timeOut);
+//                 $currentLocation = $this->getCurrentLocationBasedOnLatestScan($logs);
+//                 $accessedLocations = $logs->pluck('location_name')->unique()->filter()->implode(', ');
+//                 $purpose = $this->extractPurposeFromApi($visitorData ?? []);
+//                 $status = $this->determineVisitorStatus(
+//                     $visitorData['dateOfVisitFrom'] ?? null,
+//                     $visitorData['dateOfVisitTo'] ?? null,
+//                     $logs
+//                 );
+//                 $duration = $this->calculateDuration($timeIn, $timeOut);
+
+//                 $visitors[] = [
+//                     'no' => $serialNo++,
+//                     'ic_passport' => $icNumber,  // ✅ FIXED: Using fallback
+//                     'name' => $visitorData['fullName'] ?? 'N/A',
+//                     'contact_no' => $visitorData['contactNo'] ?? 'N/A',
+//                     'company_name' => $visitorData['companyName'] ?? 'N/A',
+//                     'date_of_visit' => $dateOfVisit,
+//                     'time_in' => $timeIn ?? 'N/A',
+//                     'time_out' => $timeOut ?? 'N/A',
+//                     'purpose' => $purpose,
+//                     'host_name' => $visitorData['personVisited'] ?? 'N/A',
+//                     'current_location' => $currentLocation,
+//                     'location_accessed' => $accessedLocations ?: 'N/A',
+//                     'duration' => $duration,
+//                     'status' => $status
+//                 ];
+
+//             } catch (\Exception $e) {
+//                 Log::error('Error processing visitor ' . $staffNo . ': ' . $e->getMessage());
+//                 continue;
+//             }
+//         }
+
+//         return $visitors;
+
+//     } catch (\Exception $e) {
+//         Log::error('Error fetching visitors from device logs: ' . $e->getMessage());
+//         return $this->getStaticVisitors();
+//     }
+// }
+
+private function getVisitorsFromDeviceLogs()
+{
+    try {
+        $deviceLogs = DeviceAccessLog::where('access_granted', 1)
+            ->orderBy('created_at', 'desc')
+            ->get();
+
+        // Don't group by staff_no - process each unique visit separately
+        // We need to identify each "visit session" - where a visitor checks in and out
+        
+        $visitors = [];
+        $serialNo = 1;
+        
+        // Group logs by staff_no first, then identify individual visits
+        $groupedByStaff = $deviceLogs->groupBy('staff_no');
+        
+        foreach ($groupedByStaff as $staffNo => $logs) {
+            try {
+                $javaApiResponse = $this->callJavaVendorApi($staffNo);
+                $visitorData = $javaApiResponse['data'] ?? null;
+                
+                // Use database staff_no as IC number fallback
+                $icNumber = $staffNo;
+                if ($visitorData && isset($visitorData['icNo']) && !empty($visitorData['icNo'])) {
+                    $icNumber = $visitorData['icNo'];
+                }
+                
+                // Sort logs by created_at chronologically
+                $sortedLogs = $logs->sortBy('created_at');
+                
+                // Find all check-ins to create separate visit records
+                $visitSessions = $this->identifyVisitSessions($sortedLogs);
+                
+                foreach ($visitSessions as $session) {
+                    $timeIn = $session['time_in'];
+                    $timeOut = $session['time_out'];
+                    $dateOfVisit = $session['date_of_visit'];
+                    
+                    $currentLocation = $this->getCurrentLocationBasedOnLatestScan($session['logs']);
+                    $accessedLocations = $session['logs']->pluck('location_name')->unique()->filter()->implode(', ');
+                    $purpose = $this->extractPurposeFromApi($visitorData ?? []);
+                    $duration = $this->calculateDuration($timeIn, $timeOut);
+                    
+                    // Determine status based on visit dates
+                    $status = $this->determineVisitorStatusForVisit(
+                        $visitorData['dateOfVisitFrom'] ?? null,
+                        $visitorData['dateOfVisitTo'] ?? null,
+                        $dateOfVisit,
+                        $timeOut
+                    );
+                    
+                    $visitors[] = [
+                        'no' => $serialNo++,
+                        'ic_passport' => $icNumber,
+                        'name' => $visitorData['fullName'] ?? 'N/A',
+                        'contact_no' => $visitorData['contactNo'] ?? 'N/A',
+                        'company_name' => $visitorData['companyName'] ?? 'N/A',
+                        'date_of_visit' => $dateOfVisit,
+                        'time_in' => $timeIn ?? 'N/A',
+                        'time_out' => $timeOut ?? 'N/A',
+                        'purpose' => $purpose,
+                        'host_name' => $visitorData['personVisited'] ?? 'N/A',
+                        'current_location' => $currentLocation,
+                        'location_accessed' => $accessedLocations ?: 'N/A',
+                        'duration' => $duration,
+                        'status' => $status
+                    ];
+                }
+                
+            } catch (\Exception $e) {
+                Log::error('Error processing visitor ' . $staffNo . ': ' . $e->getMessage());
+                continue;
+            }
+        }
+        
+        // Sort visitors by date_of_visit (newest first)
+        usort($visitors, function($a, $b) {
+            return strtotime($b['date_of_visit']) - strtotime($a['date_of_visit']);
+        });
+        
+        // Re-number after sorting
+        foreach ($visitors as $index => $visitor) {
+            $visitors[$index]['no'] = $index + 1;
+        }
+        
+        return $visitors;
+        
+    } catch (\Exception $e) {
+        Log::error('Error fetching visitors from device logs: ' . $e->getMessage());
+        return $this->getStaticVisitors();
+    }
+}
+
+    private function identifyVisitSessions($logs)
+    {
+        $sessions = [];
+        $currentSession = null;
+        
+        $logsArray = $logs->values()->all();
+        $totalLogs = count($logsArray);
+        
+        for ($i = 0; $i < $totalLogs; $i++) {
+            $log = $logsArray[$i];
+            
+            if (!$log->location_name) {
+                // *** FIX: location_name nahi hai lekin access granted hai ***
+                // Directly orphaned session banao
+                if ($log->access_granted == 1) {
+                    if (!$currentSession) {
+                        $currentSession = [
+                            'logs' => collect([$log]),
+                            'time_in' => Carbon::parse($log->created_at)
+                                ->setTimezone(self::MALAYSIA_TIMEZONE)
+                                ->format('H:i:s'),
+                            'date_of_visit' => Carbon::parse($log->created_at)
+                                ->setTimezone(self::MALAYSIA_TIMEZONE)
+                                ->format('Y-m-d'),
+                            'time_out' => null
+                        ];
+                    } else {
+                        $currentSession['logs']->push($log);
+                    }
+                }
+                continue;
+            }
+            
+            $vendorLocation = VendorLocation::where('name', $log->location_name)->first();
+            
+            // *** FIX: VendorLocation match nahi mila — orphaned treat karo ***
+            if (!$vendorLocation) {
+                if ($currentSession) {
+                    $currentSession['logs']->push($log);
+                } else {
+                    // Naya session shuru karo date ke basis par
+                    $logDate = Carbon::parse($log->created_at)
+                        ->setTimezone(self::MALAYSIA_TIMEZONE)
+                        ->format('Y-m-d');
+                        
+                    $currentSession = [
+                        'logs' => collect([$log]),
+                        'time_in' => Carbon::parse($log->created_at)
+                            ->setTimezone(self::MALAYSIA_TIMEZONE)
+                            ->format('H:i:s'),
+                        'date_of_visit' => $logDate,
+                        'time_out' => null
+                    ];
+                }
+                continue;
+            }
+            
+            $deviceId = $this->getInternalDeviceId($log->device_id);
+            
+            Log::info('Device ID Check11111111111111111111111111111111111111111111111111111111', [
+                'log_device_id' => $log->device_id,
+                'internal_device_id' => $deviceId,
+                'location' => $log->location_name,
+                'staff_no' => $log->staff_no
+            ]);
+
+            $query = DeviceLocationAssign::where('location_id', $vendorLocation->id)
+                ->where('is_type', 'check_in');
+            if ($deviceId) {
+                $query->where('device_id', $deviceId);
+            }
+            $isCheckIn = $query->first();
+            
+            $queryOut = DeviceLocationAssign::where('location_id', $vendorLocation->id)
+                ->where('is_type', 'check_out');
+            if ($deviceId) {
+                $queryOut->where('device_id', $deviceId);
+            }
+            $isCheckOut = $queryOut->first();
+            
+            $logDate = Carbon::parse($log->created_at)
+                ->setTimezone(self::MALAYSIA_TIMEZONE)
+                ->format('Y-m-d');
+            
+            if ($isCheckIn) {
+                // *** FIX: Agar current session hai aur same date hai, same session mein add karo ***
+                // Agar different date hai, pehle session close karo
+                if ($currentSession && $currentSession['date_of_visit'] !== $logDate) {
+                    $sessions[] = $currentSession;
+                    $currentSession = null;
+                }
+                
+                if (!$currentSession) {
+                    $currentSession = [
+                        'logs' => collect([$log]),
+                        'time_in' => Carbon::parse($log->created_at)
+                            ->setTimezone(self::MALAYSIA_TIMEZONE)
+                            ->format('H:i:s'),
+                        'date_of_visit' => $logDate,
+                        'time_out' => null
+                    ];
+                } else {
+                    $currentSession['logs']->push($log);
+                }
+            } elseif ($isCheckOut && $currentSession) {
+                $currentSession['time_out'] = Carbon::parse($log->created_at)
+                    ->setTimezone(self::MALAYSIA_TIMEZONE)
+                    ->format('H:i:s');
+                $currentSession['logs']->push($log);
+                $sessions[] = $currentSession;
+                $currentSession = null;
+            } elseif ($currentSession) {
+                $currentSession['logs']->push($log);
+            } else {
+                // *** FIX: Na check-in na check-out — standalone session ***
+                $sessions[] = [
+                    'logs' => collect([$log]),
+                    'time_in' => Carbon::parse($log->created_at)
+                        ->setTimezone(self::MALAYSIA_TIMEZONE)
+                        ->format('H:i:s'),
+                    'date_of_visit' => $logDate,
+                    'time_out' => null
+                ];
+            }
+        }
+        
+        // Open session close karo
+        if ($currentSession !== null && $currentSession['time_in'] !== null) {
+            $sessions[] = $currentSession;
+        }
+        
+        // Sort sessions newest first
+        usort($sessions, function($a, $b) {
+            $dateA = $a['date_of_visit'] !== 'N/A' ? strtotime($a['date_of_visit']) : 0;
+            $dateB = $b['date_of_visit'] !== 'N/A' ? strtotime($b['date_of_visit']) : 0;
+            return $dateB - $dateA;
+        });
+        
+        return $sessions;
+    }
+
+/**
+ * Determine visitor status for a specific visit
+ */
+private function determineVisitorStatusForVisit($dateFrom, $dateTo, $visitDate, $timeOut)
+{
+    // If visitor has checked out, consider it completed for that visit
+    if ($timeOut && $timeOut != 'N/A') {
+        return 'Completed';
+    }
+    
+    // If API provides date range, check against visit date
+    if ($dateFrom && $dateTo) {
+        try {
+            $now = Carbon::now(self::MALAYSIA_TIMEZONE);
+            $visitDateTime = Carbon::parse($visitDate, self::MALAYSIA_TIMEZONE);
+            
+            $from = Carbon::parse($dateFrom, self::MALAYSIA_TIMEZONE);
+            $to = Carbon::parse($dateTo, self::MALAYSIA_TIMEZONE);
+            
+            if ($visitDateTime->gt($to)) {
+                return 'Completed';
+            } elseif ($now->between($from, $to) && $visitDateTime->isToday()) {
+                return 'Active';
+            } elseif ($visitDateTime->lt($from)) {
+                return 'Scheduled';
+            }
+        } catch (\Exception $e) {
+            // fallback
+        }
+    }
+    
+    // Default: Active if not checked out today, otherwise Completed
+    if ($timeOut && $timeOut != 'N/A') {
+        return 'Completed';
+    }
+    
+    return 'Active';
+}
+
+// private function getCurrentLocationBasedOnLatestScan($logs, $timeOut = null)
+// {
+//     if ($logs->isEmpty()) {
+//         return 'N/A';
+//     }
+    
+//     $latestLog = $logs->first();
+//     $locationName = $latestLog->location_name ?? '';
+    
+//     if (!$locationName) {
+//         return 'N/A';
+//     }
+    
+//     $isGate = stripos($locationName, '13.TURNSTILE') !== false;
+//     if ($latestLog->staff_no == '760809017563') {
+//     Log::info('current location 1234567890',['isGate' => $isGate]);
+//     Log::info('location ka naam 123456789',['locationName' => $locationName]);
+//     Log::info('TimeOut  123456789',['timeOut' => $timeOut]);
+//     // Agar Turnstile nahi hai, toh location name return karo
+
+
+//     Log::info('TimeOut 123456789', [
+//         'timeOut' => $timeOut
+//     ]);
+// }
+
+//     if (!$isGate) {
+//         return $locationName;
+//     }
+    
+//     // Agar Turnstile hai, toh check karo kya visitor ne check_out kiya hai?
+//     if ($timeOut && $timeOut != 'N/A') {
+//         return 'Out';
+//     }
+    
+//     // Agar check_out nahi hai, toh Entry hai
+//     return 'Turnstile (Entry)';
+// }
+
+private function getCurrentLocationBasedOnLatestScan($logs)
+{
+    if ($logs->isEmpty()) return 'N/A';
+    
+    $latestLog = $logs->first();
+    $locationName = $latestLog->location_name ?? '';
+    $serialNumber = $latestLog->device_id ?? '';
+    
+    if (!$locationName) return 'N/A';
+    
+    $vendorLocation = VendorLocation::where('name', $locationName)->first();
+    if (!$vendorLocation) return $locationName;
+    
+    // ✅ device_id match karo
+    $deviceId = $this->getInternalDeviceId($serialNumber);
+    $query = DeviceLocationAssign::where('location_id', $vendorLocation->id);
+    if ($deviceId) {
+        $query->where('device_id', $deviceId);
+    }
+    $deviceAssign = $query->first();
+    
+    if ($deviceAssign && $deviceAssign->is_type === 'check_out') {
+        return 'Out';
+    }
+    
+    return $locationName;  // check_in ya undefined -> location name
+}
+
+
+
+    // ✅ UPDATED: Main function with optimized current location logic
+    private function getVisitorsFromDeviceLogsOptimized()
+    {
+        try {
+            $deviceLogs = DeviceAccessLog::where('access_granted', 1)
+                ->orderBy('created_at', 'desc')
+                ->get();
+
+            $groupedLogs = $deviceLogs->groupBy('staff_no');
+
+            $visitors = [];
+            $serialNo = 1;
+
+            foreach ($groupedLogs as $staffNo => $logs) {
+                try {
+                    $javaApiResponse = $this->callJavaVendorApi($staffNo);
+                    $visitorData = $javaApiResponse['data'] ?? null;
+
+                    $latestLog = $logs->first();
+                    $earliestLog = $logs->last();
+
+                    // ✅ Time In
+                    $timeIn = $this->getTimeForType($logs, 'check_in');
+                    
+                    // ✅ Time Out
+                    $timeOut = $this->getTimeForType($logs, 'check_out');
+                    
+                    // ✅ Current Location with Turnstile check
+                    $currentLocation = $this->getCurrentLocationWithTurnstileCheck($latestLog);
+
+                    $dateOfVisit = $earliestLog ? $earliestLog->created_at->format('Y-m-d') : 'N/A';
+
+                    // Accessed locations
+                    $accessedLocations = $logs->pluck('location_name')->unique()->filter()->implode(', ');
+
+                    $purpose = $this->extractPurposeFromApi($visitorData ?? []);
+
+                    $status = $this->determineVisitorStatus(
+                        $visitorData['dateOfVisitFrom'] ?? null,
+                        $visitorData['dateOfVisitTo'] ?? null,
+                        $logs
+                    );
+
+                    $visitors[] = [
+                        'no' => $serialNo++,
+                        'ic_passport' => $visitorData['icNo'] ?? 'N/A',
+                        'name' => $visitorData['fullName'] ?? 'N/A',
+                        'contact_no' => $visitorData['contactNo'] ?? 'N/A',
+                        'company_name' => $visitorData['companyName'] ?? 'N/A',
+                        'date_of_visit' => $dateOfVisit,
+                        'time_in' => $timeIn,
+                        'time_out' => $timeOut ?? 'N/A',
+                        'purpose' => $purpose,
+                        'host_name' => $visitorData['personVisited'] ?? 'N/A',
+                        'current_location' => $currentLocation,
+                        'location_accessed' => $accessedLocations ?: 'N/A',
+                        'duration' => $this->calculateDurationFromFirstEntry($logs),
+                        'status' => $status
+                    ];
+
+                } catch (\Exception $e) {
+                    Log::error('Error processing visitor ' . $staffNo . ': ' . $e->getMessage());
+                    continue;
+                }
+            }
+
+            return $visitors;
+
+        } catch (\Exception $e) {
+            Log::error('Error fetching visitors from device logs: ' . $e->getMessage());
+            return $this->getStaticVisitors();
+        }
+    }
+    
+    // ✅ Helper function to get time based on check type
+    // private function getTimeForType($logs, $checkType)
+    // {
+    //     foreach ($logs as $log) {
+    //         if (!$log->location_name) continue;
+            
+    //         $vendorLocation = VendorLocation::where('name', $log->location_name)->first();
+    //         if (!$vendorLocation) continue;
+            
+    //         $deviceAssign = DeviceLocationAssign::where('location_id', $vendorLocation->id)
+    //             ->where('is_type', $checkType)
+    //             ->first();
+            
+    //         if ($deviceAssign) {
+    //             return $log->created_at->format('H:i:s');
+    //         }
+    //     }
+        
+    //     return null;
+    // }
+
+
+private function getTimeForType($logs, $checkType)
+{
+    foreach ($logs as $log) {
+        if (!$log->location_name) continue;
+        
+        $vendorLocation = VendorLocation::where('name', $log->location_name)->first();
+        if (!$vendorLocation) continue;
+        
+        $deviceId = $this->getInternalDeviceId($log->device_id);
+        $query = DeviceLocationAssign::where('location_id', $vendorLocation->id)
+            ->where('is_type', $checkType);
+        if ($deviceId) {
+            $query->where('device_id', $deviceId);
+        }
+        $deviceAssign = $query->first();
+        
+        if ($deviceAssign) {
+            return Carbon::parse($log->created_at)
+                ->setTimezone(self::MALAYSIA_TIMEZONE)
+                ->format('H:i:s');
+        }
+    }
+    return null;
+}
+
+
+// private function calculateDuration($timeIn, $timeOut)
+// {
+//     try {
+//         if (!$timeIn || $timeIn == 'N/A') {
+//             return 'N/A';
+//         }
+        
+//         if ($timeOut && $timeOut != 'N/A') {
+//             // Agar time_out hai, toh time_in se time_out tak ka duration
+//             $start = Carbon::parse($timeIn);
+//             $end = Carbon::parse($timeOut);
+//             $diffInMinutes = $end->diffInMinutes($start);
+//         } else {
+//             // Agar time_out nahi hai, toh time_in se abhi tak ka duration
+//             $start = Carbon::parse($timeIn);
+//             $diffInMinutes = now()->diffInMinutes($start);
+//         }
+        
+//         $hours = floor($diffInMinutes / 60);
+//         $minutes = $diffInMinutes % 60;
+        
+//         if ($hours > 0) {
+//             return $hours . ' hours ' . $minutes . ' minutes';
+//         } else {
+//             return $minutes . ' minutes';
+//         }
+        
+//     } catch (\Exception $e) {
+//         return 'N/A';
+//     }
+// }
+
+private function calculateDuration($timeIn, $timeOut)
+{
+    try {
+        if (!$timeIn || $timeIn == 'N/A') {
+            return 'N/A';
+        }
+        
+        // ✅ FIX: Parse times with Malaysia timezone
+        if ($timeOut && $timeOut != 'N/A') {
+            // Agar time_out hai, toh time_in se time_out tak ka duration
+            $start = Carbon::parse($timeIn, self::MALAYSIA_TIMEZONE);
+            $end = Carbon::parse($timeOut, self::MALAYSIA_TIMEZONE);
+            $diffInMinutes = $end->diffInMinutes($start);
+        } else {
+            // Agar time_out nahi hai, toh time_in se abhi tak ka duration
+            $start = Carbon::parse($timeIn, self::MALAYSIA_TIMEZONE);
+            $now = Carbon::now(self::MALAYSIA_TIMEZONE);
+            $diffInMinutes = $now->diffInMinutes($start);
+        }
+        
+        $hours = floor($diffInMinutes / 60);
+        $minutes = $diffInMinutes % 60;
+        
+        if ($hours > 0) {
+            return $hours . ' hours ' . $minutes . ' minutes';
+        } else {
+            return $minutes . ' minutes';
+        }
+        
+    } catch (\Exception $e) {
+        return 'N/A';
+    }
+}
+
+
+    private function determineVisitorStatus($dateFrom, $dateTo, $logs)
+    {
+        if ($dateFrom && $dateTo) {
+            try {
+                // Malaysia timezone
+                $now = Carbon::now(self::MALAYSIA_TIMEZONE);
+
+                $from = Carbon::parse($dateFrom, self::MALAYSIA_TIMEZONE)
+                    ->subHours(8);
+
+                $to = Carbon::parse($dateTo, self::MALAYSIA_TIMEZONE)
+                    ->subHours(8);
+
+                if ($now->gt($to)) {
+                    return 'Completed';
+                } elseif ($now->between($from, $to)) {
+                    return 'Active';
+                } else {
+                    return 'Scheduled';
+                }
+            } catch (\Exception $e) {
+                // fallback
+            }
+        }
+
+        return 'Active';
+    }
+
+    private function extractPurposeFromApi($visitorData)
+    {
+        $possiblePurposeFields = [
+            'purpose',
+            'purposeOfVisit', 
+            'visitPurpose',
+            'reason',
+            'visitReason',
+            'businessPurpose',
+            'visitObjective'
+        ];
+        
+        foreach ($possiblePurposeFields as $field) {
+            if (isset($visitorData[$field]) && !empty($visitorData[$field])) {
+                return $visitorData[$field];
+            }
+        }
+        
+        if (isset($visitorData['personVisited']) && !empty($visitorData['personVisited'])) {
+            return 'Meeting with ' . $visitorData['personVisited'];
+        }
+        
+        return 'Business Visit';
+    }
+
+    private function callJavaVendorApi($staffNo)
+    {
+        try {
+            $javaBaseUrl = env('JAVA_BACKEND_URL', 'http://127.0.0.1:8080');
+            $token = session()->get('java_backend_token')
+               ?? session()->get('java_auth_token');
+            Log::info('Calling Java Vendor API for staff_no: ' . $staffNo);
+
+            $headers = [
+                'x-auth-token' => $token,
+                'Accept'       => 'application/json',
+            ];
+            
+        $response = Http::withHeaders($headers)
+            ->timeout(15)
+            ->retry(2, 100)
+            ->get($javaBaseUrl . '/api/vendorpass/get-visitor-details', [
+                'icNo' => $staffNo
+            ]);
+
+            
+            Log::info('Java Vendor API Response Status: ' . $response->status());
+            
+            if ($response->successful()) {
+                $data = $response->json();
+                Log::info('✅ API SUCCESS for staff: ' . $staffNo);
+                Log::info('Response Data: ' . json_encode($data));
+                Log::info('Java Vendor API Success for ' . $staffNo . ': Data received');
+                return $data;
+            } else {
+                Log::error('Java Vendor API error for staff_no ' . $staffNo . ': HTTP ' . $response->status());
+                return null;
+            }
+        } catch (\Exception $e) {
+            Log::error('Java Vendor API exception for staff_no ' . $staffNo . ': ' . $e->getMessage());
+            return null;
+        }
+    }
+
+    private function getStaticVisitors()
+    {
+        return [
+            [
+                'no' => 1,
+                'ic_passport' => '901231-14-1234',
+                'name' => 'Ahmad bin Ali',
+                'contact_no' => '012-3456789',
+                'company_name' => 'ABC Sdn Bhd',
+                'date_of_visit' => '2024-01-15',
+                'time_in' => '09:15:00',
+                'time_out' => null,
+                'purpose' => 'Business Meeting',
+                'host_name' => 'Siti Nurhaliza',
+                'current_location' => 'Main Lobby',
+                'location_accessed' => 'Main Gate, Security Check, Main Lobby',
+                'duration' => '3 hours 15 minutes',
+                'status' => 'Active'
+            ]
+        ];
+    }
+
+    private function getInternalDeviceId($serialNumber)
+    {
+        if (!$serialNumber) return null;
+        $device = DeviceConnection::where('device_id', $serialNumber)->first();
+        return $device ? $device->id : null;
+    }
+}
+
